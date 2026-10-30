@@ -1,5 +1,5 @@
 ---
-description: "Durable DAG, explainable scheduling, and real Harness Agent-team orchestration for the Future Cup frontend platform."
+description: "Durable DAG, explainable scheduling, independent browser verification, and bounded repair for the Future Cup frontend platform."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run a durable frontend-engineering DAG through explainable scheduling and a real DeepSeek Harness Agent team. The package owns task revisions, Journal replay, scheduling decisions, execution evidence, structured Agent outputs, scoped file application, and independent TypeScript/Vite verification.
+Run a durable frontend-engineering DAG through explainable scheduling and a real DeepSeek Harness Agent team. The package owns task revisions, Journal replay, scheduling decisions, execution evidence, structured Agent outputs, scoped file application, independent static/build/browser verification, and bounded Repair Agent retries.
 
 ## Table of Contents
 
@@ -24,11 +24,11 @@ Run a durable frontend-engineering DAG through explainable scheduling and a real
 <a id="use-this-package"></a>
 ## Use this package
 
-Choose this package for the Future Cup M2 prototype or for tests that need a durable task DAG with real Harness Sessions.
+Choose this package for the Future Cup M3 prototype or for tests that need a durable task DAG, browser verification, and a bounded self-loop with real Harness Sessions.
 
 ### Create a real team
 
-Create one SQLite repository, the default five Agent profiles, and one real Harness invoker per profile. The profiles contain `Planner`, `UI Designer`, `Frontend Agent A`, `Frontend Agent B`, and `Integration`. The two frontend instances have equal capability and capacity so parallel tasks can be load-balanced.
+Create one SQLite repository, the default seven Agent profiles, and one real Harness invoker per profile. The profiles contain `Planner`, `UI Designer`, `Tester`, `Frontend Agent A`, `Frontend Agent B`, `Integration`, and `Repair Agent`. The two frontend instances have equal capability and capacity so parallel tasks can be load-balanced.
 
 ```ts
 import {
@@ -44,7 +44,21 @@ const invokers = createHarnessAgentTeam(profiles, {
   workspace: './generated-app',
   homeRoot: './agent-homes',
 })
-const team = new TeamOrchestrator({ repository, invokers, profiles, workspace: './generated-app' })
+const team = new TeamOrchestrator({
+  repository,
+  invokers,
+  profiles,
+  workspace: './generated-app',
+  verification: {
+    buildTimeoutMs: 600_000,
+    browserTimeoutMs: 60_000,
+    screenshotDir: './verification-screenshots',
+  },
+  selfLoop: {
+    maxRepairRounds: 3,
+    repairTimeoutMs: 600_000,
+  },
+})
 const result = await team.run('Build a dashboard with a users page')
 await team.close()
 repository.close()
@@ -56,7 +70,7 @@ Tasks use `PENDING`, `READY`, `RUNNING`, `COMPLETED`, `FAILED`, `BLOCKED`, and `
 
 ### Durable records
 
-The SQLite schema contains `projects`, `tasks`, `task_dependencies`, `task_journal`, `scheduler_decisions`, `executions`, `execution_events`, and `verification_reports`. Every task mutation updates its revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows.
+The SQLite schema contains `projects`, `tasks`, `task_dependencies`, `task_journal`, `scheduler_decisions`, `executions`, `execution_events`, `verification_reports`, `repair_records`, and `workflow_runs`. Every task mutation updates its revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1 databases migrate in place to v2 without deleting existing verification evidence.
 
 ### Scheduling
 
@@ -78,6 +92,12 @@ Every role runs in a separate Harness runtime and Session with the `artifact-onl
 
 The UI Designer returns design tokens rather than a large stylesheet. The package renders a deterministic shared CSS file from those tokens.
 
+### Verification and bounded repair
+
+The Verifier checks required project files, requires `HashRouter` instead of `BrowserRouter`, installs dependencies, runs `tsc --noEmit`, creates a Vite production bundle, starts a loopback preview server, and drives Chromium through Playwright at desktop and mobile widths. A PASS requires every expected route to render non-empty content, required text and navigation interactions to succeed, and the browser to report no `pageerror`, `console.error`, Ant Design deprecation warning, failed request, or HTTP 4xx/5xx response.
+
+Findings are normalized into a deterministic SHA-256 `failureSignature`. The self-loop permits the configured number of Repair Agent rounds, runs the complete verification pipeline after every repair, stores the real source diff and before/after statuses, and stops with `ESCALATED` on repeated signatures, timeout, verifier incompleteness, or exhausted rounds. Every Repair call uses its own Harness Session.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -86,13 +106,18 @@ The UI Designer returns design tokens rather than a large stylesheet. The packag
 | File | Role |
 |---|---|
 | `src/sqlite.ts` | Versioned SQLite schema and connection setup |
-| `src/repository.ts` | Durable task, scheduling, execution, event, and verification records |
+| `src/repository.ts` | Durable task, scheduling, execution, verification, repair, and workflow records |
 | `src/dag-engine.ts` | Cycle validation, readiness, transitions, blocking, requeue, Journal replay, and resume |
 | `src/scheduler.ts` | Capability matching, weighted scoring, load balancing, and reassignment |
 | `src/agent-contracts.ts` | Structured invocation and JSON output validation |
 | `src/harness-agents.ts` | Real TypeScript SDK Agent adapters and read-only profile |
-| `src/team-orchestrator.ts` | Planner, role execution, parallel frontend calls, Integration, and build verification |
-| `src/build-verifier.ts` | Independent npm install and TypeScript/Vite build checks |
+| `src/team-orchestrator.ts` | Planner, role execution, parallel frontend calls, Integration, and self-loop composition |
+| `src/build-verifier.ts` | Independent dependency, TypeScript, and Vite build checks |
+| `src/browser-verifier.ts` | Playwright route, interaction, console, page error, and network verification |
+| `src/preview-server.ts` | Owned loopback preview server with atomic port allocation and quiescent close |
+| `src/failure-signature.ts` | Diagnostic normalization and stable repeated-failure hashing |
+| `src/self-healer.ts` | Bounded repair loop, timeout handling, repeated-failure circuit breaker, and escalation |
+| `src/workspace-diff.ts` | Source snapshot and real unified repair diff generation |
 
 ## Model Experience
 
@@ -100,11 +125,11 @@ The UI Designer returns design tokens rather than a large stylesheet. The packag
 
 #### What the model sees
 
-Each Agent receives the role instructions from `src/prompts.ts`, the JSON Schema generated from the task-owned Zod validator, and the complete structured task input. The Planner sees the user requirement; the UI Designer sees pages; each Frontend Agent sees one page and the design output; Integration sees all page outputs and design evidence.
+Each Agent receives the role instructions from `src/prompts.ts`, the JSON Schema generated from the task-owned Zod validator, and the complete structured task input. The Planner sees the user requirement; the UI Designer sees pages; the Tester sees the page and design outputs; each Frontend Agent sees one page, its Tester assertions, and the design output; Integration sees all page outputs, verification assertions, and design evidence; Repair sees the structured failure report, affected source, and prior repair summaries.
 
 #### Token effect
 
-Planner and role prompts include the task input and generated JSON Schema. The default Agent output cap is 32,000 tokens. UI Designer returns compact tokens, while each frontend task is limited to three files and each Integration output to eight files.
+Planner and role prompts include the task input and generated JSON Schema. The default Agent output cap is 32,000 tokens. UI Designer returns compact tokens, each frontend task is limited to three files, each Integration output to eight files, and each Repair output to eight source files.
 
 #### KV Cache effect
 
@@ -112,14 +137,15 @@ Role prompts are stable for a given role, generated schema, and task input. Diff
 
 ## Known Limitations and Deferred Work
 
-- **Experimental package:** the public API can change while M2 incubates.
+- **Experimental package:** the public API can change while M3 incubates.
 - **SQLite prototype:** PostgreSQL and Prisma integration remain M4 work.
-- **Fixed in-process team:** the M2 team is configuration-driven but not a general Agent marketplace.
+- **Fixed in-process team:** the M3 team is configuration-driven but not a general Agent marketplace.
 - **No cross-process scheduler lease:** one process is expected to own one project DAG at a time.
-- **Single action verifier:** this milestone verifies installation, TypeScript, and Vite build; browser verification and bounded repair remain M3.
+- **Playwright runtime:** browser verification requires a matching installed Chromium build; an unavailable browser produces `INCOMPLETE`, never `PASS`.
+- **No requirement-generation repair:** Repair can change only generated `src/` files; failures in platform-owned scaffold files escalate instead of silently rewriting the generator.
 - **Agent output budgets:** large generated pages require explicit model-output configuration or additional decomposition.
 
 <a id="dev-note"></a>
 ### Dev Note
 
-M2 uses a 32,000-token structured-output budget with reasoning disabled by default for task Agents. M3 should replace fixed output ceilings with evidence-driven decomposition and verify browser behavior in addition to the build.
+M3 uses a 32,000-token structured-output budget with reasoning disabled by default for task Agents. Browser verification and bounded repair are part of the normal `TeamOrchestrator.run()` path. M4 owns PostgreSQL, realtime events, and management/HQ integration.

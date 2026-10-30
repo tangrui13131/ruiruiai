@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1 与 M2 已经完成，M3 是下一个受门禁约束的里程碑。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2 与 M3 已经完成，M4 是下一个受门禁约束的里程碑。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -102,7 +102,7 @@ HQ 将这些事件映射到 Agent、部门、工作流、进度、日志、验�
 
 每个里程碑交付设计、实现、测试、验收报告和遗留问题。可观察验收标准通过前，不进入下一里程碑。
 
-### M1 and M2 results and next work
+### M1、M2 与 M3 结果和后续工作
 
 M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runtime，真实 DeepSeek 模型完成了轮次，真实模型生成了 React、TypeScript、Vite 与 Ant Design 工程。后续真实模型轮次安装依赖并运行生产构建；独立 Playwright 验证在桌面与移动视口通过，计数器交互正常。
 
@@ -112,7 +112,11 @@ M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runt
 - SWE-ReX 1.4.0 需要显式安装 `aiohttp`，其管理 bridge 必须与严格执行网络策略结合。
 - M2 实现了实验性 Future Cup 编排包：SQLite 任务修订与 Journal、环检测、就绪传播、失败阻断、恢复、可解释加权调度、负载均衡、重新分配、执行记录与结构化 Agent 契约。
 - 真实 DeepSeek E2E 让 Planner、UI Designer、两个并行 Frontend Agent 与 Integration 在独立 Session 中运行。生成的 React/TypeScript/Vite/Ant Design 工程通过 TypeScript 与 Vite 生产构建。
-- M3 从独立浏览器验证、结构化失败报告、有界 Repair Agent 重试、重复失败熔断与可见人工升级开始。
+- M3 将 SQLite schema 升级到 v2，新增结构化验证报告、确定性失败签名、`repair_records`、`workflow_runs` 与 M2 数据原地迁移。
+- Tester 在独立 Session 中生成路由、可见文本与导航交互断言。独立 Verifier 顺序运行工程结构、依赖安装、`tsc --noEmit`、Vite build，以及桌面与移动 Playwright 检查；`pageerror`、`console.error`、Ant Design 弃用告警、失败请求和 HTTP 4xx/5xx 均可阻止 PASS。
+- 有界 Self-loop 每次修复后重新运行完整验证，保存真实源码 Diff 和修复前后状态；显式配置控制最大轮次与超时，重复失败签名、超时、验证环境不完整或轮次耗尽都会落盘为可见 `ESCALATED` 状态。
+- 真实 DeepSeek M3 E2E 先完成六个独立生成 Session，再注入确定性 TypeScript 错误。Playwright 随后捕获另一项真实浏览器失败。两个独立 Repair Session 分别移除构建错误并修复用户管理页可见断言，最终工程通过 TypeScript、Vite、桌面与移动浏览器验证。
+- M4 将开始管理界面、PostgreSQL/Prisma、Socket.IO 实时事件与 HQ 集成。
 
 ## Alternatives considered
 

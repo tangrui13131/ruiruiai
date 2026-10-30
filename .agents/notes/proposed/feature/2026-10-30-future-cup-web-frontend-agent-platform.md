@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1 and M2 are complete and M3 is the next gated milestone. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, and M3 are complete and M4 is the next gated milestone. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -102,7 +102,7 @@ The project uses five gated milestones instead of building the document chapters
 
 Each milestone delivers its design, implementation, tests, acceptance report, and remaining issues. Work does not advance until the milestone's observable acceptance criteria pass.
 
-### M1 and M2 results and next work
+### M1, M2, and M3 results and next work
 
 M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness runtime, a real DeepSeek model completed a turn, and a real model generated a React, TypeScript, Vite, and Ant Design project. A later real-model turn installed dependencies and ran the production build; independent Playwright verification passed on desktop and mobile with working counter behavior.
 
@@ -112,7 +112,11 @@ M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness r
 - SWE-ReX 1.4.0 requires an explicit `aiohttp` dependency, and its management bridge must be combined with a strict execution-network policy.
 - M2 implemented the experimental Future Cup orchestration package: SQLite task revisions and Journal, cycle detection, readiness propagation, failure blocking, resume, explainable weighted scheduling, load balancing, reassignment, execution records, and structured Agent contracts.
 - A real DeepSeek E2E ran Planner, UI Designer, two parallel Frontend Agents, and Integration in independent Sessions. The generated React/TypeScript/Vite/Ant Design project passed TypeScript and Vite production builds.
-- M3 starts with independent browser verification, structured failure reports, bounded Repair Agent retries, repeated-failure circuit breaking, and visible manual escalation.
+- M3 upgrades SQLite to schema v2 with structured verification reports, deterministic failure signatures, `repair_records`, `workflow_runs`, and in-place M2 migration.
+- A Tester Session generates route, required-text, and navigation assertions. The independent Verifier runs project structure, dependency installation, `tsc --noEmit`, Vite build, and desktop/mobile Playwright checks; `pageerror`, `console.error`, Ant Design deprecation warnings, failed requests, and HTTP 4xx/5xx responses prevent PASS.
+- The bounded self-loop reruns complete verification after every repair, persists the real source diff and before/after statuses, reads its maximum rounds and timeout from explicit configuration, and publishes `ESCALATED` on repeated signatures, timeout, verifier incompleteness, or exhaustion.
+- A real DeepSeek M3 E2E completed six independent generation Sessions, then injected a deterministic TypeScript error. Playwright subsequently found another real browser failure. Two independent Repair Sessions removed the build error and repaired a user-management visibility assertion before the final project passed TypeScript, Vite, desktop, and mobile browser verification.
+- M4 begins management UI, PostgreSQL/Prisma, Socket.IO realtime events, and HQ integration.
 
 ## Alternatives considered
 

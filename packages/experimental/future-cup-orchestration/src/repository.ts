@@ -7,8 +7,10 @@ import {
   AgentId,
   ExecutionId,
   ProjectId,
+  RepairRecordId,
   TaskId,
   VerificationReportId,
+  WorkflowRunId,
 } from './brand.ts'
 import {
   jsonValueSchema,
@@ -16,6 +18,7 @@ import {
   taskFailureSchema,
   taskJournalEntrySchema,
   taskSnapshotSchema,
+  verificationStatusSchema,
 } from './schemas.ts'
 import { openOrchestrationDatabase, ORCHESTRATION_SCHEMA_VERSION } from './sqlite.ts'
 import type {
@@ -24,6 +27,8 @@ import type {
   ExecutionStatus,
   JsonValue,
   ProjectRecord,
+  RepairRecord,
+  RepairRecordDraft,
   SchedulerDecision,
   TaskFailure,
   TaskJournalEntry,
@@ -31,6 +36,8 @@ import type {
   TaskSnapshot,
   VerificationReport,
   VerificationStatus,
+  WorkflowRunRecord,
+  WorkflowStatus,
 } from './types.ts'
 
 interface RepositoryOptions {
@@ -93,8 +100,36 @@ const verificationRowSchema = z.object({
   project_id: z.string(),
   task_id: z.string().nullable(),
   status: z.string(),
+  failure_signature: z.string().nullable(),
   report_json: z.string(),
   created_at: z.string(),
+}).strict()
+
+const repairRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  repair_round: z.number(),
+  verification_report_id: z.string(),
+  repair_agent_id: z.string(),
+  failure_signature: z.string(),
+  error_summary: z.string(),
+  change_summary: z.string(),
+  diff: z.string(),
+  before_status: z.string(),
+  after_status: z.string(),
+  started_at: z.string(),
+  completed_at: z.string(),
+}).strict()
+
+const workflowRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  status: z.string(),
+  repair_round: z.number(),
+  escalation_reason: z.string().nullable(),
+  escalation_message: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
 }).strict()
 
 /** Current persisted DAG state used by resume verification. */
@@ -391,6 +426,7 @@ export class OrchestrationRepository {
    * @param status - verification verdict.
    * @param report - complete evidence.
    * @param taskId - optional task whose result was verified.
+   * @param failureSignature - stable repeated-failure identity when findings exist.
    * @returns the durable report identity.
    */
   saveVerificationReport(
@@ -398,14 +434,24 @@ export class OrchestrationRepository {
     status: VerificationStatus,
     report: JsonValue,
     taskId?: TaskId,
+    failureSignature?: string,
   ): VerificationReport {
     const id = VerificationReportId(`verification-${this.createId()}`)
     const createdAt = this.timestamp()
     this.database.prepare(`
-      INSERT INTO verification_reports (id, project_id, task_id, status, report_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, projectId, taskId ?? null, status, JSON.stringify(report), createdAt)
-    return { id, projectId, taskId, status, report, createdAt }
+      INSERT INTO verification_reports (
+        id, project_id, task_id, status, failure_signature, report_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      projectId,
+      taskId ?? null,
+      status,
+      failureSignature ?? null,
+      JSON.stringify(report),
+      createdAt,
+    )
+    return { id, projectId, taskId, status, failureSignature, report, createdAt }
   }
 
   /**
@@ -415,7 +461,7 @@ export class OrchestrationRepository {
    */
   listVerificationReports(projectId: ProjectId): VerificationReport[] {
     const rows = verificationRowSchema.array().parse(this.database.prepare(`
-      SELECT id, project_id, task_id, status, report_json, created_at
+      SELECT id, project_id, task_id, status, failure_signature, report_json, created_at
       FROM verification_reports
       WHERE project_id = ?
       ORDER BY rowid
@@ -425,8 +471,149 @@ export class OrchestrationRepository {
       projectId: ProjectId(row.project_id),
       taskId: row.task_id === null ? undefined : TaskId(row.task_id),
       status: decodeVerificationStatus(row.status),
+      failureSignature: row.failure_signature ?? undefined,
       report: jsonValueSchema.parse(JSON.parse(row.report_json)),
       createdAt: row.created_at,
+    }))
+  }
+
+  /**
+   * Start the one durable M3 workflow state for a project.
+   * @param projectId - owning project.
+   * @returns the initial running workflow record.
+   */
+  startWorkflowRun(projectId: ProjectId): WorkflowRunRecord {
+    const id = WorkflowRunId(`workflow-${this.createId()}`)
+    const createdAt = this.timestamp()
+    this.database.prepare(`
+      INSERT INTO workflow_runs (
+        id, project_id, status, repair_round, escalation_reason, escalation_message, created_at, updated_at
+      ) VALUES (?, ?, 'RUNNING', 0, NULL, NULL, ?, ?)
+    `).run(id, projectId, createdAt, createdAt)
+    return {
+      id,
+      projectId,
+      status: 'RUNNING',
+      repairRound: 0,
+      createdAt,
+      updatedAt: createdAt,
+    }
+  }
+
+  /**
+   * Publish one workflow commit point.
+   * @param projectId - owning project.
+   * @param status - running, passed, or escalated.
+   * @param repairRound - latest attempted repair round.
+   * @param escalationReason - stable manual-intervention reason.
+   * @param escalationMessage - visible operator explanation.
+   * @returns the committed workflow state.
+   */
+  updateWorkflowRun(
+    projectId: ProjectId,
+    status: WorkflowStatus,
+    repairRound: number,
+    escalationReason?: WorkflowRunRecord['escalationReason'],
+    escalationMessage?: string,
+  ): WorkflowRunRecord {
+    const updatedAt = this.timestamp()
+    const result = this.database.prepare(`
+      UPDATE workflow_runs
+      SET status = ?, repair_round = ?, escalation_reason = ?, escalation_message = ?, updated_at = ?
+      WHERE project_id = ?
+    `).run(
+      status,
+      repairRound,
+      escalationReason ?? null,
+      escalationMessage ?? null,
+      updatedAt,
+      projectId,
+    )
+    if (result.changes !== 1) throw new Error(`cannot update missing workflow for project "${projectId}"`)
+    const workflow = this.getWorkflowRun(projectId)
+    if (workflow === undefined) throw new Error(`workflow for project "${projectId}" disappeared after update`)
+    return workflow
+  }
+
+  /**
+   * Read one project's workflow state.
+   * @param projectId - owning project.
+   * @returns the workflow record when it exists.
+   */
+  getWorkflowRun(projectId: ProjectId): WorkflowRunRecord | undefined {
+    const raw = this.database.prepare(`
+      SELECT id, project_id, status, repair_round, escalation_reason, escalation_message, created_at, updated_at
+      FROM workflow_runs
+      WHERE project_id = ?
+    `).get(projectId)
+    return raw === undefined ? undefined : decodeWorkflowRun(workflowRowSchema.parse(raw))
+  }
+
+  /**
+   * Persist one completed repair attempt with its real code diff.
+   * @param projectId - owning project.
+   * @param draft - completion evidence from the self-loop.
+   * @returns the durable repair record.
+   */
+  saveRepairRecord(projectId: ProjectId, draft: RepairRecordDraft): RepairRecord {
+    const record: RepairRecord = {
+      id: RepairRecordId(`repair-${this.createId()}`),
+      projectId,
+      ...draft,
+    }
+    this.database.prepare(`
+      INSERT INTO repair_records (
+        id, project_id, repair_round, verification_report_id, repair_agent_id,
+        failure_signature, error_summary, change_summary, diff,
+        before_status, after_status, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      record.id,
+      record.projectId,
+      record.repairRound,
+      record.verificationReportId,
+      record.repairAgentId,
+      record.failureSignature,
+      record.errorSummary,
+      record.changeSummary,
+      record.diff,
+      record.beforeStatus,
+      record.afterStatus,
+      record.startedAt,
+      record.completedAt,
+    )
+    return record
+  }
+
+  /**
+   * List repair attempts in round order.
+   * @param projectId - owning project.
+   * @returns validated repair records.
+   */
+  listRepairRecords(projectId: ProjectId): RepairRecord[] {
+    const rows = repairRowSchema.array().parse(this.database.prepare(`
+      SELECT
+        id, project_id, repair_round, verification_report_id, repair_agent_id,
+        failure_signature, error_summary, change_summary, diff,
+        before_status, after_status, started_at, completed_at
+      FROM repair_records
+      WHERE project_id = ?
+      ORDER BY repair_round
+    `).all(projectId))
+    return rows.map(row => ({
+      id: RepairRecordId(row.id),
+      projectId: ProjectId(row.project_id),
+      repairRound: row.repair_round,
+      verificationReportId: VerificationReportId(row.verification_report_id),
+      repairAgentId: AgentId(row.repair_agent_id),
+      failureSignature: row.failure_signature,
+      errorSummary: row.error_summary,
+      changeSummary: row.change_summary,
+      diff: row.diff,
+      beforeStatus: decodeVerificationStatus(row.before_status),
+      afterStatus: decodeVerificationStatus(row.after_status),
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
     }))
   }
 
@@ -544,13 +731,47 @@ function decodeExecutionStatus(value: string): ExecutionStatus {
 
 /** Decode a persisted verification status. */
 function decodeVerificationStatus(value: string): VerificationStatus {
+  return verificationStatusSchema.parse(value)
+}
+
+/** Decode one workflow row with stable terminal-state validation. */
+function decodeWorkflowRun(row: z.infer<typeof workflowRowSchema>): WorkflowRunRecord {
+  return {
+    id: WorkflowRunId(row.id),
+    projectId: ProjectId(row.project_id),
+    status: decodeWorkflowStatus(row.status),
+    repairRound: row.repair_round,
+    escalationReason: row.escalation_reason === null
+      ? undefined
+      : decodeEscalationReason(row.escalation_reason),
+    escalationMessage: row.escalation_message ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+/** Decode one durable workflow status. */
+function decodeWorkflowStatus(value: string): WorkflowStatus {
   switch (value) {
-    case 'PASS':
-    case 'FAIL':
-    case 'WARNING':
-    case 'INCOMPLETE':
+    case 'RUNNING':
+    case 'PASSED':
+    case 'ESCALATED':
       return value
     default:
-      throw new Error(`unknown verification status "${value}"`)
+      throw new Error(`unknown workflow status "${value}"`)
+  }
+}
+
+/** Decode one durable escalation reason. */
+function decodeEscalationReason(value: string): NonNullable<WorkflowRunRecord['escalationReason']> {
+  switch (value) {
+    case 'MAX_REPAIR_ROUNDS':
+    case 'REPEATED_FAILURE':
+    case 'REPAIR_TIMEOUT':
+    case 'REPAIR_FAILED':
+    case 'VERIFIER_INCOMPLETE':
+      return value
+    default:
+      throw new Error(`unknown escalation reason "${value}"`)
   }
 }

@@ -17,11 +17,11 @@ export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() => z.union([
 /** Durable task state validator. */
 export const taskStatusSchema = z.enum(TASK_STATUSES)
 
-/** M2 Agent role validator. */
+/** M3 Agent role validator. */
 export const agentRoleSchema = z.enum(AGENT_ROLES)
 
-/** Planner role cannot appear as a DAG task. */
-export const taskRoleSchema = agentRoleSchema.exclude(['planner'])
+/** Planner and Repair roles cannot appear as generated DAG implementation tasks. */
+export const taskRoleSchema = agentRoleSchema.exclude(['planner', 'repair'])
 
 /** Structured task failure validator. */
 export const taskFailureSchema = z.object({
@@ -89,6 +89,8 @@ export const plannedPageSchema = z.object({
   title: z.string().min(1).max(120),
   description: z.string().min(1).max(2_000),
   path: filePlanSchema.shape.path,
+  route: z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/),
+  navigationLabel: z.string().min(1).max(80),
 }).strict()
 
 /** Planner task output. */
@@ -104,15 +106,19 @@ export const plannedTaskSchema = z.object({
   pageId: z.string().regex(/^[a-z][a-z0-9-]*$/).optional(),
 }).strict()
 
-/** Planner output with the M2 team shape enforced. */
+/** Planner output with the M3 team shape enforced. */
 export const plannerOutputSchema = z.object({
   projectName: z.string().min(1).max(120),
   pages: z.array(plannedPageSchema).min(2),
-  tasks: z.array(plannedTaskSchema).min(4),
+  tasks: z.array(plannedTaskSchema).min(5),
 }).strict().superRefine((value, context) => {
   const pageIds = new Set(value.pages.map(page => page.id))
   if (pageIds.size !== value.pages.length) {
     context.addIssue({ code: 'custom', message: 'page ids must be unique', path: ['pages'] })
+  }
+  const routes = new Set(value.pages.map(page => page.route))
+  if (routes.size !== value.pages.length) {
+    context.addIssue({ code: 'custom', message: 'page routes must be unique', path: ['pages'] })
   }
   const taskIds = new Set(value.tasks.map(task => task.id))
   if (taskIds.size !== value.tasks.length) {
@@ -137,10 +143,14 @@ export const plannerOutputSchema = z.object({
     }
   }
   const designTasks = value.tasks.filter(task => task.role === 'ui-designer')
+  const testerTasks = value.tasks.filter(task => task.role === 'tester')
   const frontendTasks = value.tasks.filter(task => task.role === 'frontend')
   const integrationTasks = value.tasks.filter(task => task.role === 'integration')
   if (designTasks.length !== 1) {
     context.addIssue({ code: 'custom', message: 'exactly one UI Designer task is required', path: ['tasks'] })
+  }
+  if (testerTasks.length !== 1) {
+    context.addIssue({ code: 'custom', message: 'exactly one Tester task is required', path: ['tasks'] })
   }
   if (frontendTasks.length < 2 || new Set(frontendTasks.map(task => task.pageId)).size !== frontendTasks.length) {
     context.addIssue({
@@ -153,13 +163,21 @@ export const plannerOutputSchema = z.object({
     context.addIssue({ code: 'custom', message: 'exactly one Integration task is required', path: ['tasks'] })
   }
   const designId = designTasks[0]?.id
+  const testerId = testerTasks[0]?.id
   const frontendIds = new Set(frontendTasks.map(task => task.id))
-  if (designId !== undefined) {
+  if (testerId !== undefined && designId !== undefined && !testerTasks[0]?.dependencies.includes(designId)) {
+    context.addIssue({
+      code: 'custom',
+      message: `Tester task "${testerId}" must depend on "${designId}"`,
+      path: ['tasks'],
+    })
+  }
+  if (designId !== undefined && testerId !== undefined) {
     for (const task of frontendTasks) {
-      if (!task.dependencies.includes(designId)) {
+      if (!task.dependencies.includes(designId) || !task.dependencies.includes(testerId)) {
         context.addIssue({
           code: 'custom',
-          message: `frontend task "${task.id}" must depend on "${designId}"`,
+          message: `frontend task "${task.id}" must depend on both "${designId}" and "${testerId}"`,
           path: ['tasks'],
         })
       }
@@ -175,6 +193,13 @@ export const plannerOutputSchema = z.object({
           path: ['tasks'],
         })
       }
+    }
+    if (testerId !== undefined && !integration.dependencies.includes(testerId)) {
+      context.addIssue({
+        code: 'custom',
+        message: `integration task must depend on Tester task "${testerId}"`,
+        path: ['tasks'],
+      })
     }
   }
 })
@@ -208,6 +233,91 @@ export const frontendOutputSchema = z.object({
 export const integrationOutputSchema = z.object({
   summary: z.string().min(1).max(4_000),
   files: z.array(filePlanSchema).min(1).max(8),
+}).strict()
+
+/** Tester page assertion input owned by the independent browser verifier. */
+export const testerPageSpecSchema = z.object({
+  pageId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+  route: z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/),
+  navigationLabel: z.string().min(1).max(80),
+  requiredText: z.array(z.string().min(1).max(160)).min(1).max(8),
+}).strict()
+
+/** One cross-page navigation assertion generated by the Tester Agent. */
+export const testerInteractionSchema = z.object({
+  fromRoute: z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/),
+  clickText: z.string().min(1).max(80),
+  expectedRoute: z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/),
+  expectedText: z.string().min(1).max(160),
+}).strict()
+
+/** Tester structured output with page and route references closed over its own value. */
+export const testerOutputSchema = z.object({
+  summary: z.string().min(1).max(4_000),
+  pages: z.array(testerPageSpecSchema).min(2),
+  interactions: z.array(testerInteractionSchema).min(1),
+}).strict().superRefine((value, context) => {
+  const pageIds = new Set(value.pages.map(page => page.pageId))
+  const routes = new Set(value.pages.map(page => page.route))
+  if (pageIds.size !== value.pages.length) {
+    context.addIssue({ code: 'custom', message: 'Tester page ids must be unique', path: ['pages'] })
+  }
+  if (routes.size !== value.pages.length) {
+    context.addIssue({ code: 'custom', message: 'Tester routes must be unique', path: ['pages'] })
+  }
+  for (const interaction of value.interactions) {
+    if (!routes.has(interaction.fromRoute) || !routes.has(interaction.expectedRoute)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Tester interactions must reference declared routes',
+        path: ['interactions'],
+      })
+    }
+  }
+})
+
+/** Repair Agent structured output; the orchestrator applies and audits these files. */
+export const repairOutputSchema = z.object({
+  diagnosis: z.string().min(1).max(8_000),
+  summary: z.string().min(1).max(4_000),
+  files: z.array(filePlanSchema).min(1).max(8),
+}).strict()
+
+/** One verification finding shared by reports and signatures. */
+export const verificationFindingSchema = z.object({
+  category: z.enum([
+    'structure',
+    'dependency',
+    'typescript',
+    'build',
+    'server',
+    'browser',
+    'console',
+    'network',
+  ]),
+  code: z.string().min(1).max(120),
+  severity: z.enum(['error', 'warning']),
+  message: z.string().min(1).max(8_000),
+  target: z.string().min(1).max(1_000).optional(),
+}).strict()
+
+/** Verification status validator. */
+export const verificationStatusSchema = z.enum(['PASS', 'FAIL', 'WARNING', 'INCOMPLETE'])
+
+/** Complete M3 verification report validator. */
+export const verificationReportDataSchema = z.object({
+  verifier: z.literal('future-cup-m3'),
+  status: verificationStatusSchema,
+  failureSignature: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+  checks: z.array(z.object({
+    name: z.string().min(1).max(120),
+    status: z.enum(['PASS', 'FAIL', 'WARNING', 'SKIPPED']),
+    summary: z.string().min(1).max(4_000),
+  }).strict()),
+  findings: z.array(verificationFindingSchema),
+  routes: z.array(z.string()),
+  viewports: z.array(z.string()),
+  screenshots: z.array(z.string()),
 }).strict()
 
 /** Persisted Scheduler decision validator. */

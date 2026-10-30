@@ -9977,9 +9977,19 @@ importers:
       '@deepseek-ai/dsh-sdk-client':
         specifier: workspace:*
         version: link:../../sdk/client
+      diff:
+        specifier: ^9.0.0
+        version: 9.0.0
+      playwright:
+        specifier: ^1.49.0
+        version: 1.61.1
       zod:
         specifier: 4.4.3
         version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
 
   packages/experimental/hook-protocol:
     devDependencies:

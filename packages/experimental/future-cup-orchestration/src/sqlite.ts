@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 1
+export const ORCHESTRATION_SCHEMA_VERSION = 2
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -28,13 +28,18 @@ export function openOrchestrationDatabase(
     database.exec(`PRAGMA journal_mode = ${journalMode.toUpperCase()}`)
     database.exec('PRAGMA busy_timeout = 5000')
     const { user_version: version } = database.prepare('PRAGMA user_version').get() as { user_version: number }
-    if (version !== 0 && version !== ORCHESTRATION_SCHEMA_VERSION) {
+    if (version !== 0 && version !== 1 && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
       )
     }
-    createSchema(database)
-    if (version === 0) database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    if (version === 0) {
+      createSchema(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 1) {
+      migrateVersionOne(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    }
     return database
   } catch (error: unknown) {
     database.close()
@@ -42,7 +47,7 @@ export function openOrchestrationDatabase(
   }
 }
 
-/** Materialize every M2 table in one fresh-schema transaction. */
+/** Materialize every M3 table in one fresh-schema transaction. */
 function createSchema(database: DatabaseSync): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS projects (
@@ -114,12 +119,41 @@ function createSchema(database: DatabaseSync): void {
     ) STRICT;
 
     CREATE TABLE IF NOT EXISTS verification_reports (
-      id          TEXT PRIMARY KEY,
-      project_id  TEXT NOT NULL,
-      task_id     TEXT,
-      status      TEXT NOT NULL,
-      report_json TEXT NOT NULL,
-      created_at  TEXT NOT NULL
+      id                TEXT PRIMARY KEY,
+      project_id        TEXT NOT NULL,
+      task_id           TEXT,
+      status            TEXT NOT NULL,
+      failure_signature TEXT,
+      report_json       TEXT NOT NULL,
+      created_at        TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS repair_records (
+      id                   TEXT PRIMARY KEY,
+      project_id           TEXT NOT NULL,
+      repair_round         INTEGER NOT NULL,
+      verification_report_id TEXT NOT NULL REFERENCES verification_reports(id),
+      repair_agent_id      TEXT NOT NULL,
+      failure_signature    TEXT NOT NULL,
+      error_summary        TEXT NOT NULL,
+      change_summary       TEXT NOT NULL,
+      diff                 TEXT NOT NULL,
+      before_status        TEXT NOT NULL,
+      after_status         TEXT NOT NULL,
+      started_at           TEXT NOT NULL,
+      completed_at         TEXT NOT NULL,
+      UNIQUE (project_id, repair_round)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS workflow_runs (
+      id                 TEXT PRIMARY KEY,
+      project_id         TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+      status             TEXT NOT NULL,
+      repair_round       INTEGER NOT NULL,
+      escalation_reason  TEXT,
+      escalation_message TEXT,
+      created_at         TEXT NOT NULL,
+      updated_at         TEXT NOT NULL
     ) STRICT;
 
     CREATE INDEX IF NOT EXISTS task_journal_project_seq
@@ -132,5 +166,60 @@ function createSchema(database: DatabaseSync): void {
       ON execution_events(execution_id, seq);
     CREATE INDEX IF NOT EXISTS verification_reports_project
       ON verification_reports(project_id, created_at);
+    CREATE INDEX IF NOT EXISTS repair_records_project_round
+      ON repair_records(project_id, repair_round);
+    CREATE INDEX IF NOT EXISTS workflow_runs_project
+      ON workflow_runs(project_id);
   `)
+}
+
+/** Upgrade one M2 database without rebuilding or discarding committed evidence. */
+function migrateVersionOne(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(`
+      ALTER TABLE verification_reports ADD COLUMN failure_signature TEXT;
+
+      CREATE TABLE repair_records (
+        id                     TEXT PRIMARY KEY,
+        project_id             TEXT NOT NULL,
+        repair_round           INTEGER NOT NULL,
+        verification_report_id TEXT NOT NULL REFERENCES verification_reports(id),
+        repair_agent_id        TEXT NOT NULL,
+        failure_signature      TEXT NOT NULL,
+        error_summary          TEXT NOT NULL,
+        change_summary         TEXT NOT NULL,
+        diff                   TEXT NOT NULL,
+        before_status          TEXT NOT NULL,
+        after_status           TEXT NOT NULL,
+        started_at             TEXT NOT NULL,
+        completed_at           TEXT NOT NULL,
+        UNIQUE (project_id, repair_round)
+      ) STRICT;
+
+      CREATE TABLE workflow_runs (
+        id                 TEXT PRIMARY KEY,
+        project_id         TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+        status             TEXT NOT NULL,
+        repair_round       INTEGER NOT NULL,
+        escalation_reason  TEXT,
+        escalation_message TEXT,
+        created_at         TEXT NOT NULL,
+        updated_at         TEXT NOT NULL
+      ) STRICT;
+
+      CREATE INDEX repair_records_project_round
+        ON repair_records(project_id, repair_round);
+      CREATE INDEX workflow_runs_project
+        ON workflow_runs(project_id);
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'schema migration and rollback both failed')
+    }
+    throw error
+  }
 }

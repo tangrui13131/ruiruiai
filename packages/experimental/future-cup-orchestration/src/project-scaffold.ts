@@ -14,6 +14,8 @@ const BASE_FILES: Readonly<Record<string, string>> = {
     scripts: {
       dev: 'vite',
       build: 'tsc --noEmit && vite build',
+      'build:types': 'tsc --noEmit',
+      'build:bundle': 'vite build',
       preview: 'vite preview',
     },
     dependencies: {
@@ -64,6 +66,7 @@ const BASE_FILES: Readonly<Record<string, string>> = {
     '  <head>',
     '    <meta charset="UTF-8" />',
     '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+    '    <link rel="icon" href="data:," />',
     '    <title>Future Cup Agent Team</title>',
     '  </head>',
     '  <body>',

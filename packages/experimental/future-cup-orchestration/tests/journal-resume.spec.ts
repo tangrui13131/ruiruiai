@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { AgentId, ProjectId, TaskId } from '../src/brand.ts'
 import { DagEngine, DagError } from '../src/dag-engine.ts'
@@ -92,6 +93,53 @@ describe('DAG journaling and resume', () => {
     } finally {
       // The OS temp owner reclaims this unique directory; Windows may retain
       // SQLite handles briefly after close.
+    }
+  })
+
+  it('migrates an M2 schema to M3 without dropping verification evidence', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'future-cup-schema-v1-'))
+    const path = join(directory, 'orchestration.sqlite')
+    const projectId = ProjectId('project-v1')
+    const raw = new DatabaseSync(path)
+    raw.exec(`
+      PRAGMA user_version = 1;
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        requirement TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE verification_reports (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        task_id TEXT,
+        status TEXT NOT NULL,
+        report_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO projects VALUES ('project-v1', 'V1', 'migrate', '2026-10-30T12:00:00.000Z');
+      INSERT INTO verification_reports VALUES (
+        'verification-existing',
+        'project-v1',
+        NULL,
+        'PASS',
+        '{"status":"PASS"}',
+        '2026-10-30T12:00:00.000Z'
+      );
+    `)
+    raw.close()
+
+    const repository = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
+    try {
+      expect(repository.schemaVersion).toBe(2)
+      const migrated = repository.listVerificationReports(projectId)
+      expect(migrated).toHaveLength(1)
+      expect(migrated[0]?.id).toBe('verification-existing')
+      expect(migrated[0]?.failureSignature).toBeUndefined()
+      const workflow = repository.startWorkflowRun(projectId)
+      expect(workflow.status).toBe('RUNNING')
+    } finally {
+      repository.close()
     }
   })
 })

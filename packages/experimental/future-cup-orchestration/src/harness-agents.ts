@@ -1,8 +1,7 @@
 /** Real DeepSeek Harness TypeScript SDK adapters for each Future Cup Agent role. */
 
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ReasoningEffortId as ReasoningEffort } from '@deepseek-ai/dsh-llm'
 import { DeepSeekHarness } from '@deepseek-ai/dsh-sdk-client'
@@ -12,9 +11,20 @@ import { parseStructuredOutput } from './agent-contracts.ts'
 import { AgentId } from './brand.ts'
 import type { AgentProfile } from './types.ts'
 
-const ARTIFACT_ONLY_PATCH = fileURLToPath(
-  new URL('../profiles/artifact-only.cordis.patch.yml', import.meta.url),
-)
+const ARTIFACT_ONLY_PATCH = `
+- id: persistent-bash
+  disabled: true
+
+- id: persistent-pwsh
+  disabled: true
+
+- id: tool-fs
+  config:
+    read: true
+    readImage: true
+    write: false
+    edit: false
+`
 
 /** Inputs shared by all real Harness Agent adapters. */
 export interface HarnessAgentOptions {
@@ -35,7 +45,7 @@ export interface HarnessAgentOptions {
 }
 
 /**
- * The fixed M2 Agent team. Planner and UI Designer each have one instance;
+ * The fixed M3 Agent team. Planner, UI Designer, Tester, Integration, and Repair each have one instance;
  * frontend capability is intentionally duplicated for parallel load splitting.
  * @returns independent Agent profiles with capability and capacity metadata.
  */
@@ -63,6 +73,13 @@ export function defaultAgentProfiles(): AgentProfile[] {
     },
     {
       ...common,
+      id: AgentId('tester'),
+      name: 'Tester',
+      role: 'tester',
+      capabilities: { testing: 1 },
+    },
+    {
+      ...common,
       id: AgentId('frontend-a'),
       name: 'Frontend Agent A',
       role: 'frontend',
@@ -82,6 +99,13 @@ export function defaultAgentProfiles(): AgentProfile[] {
       role: 'integration',
       capabilities: { integration: 1 },
     },
+    {
+      ...common,
+      id: AgentId('repair'),
+      name: 'Repair Agent',
+      role: 'repair',
+      capabilities: { repair: 1 },
+    },
   ]
 }
 
@@ -97,9 +121,11 @@ export class HarnessAgentInvoker implements AgentInvoker {
   constructor(readonly profile: AgentProfile, options: HarnessAgentOptions) {
     const dshHome = resolve(options.homeRoot, profile.id)
     mkdirSync(dshHome, { recursive: true })
+    const patchPath = resolve(dshHome, 'artifact-only.cordis.patch.yml')
+    writeFileSync(patchPath, ARTIFACT_ONLY_PATCH, { encoding: 'utf8', mode: 0o600 })
     this.harness = new DeepSeekHarness({
       profile: 'sdk-minimal',
-      patches: [ARTIFACT_ONLY_PATCH],
+      patches: [patchPath],
       dshHome,
       cwd: resolve(options.workspace),
       processCwd: resolve(options.workspace),

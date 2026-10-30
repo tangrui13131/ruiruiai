@@ -1,15 +1,21 @@
-/** Durable DAG, scheduler, and real Harness Agent-team orchestration for Future Cup M2. */
+/** Durable DAG, scheduler, Browser verifier, and bounded repair for Future Cup M3. */
 
 export * from './agent-contracts.ts'
 export * from './brand.ts'
+export * from './browser-verifier.ts'
 export * from './build-verifier.ts'
 export * from './dag-engine.ts'
 export * from './domain.ts'
+export * from './failure-signature.ts'
 export * from './harness-agents.ts'
+export * from './preview-server.ts'
 export * from './project-scaffold.ts'
 export * from './prompts.ts'
 export * from './repository.ts'
 export * from './scheduler.ts'
 export * from './schemas.ts'
+export * from './self-healer.ts'
 export * from './team-orchestrator.ts'
+export * from './verification.ts'
+export * from './workspace-diff.ts'
 export type * from './types.ts'

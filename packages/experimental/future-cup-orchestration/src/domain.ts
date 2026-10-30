@@ -13,8 +13,15 @@ export const TASK_STATUSES = [
   'CANCELLED',
 ] as const
 
-/** Roles implemented by the M2 Agent team. */
-export const AGENT_ROLES = ['planner', 'ui-designer', 'frontend', 'integration'] as const
+/** Roles implemented by the M3 Agent team. */
+export const AGENT_ROLES = [
+  'planner',
+  'ui-designer',
+  'tester',
+  'frontend',
+  'integration',
+  'repair',
+] as const
 
 /** States that no longer change without an explicit retry or operator action. */
 export const TERMINAL_TASK_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'] as const

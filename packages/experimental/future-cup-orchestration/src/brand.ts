@@ -61,3 +61,27 @@ export type VerificationReportId = Branded<'FutureCupVerificationReportId'>
 export function VerificationReportId(value: string): VerificationReportId {
   return brandString<VerificationReportId>(value)
 }
+
+/** Identifies one durable self-loop repair attempt. */
+export type RepairRecordId = Branded<'FutureCupRepairRecordId'>
+
+/**
+ * Brand a repair record id created by the repository.
+ * @param value - generated repair record id.
+ * @returns the branded repair record id.
+ */
+export function RepairRecordId(value: string): RepairRecordId {
+  return brandString<RepairRecordId>(value)
+}
+
+/** Identifies one durable project workflow run. */
+export type WorkflowRunId = Branded<'FutureCupWorkflowRunId'>
+
+/**
+ * Brand a workflow run id created by the repository.
+ * @param value - generated workflow run id.
+ * @returns the branded workflow run id.
+ */
+export function WorkflowRunId(value: string): WorkflowRunId {
+  return brandString<WorkflowRunId>(value)
+}

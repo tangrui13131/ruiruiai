@@ -22,16 +22,22 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "profiles/*.yml",
     "lib/index.js",
-    "lib/types/**/*.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
   "dependencies": {
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-sdk-client": "workspace:*",
+    "diff": "^9.0.0",
+    "playwright": "^1.49.0",
     "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
   }
 }

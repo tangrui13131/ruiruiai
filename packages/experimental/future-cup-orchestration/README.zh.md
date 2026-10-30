@@ -1,5 +1,5 @@
 ---
-description: "面向 Future Cup 前端平台的持久 DAG、可解释调度与真实 Harness Agent 团队编排。"
+description: "面向 Future Cup 前端平台的持久 DAG、可解释调度、独立浏览器验证与有界修复。"
 kind: "package-reference"
 ---
 
@@ -7,11 +7,11 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
-## Summary
+## 概述
 
-通过可解释调度和真实 DeepSeek Harness Agent 团队执行持久化的前端工程 DAG。本包负责任务修订、Journal 回放、调度决策、执行证据、结构化 Agent 输出、受限文件落盘以及独立的 TypeScript/Vite 验证。
+通过可解释调度和真实 DeepSeek Harness Agent 团队执行持久化的前端工程 DAG。本包负责任务修订、Journal 回放、调度决策、执行证据、结构化 Agent 输出、受限文件落盘、独立静态/构建/浏览器验证，以及有界 Repair Agent 重试。
 
-## Table of Contents
+## 目录
 
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
@@ -24,11 +24,11 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-需要 Future Cup M2 原型，或者需要带真实 Harness Session 的持久任务 DAG 测试时使用本包。
+需要 Future Cup M3 原型，或者需要持久任务 DAG、浏览器验证和有界自愈闭环测试时使用本包。
 
 ### 创建真实团队
 
-创建一个 SQLite 仓库、五个默认 Agent profile，以及每个 profile 对应的真实 Harness invoker。Profile 包含 `Planner`、`UI Designer`、`Frontend Agent A`、`Frontend Agent B` 与 `Integration`。两个 Frontend 实例具有相同能力与容量，用于并行任务负载分流。
+创建一个 SQLite 仓库、七个默认 Agent profile，以及每个 profile 对应的真实 Harness invoker。Profile 包含 `Planner`、`UI Designer`、`Tester`、`Frontend Agent A`、`Frontend Agent B`、`Integration` 与 `Repair Agent`。两个 Frontend 实例具有相同能力与容量，用于并行任务负载分流。
 
 ```ts
 import {
@@ -44,7 +44,21 @@ const invokers = createHarnessAgentTeam(profiles, {
   workspace: './generated-app',
   homeRoot: './agent-homes',
 })
-const team = new TeamOrchestrator({ repository, invokers, profiles, workspace: './generated-app' })
+const team = new TeamOrchestrator({
+  repository,
+  invokers,
+  profiles,
+  workspace: './generated-app',
+  verification: {
+    buildTimeoutMs: 600_000,
+    browserTimeoutMs: 60_000,
+    screenshotDir: './verification-screenshots',
+  },
+  selfLoop: {
+    maxRepairRounds: 3,
+    repairTimeoutMs: 600_000,
+  },
+})
 const result = await team.run('Build a dashboard with a users page')
 await team.close()
 repository.close()
@@ -56,7 +70,7 @@ repository.close()
 
 ### 持久记录
 
-SQLite schema 包含 `projects`、`tasks`、`task_dependencies`、`task_journal`、`scheduler_decisions`、`executions`、`execution_events` 与 `verification_reports`。每次任务变更都在同一事务中递增 revision 并追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。
+SQLite schema 包含 `projects`、`tasks`、`task_dependencies`、`task_journal`、`scheduler_decisions`、`executions`、`execution_events`、`verification_reports`、`repair_records` 与 `workflow_runs`。每次任务变更都在同一事务中递增 revision 并追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1 数据库原地迁移到 v2，不删除已有验证证据。
 
 ### 调度
 
@@ -78,6 +92,12 @@ capabilityMatch * capabilityWeight
 
 UI Designer 返回设计 token，而不是大型样式表。本包根据 token 生成确定性的共享 CSS 文件。
 
+### 验证与有界修复
+
+Verifier 检查必需工程文件、要求使用 `HashRouter` 而非 `BrowserRouter`、安装依赖、运行 `tsc --noEmit`、创建 Vite 生产构建、启动 loopback 预览服务，并让 Playwright 在桌面与移动宽度下驱动 Chromium。只有全部预期路由渲染出非空内容、必需文本与导航交互成功，并且浏览器没有 `pageerror`、`console.error`、Ant Design 弃用告警、失败请求或 HTTP 4xx/5xx 响应时，状态才能为 PASS。
+
+全部 finding 会规范化为确定性的 SHA-256 `failureSignature`。Self-loop 按显式配置允许 Repair Agent 轮次，每次修复后运行完整验证，保存真实源码 Diff 与修复前后状态；重复签名、超时、验证环境不完整或轮次耗尽时以 `ESCALATED` 终止。每次 Repair 调用使用独立 Harness Session。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -86,13 +106,18 @@ UI Designer 返回设计 token，而不是大型样式表。本包根据 token �
 | 文件 | 职责 |
 |---|---|
 | `src/sqlite.ts` | 带版本的 SQLite schema 与连接配置 |
-| `src/repository.ts` | 持久任务、调度、执行、事件与验证记录 |
+| `src/repository.ts` | 持久任务、调度、执行、验证、修复与工作流记录 |
 | `src/dag-engine.ts` | 环校验、就绪、状态转换、阻断、重新排队、Journal 回放与恢复 |
 | `src/scheduler.ts` | 能力匹配、加权评分、负载均衡与重分配 |
 | `src/agent-contracts.ts` | 结构化调用与 JSON 输出校验 |
 | `src/harness-agents.ts` | 真实 TypeScript SDK Agent 适配器与只读 profile |
-| `src/team-orchestrator.ts` | Planner、角色执行、Frontend 并行调用、Integration 与构建验证 |
-| `src/build-verifier.ts` | 独立 npm install 与 TypeScript/Vite 构建检查 |
+| `src/team-orchestrator.ts` | Planner、角色执行、Frontend 并行调用、Integration 与 Self-loop 组合 |
+| `src/build-verifier.ts` | 独立依赖、TypeScript 与 Vite 构建检查 |
+| `src/browser-verifier.ts` | Playwright 路由、交互、控制台、页面错误与网络验证 |
+| `src/preview-server.ts` | 原子分配端口的自有 loopback 预览服务与静默关闭 |
+| `src/failure-signature.ts` | 诊断规范化与稳定的重复失败哈希 |
+| `src/self-healer.ts` | 有界修复循环、超时处理、重复失败熔断与人工升级 |
+| `src/workspace-diff.ts` | 源码快照与真实统一 Diff 生成 |
 
 ## Model Experience
 
@@ -100,11 +125,11 @@ UI Designer 返回设计 token，而不是大型样式表。本包根据 token �
 
 #### What the model sees
 
-每个 Agent 接收 `src/prompts.ts` 中的角色说明、由任务 Zod 校验器生成的 JSON Schema，以及完整结构化任务输入。Planner 查看用户需求；UI Designer 查看页面；每个 Frontend Agent 查看一个页面与设计输出；Integration 查看所有页面输出与设计证据。
+每个 Agent 接收 `src/prompts.ts` 中的角色说明、由任务 Zod 校验器生成的 JSON Schema，以及完整结构化任务输入。Planner 查看用户需求；UI Designer 查看页面；Tester 查看页面与设计输出；每个 Frontend Agent 查看一个页面、对应 Tester 断言与设计输出；Integration 查看所有页面输出、验证断言与设计证据；Repair 查看结构化失败报告、受影响源码与历史修复摘要。
 
 #### Token effect
 
-Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默认输出上限为 32,000 token。UI Designer 返回紧凑 token；每个 Frontend 任务最多三个文件，每个 Integration 输出最多八个文件。
+Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默认输出上限为 32,000 token。UI Designer 返回紧凑 token；每个 Frontend 任务最多三个文件，每个 Integration 输出最多八个文件，每个 Repair 输出最多八个源码文件。
 
 #### KV Cache effect
 
@@ -112,14 +137,15 @@ Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默
 
 ## Known Limitations and Deferred Work
 
-- **实验性包**：M2 孵化期间公共 API 可能变化。
+- **实验性包**：M3 孵化期间公共 API 可能变化。
 - **SQLite 原型**：PostgreSQL 与 Prisma 集成仍属于 M4。
-- **固定进程内团队**：M2 团队由配置驱动，但不是通用 Agent 市场。
+- **固定进程内团队**：M3 团队由配置驱动，但不是通用 Agent 市场。
 - **没有跨进程调度租约**：预期一个进程在同一时间拥有一个项目 DAG。
-- **单一动作验证器**：本里程碑验证安装、TypeScript 与 Vite 构建；浏览器验证和有界修复属于 M3。
+- **Playwright 运行时**：浏览器验证要求安装匹配的 Chromium 构建；浏览器不可用时产生 `INCOMPLETE`，不能产生 `PASS`。
+- **不修复生成要求**：Repair 只能修改生成的 `src/` 文件；平台自有 scaffold 文件失败时进入人工升级，不能静默改写生成器。
 - **Agent 输出预算**：大型页面需要显式模型输出配置或进一步任务拆解。
 
 <a id="dev-note"></a>
-### 开发说明
+### 开发备注
 
-M2 对任务 Agent 使用 32,000 token 的结构化输出预算，并默认关闭 reasoning。M3 应使用基于证据的任务拆解替代固定输出上限，并在构建之外验证浏览器行为。
+M3 对任务 Agent 使用 32,000 token 的结构化输出预算，并默认关闭 reasoning。浏览器验证与有界修复已接入正常 `TeamOrchestrator.run()` 路径。M4 负责 PostgreSQL、实时事件以及管理界面与 HQ 集成。

@@ -3,38 +3,41 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/future-cup-orchestration/README.md
 /:
-  en: b01a8a9fa9b8984f
-  zh: a5362f83f2128970
+  en: 86d971c587824a33
+  zh: 0d6695be817d3cd3
 /deepseek-ai-dsh-experimental-future-cup-orchestration:
   en: 5789bdb212192e16
   zh: de1b10448659aab3
 /deepseek-ai-dsh-experimental-future-cup-orchestration/summary:
-  en: 4e9c41d226c1ad37
-  zh: 0cdeb5da548317a1
+  en: 096cdce4a801df2e
+  zh: e164455200afaf16
 /deepseek-ai-dsh-experimental-future-cup-orchestration/table-of-contents:
   en: 76368b6b1da79c80
-  zh: b8f9531f923f1c55
+  zh: ac1bb7362e9b6e01
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package:
-  en: 5893e2ecf3d95fd0
-  zh: cd78ac8a947496a9
+  en: 73bbf9a2ae6a5ea3
+  zh: d11c3b71b289712b
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/create-a-real-team:
-  en: 8a181c38fb329815
-  zh: 9ff289a708fe1a5b
+  en: 8acb2e41a5208a32
+  zh: 99d14fc6df0cbc8f
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/dag-state:
   en: 98aa5d5ffa658e93
   zh: 48ceefa8df5fccce
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/durable-records:
-  en: 60c9ab31737ae42c
-  zh: 26fc8a3878935a4a
+  en: 2705ffb00f8cdb04
+  zh: e16d66c532113a13
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/scheduling:
   en: 3beabdb05bcb7f4a
   zh: 87393c101324cd64
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/agent-permissions-and-output:
-  en: 5370970a58c72e79
-  zh: a262d42a7f4586ee
+  en: a6bfbd1d649f0825
+  zh: c0ed7ead94eba1f7
+/deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/verification-and-bounded-repair:
+  en: cea510906177894a
+  zh: 7226f6f5761adf0b
 /deepseek-ai-dsh-experimental-future-cup-orchestration/understand-the-implementation:
-  en: 8a6338d16ce8cb4d
-  zh: 57b98e0b354b57cf
+  en: 8cacb275619dcee6
+  zh: 2df98f896c5f34b5
 /deepseek-ai-dsh-experimental-future-cup-orchestration/model-experience:
   en: 215e7ba838619b7b
   zh: 215e7ba838619b7b
@@ -42,17 +45,17 @@
   en: 75967b96a2f700a1
   zh: 75967b96a2f700a1
 /deepseek-ai-dsh-experimental-future-cup-orchestration/model-experience/role-prompts/what-the-model-sees:
-  en: 848acfe651609fbb
-  zh: 1210c213db6f82ca
+  en: f577f952293e94ef
+  zh: e264e11c4de32124
 /deepseek-ai-dsh-experimental-future-cup-orchestration/model-experience/role-prompts/token-effect:
-  en: 9fe3ea1ad901b029
-  zh: 4a74b8168eb9c3c0
+  en: eea3e391ba81a8ce
+  zh: 6343194e09efec71
 /deepseek-ai-dsh-experimental-future-cup-orchestration/model-experience/role-prompts/kv-cache-effect:
   en: 89585ed1642adb94
   zh: ae945c86f993f361
 /deepseek-ai-dsh-experimental-future-cup-orchestration/known-limitations-and-deferred-work:
-  en: 968e27a70ac5377f
-  zh: 420d196d016db206
+  en: 8de03dec3ecd5479
+  zh: b84b88a891a0d11a
 /deepseek-ai-dsh-experimental-future-cup-orchestration/known-limitations-and-deferred-work/dev-note:
-  en: 6693a708658fd529
-  zh: 3f9f2535b774543b
+  en: 1e7a4fc3457e7c01
+  zh: 59ddf8ba41780b34
