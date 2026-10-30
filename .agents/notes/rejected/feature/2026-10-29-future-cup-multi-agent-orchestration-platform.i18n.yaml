@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for 2026-10-29-future-cup-multi-agent-orchestration-platform.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md
+/agent-note-future-cup-multi-agent-orchestration-platform:
+  en: 007c32b91da4ba2c
+  zh: 936cf57fc4dcb33d
+/agent-note-future-cup-multi-agent-orchestration-platform/problem:
+  en: ec37cd0d01b2df80
+  zh: eb981f84be14718d
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal:
+  en: 32003ff6ff321803
+  zh: 78df04478c890593
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/competition-constraints:
+  en: 24ce23900b3c0fa6
+  zh: fc1773893e862067
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/platform-capabilities:
+  en: 762353678fc3047f
+  zh: 7615186898624999
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/adaptive-scheduling:
+  en: 993b1b6d2141cbdf
+  zh: cd70ff0d0f115559
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/verification-and-self-loop:
+  en: b92168a9cb13a067
+  zh: a6e6a6418c3633a5
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/product-interface:
+  en: 5e46558549e72cf9
+  zh: 5e96fc6d5af65a02
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/candidate-scenario-and-mvp:
+  en: ad2e9f2fd6a3ca00
+  zh: 4dc0580622404688
+/agent-note-future-cup-multi-agent-orchestration-platform/proposal/delivery-order:
+  en: bcb4ffe846ab8b16
+  zh: dda5afccc33df39f
+/agent-note-future-cup-multi-agent-orchestration-platform/alternatives-considered:
+  en: 69ba10d5de65b834
+  zh: 9cf211b1a1dcae35
+/agent-note-future-cup-multi-agent-orchestration-platform/acceptance-criteria:
+  en: 96bf4dc0e1bbbbb6
+  zh: 1888f126aa03c94d
+/agent-note-future-cup-multi-agent-orchestration-platform/risks:
+  en: b0fcb96db392532a
+  zh: 2c59549abb58305a
