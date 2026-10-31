@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Future Cup 平台",
+    "description": "提供 PostgreSQL 持久化、事务性项目事件、工作流租约、REST 快照与 Socket.IO 重放。"
+  }
+}

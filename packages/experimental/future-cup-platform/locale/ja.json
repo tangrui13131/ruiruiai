@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Future Cup プラットフォーム",
+    "description": "PostgreSQL 永続化、トランザクション付きプロジェクトイベント、ワークフローリース、REST スナップショット、Socket.IO リプレイを提供します。"
+  }
+}

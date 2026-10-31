@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, M3, and M4.0 are complete and M4.1 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4.0 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, M4.0, and M4.1 are complete and M4.2 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -27,7 +27,7 @@ Build a multi-Agent orchestration and self-healing platform for web frontend eng
 ### System architecture
 
 - The management interface uses React, TypeScript, Vite, Ant Design, and React Flow for workflow and DAG display.
-- The platform backend uses Node.js, Fastify, Zod, PostgreSQL, Prisma, and Socket.IO. These choices remain a validated baseline, not an assertion that every integration already works.
+- The platform backend uses Node.js, Fastify, Zod, PostgreSQL, Prisma, and Socket.IO. M4.1 implemented the persistence, API, Outbox, replay, and profile composition.
 - M4.0 validated PostgreSQL 17.11, Prisma 7.10.1, real Docker migrations, transactional Outbox rows, project event sequences, cross-process leases, and fencing tokens.
 - The backend controls DeepSeek Harness through its official TypeScript SDK and uses native Sessions, Agent execution, tools, events, and cancellation before adding duplicate runtime behavior.
 - Workflow selection starts with native Harness workflow capabilities. A lightweight owned DAG is considered only for a demonstrated persistence, recovery, or conditional-branch gap. LangGraph.js is a later comparison, not an initial dependency, and only one workflow owner may be active.
@@ -106,7 +106,7 @@ The project uses five gated milestones instead of building the document chapters
 
 Each milestone delivers its design, implementation, tests, acceptance report, and remaining issues. Work does not advance until the milestone's observable acceptance criteria pass.
 
-### M1, M2, M3, and M4.0 results and next work
+### M1, M2, M3, M4.0, and M4.1 results and next work
 
 M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness runtime, a real DeepSeek model completed a turn, and a real model generated a React, TypeScript, Vite, and Ant Design project. A later real-model turn installed dependencies and ran the production build; independent Playwright verification passed on desktop and mobile with working counter behavior.
 
@@ -122,7 +122,11 @@ M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness r
 - A real DeepSeek M3 E2E completed six independent generation Sessions, then injected a deterministic TypeScript error. Playwright subsequently found another real browser failure. Two independent Repair Sessions removed the build error and repaired a user-management visibility assertion before the final project passed TypeScript, Vite, desktop, and mobile browser verification.
 - M4.0 validated migration, Serializable transactions, project event sequencing, transactional Outbox, cross-process leases, fencing tokens, foreign keys, and rollback on real PostgreSQL 17.11 with Prisma 7.10.1. The real Harness SDK delivered Agent status, `tool/call`, and `tool/result` notifications before run completion. `dsh` created a custom profile from the Web template.
 - The actual HQ source is `agent-display-main/theme-10-hq`, licensed under PolyForm Noncommercial License 1.0.0. Every distributed copy must retain `Required Notice: Copyright (c) 2026 赛博老爸`. The current display explicitly identifies local simulation and has no realtime event connection.
-- M4.1 implements the SQLite/PostgreSQL repository pair, project-event Outbox, cross-process leases, Fastify REST snapshots, Socket.IO reconnect increments, and the Future Cup profile bundle.
+- M4.1 implemented one `OrchestrationStore` contract for SQLite and PostgreSQL. PostgreSQL now persists DAG revisions, scheduling decisions, executions, execution events, verification reports, repairs, and workflow state, not only snapshots.
+- Task writes require the previous revision; project events and Outbox obligations commit in one Serializable transaction. Outbox dispatchers use expiring owner claims, and PostgreSQL claims with `FOR UPDATE SKIP LOCKED`.
+- Fastify now exposes project, task, execution-event, scheduling, verification, repair, workflow, run, and cancel routes with Zod validation and explicit 400, 404, 409, and 503 failures. Socket.IO replays snapshots and committed increments after `projectId + afterSeq`, while invalid cursors disconnect with `INVALID_CURSOR`.
+- The real PostgreSQL migration and E2E test passed DAG writes, revision Journaling, execution evidence, verification, repair, workflow completion, concurrent event sequencing, Outbox claims, reconnect queries, and cross-process fencing.
+- The Future Cup bundle composes through `dsh`, and the real platform API served health, Agent, project creation, and snapshot routes against PostgreSQL. M4.2 adds the management interface and the concrete run launcher that consumes the finished store contract.
 
 The technical gate is recorded in [Future Cup M4 realtime persistence gate](../architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.md).
 

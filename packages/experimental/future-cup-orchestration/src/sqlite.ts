@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 2
+export const ORCHESTRATION_SCHEMA_VERSION = 4
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -28,7 +28,11 @@ export function openOrchestrationDatabase(
     database.exec(`PRAGMA journal_mode = ${journalMode.toUpperCase()}`)
     database.exec('PRAGMA busy_timeout = 5000')
     const { user_version: version } = database.prepare('PRAGMA user_version').get() as { user_version: number }
-    if (version !== 0 && version !== 1 && version !== ORCHESTRATION_SCHEMA_VERSION) {
+    if (version !== 0
+      && version !== 1
+      && version !== 2
+      && version !== 3
+      && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
       )
@@ -38,6 +42,15 @@ export function openOrchestrationDatabase(
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 1) {
       migrateVersionOne(database)
+      migrateVersionTwo(database)
+      migrateVersionThree(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 2) {
+      migrateVersionTwo(database)
+      migrateVersionThree(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 3) {
+      migrateVersionThree(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     }
     return database
@@ -51,10 +64,11 @@ export function openOrchestrationDatabase(
 function createSchema(database: DatabaseSync): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS projects (
-      id           TEXT PRIMARY KEY,
-      name         TEXT NOT NULL,
-      requirement  TEXT NOT NULL,
-      created_at   TEXT NOT NULL
+      id             TEXT PRIMARY KEY,
+      name           TEXT NOT NULL,
+      requirement    TEXT NOT NULL,
+      last_event_seq INTEGER NOT NULL DEFAULT 0,
+      created_at     TEXT NOT NULL
     ) STRICT;
 
     CREATE TABLE IF NOT EXISTS tasks (
@@ -63,6 +77,7 @@ function createSchema(database: DatabaseSync): void {
       snapshot_json TEXT NOT NULL,
       revision      INTEGER NOT NULL,
       status        TEXT NOT NULL,
+      position      INTEGER NOT NULL,
       PRIMARY KEY (project_id, id)
     ) STRICT;
 
@@ -156,6 +171,36 @@ function createSchema(database: DatabaseSync): void {
       updated_at         TEXT NOT NULL
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS product_events (
+      id           TEXT PRIMARY KEY,
+      project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      seq          INTEGER NOT NULL,
+      type         TEXT NOT NULL,
+      task_id      TEXT,
+      agent_id     TEXT,
+      payload_json TEXT NOT NULL,
+      occurred_at  TEXT NOT NULL,
+      UNIQUE (project_id, seq)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS outbox_events (
+      event_id         TEXT PRIMARY KEY REFERENCES product_events(id) ON DELETE CASCADE,
+      published_at     TEXT,
+      claim_owner_id   TEXT,
+      claim_token      TEXT,
+      claimed_at       TEXT,
+      claim_expires_at TEXT
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS workflow_leases (
+      resource_id   TEXT PRIMARY KEY,
+      project_id    TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+      owner_id      TEXT,
+      fencing_token INTEGER NOT NULL,
+      heartbeat_at  TEXT NOT NULL,
+      expires_at    TEXT NOT NULL
+    ) STRICT;
+
     CREATE INDEX IF NOT EXISTS task_journal_project_seq
       ON task_journal(project_id, seq);
     CREATE INDEX IF NOT EXISTS scheduler_decisions_project_seq
@@ -170,6 +215,12 @@ function createSchema(database: DatabaseSync): void {
       ON repair_records(project_id, repair_round);
     CREATE INDEX IF NOT EXISTS workflow_runs_project
       ON workflow_runs(project_id);
+    CREATE INDEX IF NOT EXISTS product_events_project_seq
+      ON product_events(project_id, seq);
+    CREATE INDEX IF NOT EXISTS outbox_events_unpublished
+      ON outbox_events(published_at);
+    CREATE INDEX IF NOT EXISTS outbox_events_claim_expiry
+      ON outbox_events(published_at, claim_expires_at);
   `)
 }
 
@@ -219,6 +270,95 @@ function migrateVersionOne(database: DatabaseSync): void {
       database.exec('ROLLBACK')
     } catch (rollbackError: unknown) {
       throw new AggregateError([error, rollbackError], 'schema migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
+/** Add M4 platform events, Outbox delivery, and workflow leases. */
+function migrateVersionTwo(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(`
+      ALTER TABLE projects
+        ADD COLUMN last_event_seq INTEGER NOT NULL DEFAULT 0;
+
+      CREATE TABLE product_events (
+        id           TEXT PRIMARY KEY,
+        project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        seq          INTEGER NOT NULL,
+        type         TEXT NOT NULL,
+        task_id      TEXT,
+        agent_id     TEXT,
+        payload_json TEXT NOT NULL,
+        occurred_at  TEXT NOT NULL,
+        UNIQUE (project_id, seq)
+      ) STRICT;
+
+      CREATE TABLE outbox_events (
+        event_id     TEXT PRIMARY KEY REFERENCES product_events(id) ON DELETE CASCADE,
+        published_at TEXT
+      ) STRICT;
+
+      CREATE TABLE workflow_leases (
+        resource_id   TEXT PRIMARY KEY,
+        project_id    TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+        owner_id      TEXT,
+        fencing_token INTEGER NOT NULL,
+        heartbeat_at  TEXT NOT NULL,
+        expires_at    TEXT NOT NULL
+      ) STRICT;
+
+      CREATE INDEX product_events_project_seq
+        ON product_events(project_id, seq);
+      CREATE INDEX outbox_events_unpublished
+        ON outbox_events(published_at);
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v2 migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
+/** Add stable task positions, Outbox claim leases, and expired-claim recovery. */
+function migrateVersionThree(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(`
+      ALTER TABLE tasks
+        ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+
+      UPDATE tasks
+      SET position = (
+        SELECT COUNT(*)
+        FROM tasks AS earlier
+        WHERE earlier.project_id = tasks.project_id
+          AND earlier.rowid < tasks.rowid
+      );
+
+      ALTER TABLE outbox_events
+        ADD COLUMN claim_owner_id TEXT;
+      ALTER TABLE outbox_events
+        ADD COLUMN claim_token TEXT;
+      ALTER TABLE outbox_events
+        ADD COLUMN claimed_at TEXT;
+      ALTER TABLE outbox_events
+        ADD COLUMN claim_expires_at TEXT;
+
+      CREATE INDEX outbox_events_claim_expiry
+        ON outbox_events(published_at, claim_expires_at);
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v3 migration and rollback both failed')
     }
     throw error
   }

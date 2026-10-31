@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run a durable frontend-engineering DAG through explainable scheduling and a real DeepSeek Harness Agent team. The package owns task revisions, Journal replay, scheduling decisions, execution evidence, structured Agent outputs, scoped file application, independent static/build/browser verification, and bounded Repair Agent retries.
+Run a durable frontend-engineering DAG through explainable scheduling and a real DeepSeek Harness Agent team. The package owns task revisions, Journal replay, scheduling decisions, execution evidence, structured Agent outputs, scoped file application, independent static/build/browser verification, and bounded Repair Agent retries. Its `OrchestrationStore` contract accepts the SQLite adapter in this package or the PostgreSQL adapter in `future-cup-platform`.
 
 ## Table of Contents
 
@@ -70,7 +70,7 @@ Tasks use `PENDING`, `READY`, `RUNNING`, `COMPLETED`, `FAILED`, `BLOCKED`, and `
 
 ### Durable records
 
-The SQLite schema contains `projects`, `tasks`, `task_dependencies`, `task_journal`, `scheduler_decisions`, `executions`, `execution_events`, `verification_reports`, `repair_records`, and `workflow_runs`. Every task mutation updates its revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1 databases migrate in place to v2 without deleting existing verification evidence.
+The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, workflow, product-event, Outbox, and workflow-lease records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1 and v2 databases migrate in place to v4 without deleting existing verification evidence.
 
 ### Scheduling
 
@@ -102,7 +102,7 @@ Findings are normalized into a deterministic SHA-256 `failureSignature`. The sel
 
 `product-events.ts` defines the Zod contract shared by durable events, REST snapshots, and Socket.IO delivery. Every event carries `projectId`, a project-scoped positive `seq`, `occurredAt`, `type`, and a JSON payload. Task and Agent identities are required only for event types that own them. Clients resume with `projectId` plus `afterSeq`; `projectId + seq` is the deduplication identity.
 
-The M4.0 gate verified this envelope against real PostgreSQL sequencing and the TypeScript SDK notification stream. The Socket.IO transport and transactional outbox provider remain M4.1 implementation work.
+The M4.0 gate verified this envelope against real PostgreSQL sequencing and the TypeScript SDK notification stream. `future-cup-platform` now owns the PostgreSQL store, transactional Outbox dispatcher, Fastify snapshots, and Socket.IO replay.
 
 -----
 
@@ -145,9 +145,9 @@ Role prompts are stable for a given role, generated schema, and task input. Diff
 ## Known Limitations and Deferred Work
 
 - **Experimental package:** the public API can change while M3 incubates.
-- **SQLite prototype:** PostgreSQL and Prisma integration remain M4 work.
+- **Two storage adapters:** SQLite remains the deterministic test adapter; `future-cup-platform` provides PostgreSQL through Prisma.
 - **Fixed in-process team:** the M3 team is configuration-driven but not a general Agent marketplace.
-- **No cross-process scheduler lease:** one process is expected to own one project DAG at a time.
+- **Lease acquisition is consumer-owned:** the store exposes workflow leases and revision guards, while a future platform run launcher must acquire and renew the lease for each project.
 - **Playwright runtime:** browser verification requires a matching installed Chromium build; an unavailable browser produces `INCOMPLETE`, never `PASS`.
 - **No requirement-generation repair:** Repair can change only generated `src/` files; failures in platform-owned scaffold files escalate instead of silently rewriting the generator.
 - **Agent output budgets:** large generated pages require explicit model-output configuration or additional decomposition.

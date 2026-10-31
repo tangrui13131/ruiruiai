@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import type { AgentInvocation, AgentInvoker, AgentRun } from '../src/agent-contracts.ts'
+import { ProjectId } from '../src/brand.ts'
 import type { AgentProfile, VerificationResult } from '../src/types.ts'
 import { defaultAgentProfiles } from '../src/harness-agents.ts'
 import { OrchestrationRepository } from '../src/repository.ts'
@@ -225,9 +226,17 @@ describe('TeamOrchestrator', () => {
       selfLoop: { maxRepairRounds: 3, repairTimeoutMs: 1_000 },
       projectVerifier: async () => passingVerification(),
     })
+    const registeredProject = {
+      id: ProjectId('project-registered-team'),
+      name: 'Registered admin',
+      requirement: 'Build an admin dashboard with users',
+      createdAt: NOW().toISOString(),
+    }
+    repository.createProject(registeredProject, [])
     try {
-      const result = await team.run('Build an admin dashboard with users')
+      const result = await team.run(registeredProject.requirement, registeredProject)
       expect(maxActiveFrontends).toBe(2)
+      expect(result.projectId).toBe(registeredProject.id)
       expect(result.executions).toHaveLength(6)
       expect(new Set(result.executions.map(execution => execution.sessionId)).size).toBe(6)
       expect(result.tasks.every(task => task.status === 'COMPLETED')).toBe(true)

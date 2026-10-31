@@ -33,6 +33,15 @@ HQ 源码继续采用 PolyForm Noncommercial License 1.0.0，保留许可证与 
 - `dsh --profile future-cup-platform --from-default-profile web --dump-config` 通过受支持启动器创建并组合了自定义 profile。
 - HQ 在 1920×1080 下渲染原生 WebGL 场景。源码明确标注本地模拟，且没有 fetch 或 Socket.IO 集成。
 
+### M4.1 实现结果
+
+- SQLite schema v4 与仓库内 Prisma 迁移为 DAG revision、Journal、调度、执行、执行事件、验证、修复、工作流状态、项目事件、Outbox 与租约实现同一 `OrchestrationStore` 约定。
+- 任务更新匹配前一 revision。项目事件与 Outbox 行在同一 Serializable 事务中按项目级序号提交。
+- Outbox claim 包含 owner、token 与 expiry。SQLite 排除活跃 claim，PostgreSQL 使用 `FOR UPDATE SKIP LOCKED`，过期 claim 可重新投递并由客户端去重。
+- Fastify 提供项目快照以及任务、调度、执行事件、验证、修复、工作流、启动与取消路由。Socket.IO 发送 `sync.snapshot` 与已提交的 `project.event`，并拒绝非法游标。
+- PostgreSQL E2E 通过存储读写、并发事件排序、Outbox claim、重连游标与跨进程租约 fencing。真实 `dsh` Future Cup profile 完成组合并提供 API。
+- 具体运行启动器仍是 M4.2 的服务边界。未挂载 `ctx.futureCupRunLauncher` 时，运行路由返回 503，而不是模拟执行。
+
 ## 考虑过的替代方案
 
 **立即用 PostgreSQL 替换 SQLite。** 不予采纳，因为 M2/M3 的确定性测试依赖当前快速内存 SQLite 适配器，迁移应保持语义，而不是重写语义。

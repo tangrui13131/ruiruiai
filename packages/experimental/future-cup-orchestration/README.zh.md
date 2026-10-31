@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-通过可解释调度和真实 DeepSeek Harness Agent 团队执行持久化的前端工程 DAG。本包负责任务修订、Journal 回放、调度决策、执行证据、结构化 Agent 输出、受限文件落盘、独立静态/构建/浏览器验证，以及有界 Repair Agent 重试。
+通过可解释调度和真实 DeepSeek Harness Agent 团队执行持久化的前端工程 DAG。本包负责任务修订、Journal 回放、调度决策、执行证据、结构化 Agent 输出、受限文件落盘、独立静态/构建/浏览器验证，以及有界 Repair Agent 重试。`OrchestrationStore` 约定同时接受本包的 SQLite 适配器与 `future-cup-platform` 的 PostgreSQL 适配器。
 
 ## 目录
 
@@ -70,7 +70,7 @@ repository.close()
 
 ### 持久记录
 
-SQLite schema 包含 `projects`、`tasks`、`task_dependencies`、`task_journal`、`scheduler_decisions`、`executions`、`execution_events`、`verification_reports`、`repair_records` 与 `workflow_runs`。每次任务变更都在同一事务中递增 revision 并追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1 数据库原地迁移到 v2，不删除已有验证证据。
+SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、工作流、产品事件、Outbox 与工作流租约记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1 与 v2 数据库原地迁移到 v4，不删除已有验证证据。
 
 ### 调度
 
@@ -102,7 +102,7 @@ Verifier 检查必需工程文件、要求使用 `HashRouter` 而非 `BrowserRou
 
 `product-events.ts` 定义持久事件、REST Snapshot 与 Socket.IO 投递共用的 Zod 约定。每个事件包含 `projectId`、项目内正数 `seq`、`occurredAt`、`type` 与 JSON payload。只有事件所属语义需要时才要求 `taskId` 或 `agentId`。客户端使用 `projectId + afterSeq` 续传，并以 `projectId + seq` 作为去重身份。
 
-M4.0 门禁已用真实 PostgreSQL 序号与 TypeScript SDK 通知流验证该信封。Socket.IO 传输与事务性 Outbox Provider 属于 M4.1 实现。
+M4.0 门禁已用真实 PostgreSQL 序号与 TypeScript SDK 通知流验证该信封。`future-cup-platform` 现在拥有 PostgreSQL 存储、事务性 Outbox Dispatcher、Fastify 快照与 Socket.IO 重放。
 
 -----
 
@@ -145,9 +145,9 @@ Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默
 ## Known Limitations and Deferred Work
 
 - **实验性包**：M3 孵化期间公共 API 可能变化。
-- **SQLite 原型**：PostgreSQL 与 Prisma 集成仍属于 M4。
+- **两个存储适配器**：SQLite 继续作为确定性测试适配器；`future-cup-platform` 通过 Prisma 提供 PostgreSQL。
 - **固定进程内团队**：M3 团队由配置驱动，但不是通用 Agent 市场。
-- **没有跨进程调度租约**：预期一个进程在同一时间拥有一个项目 DAG。
+- **租约获取由消费者负责**：存储提供工作流租约与 revision 守卫，后续平台运行启动器必须为每个项目获取并续期租约。
 - **Playwright 运行时**：浏览器验证要求安装匹配的 Chromium 构建；浏览器不可用时产生 `INCOMPLETE`，不能产生 `PASS`。
 - **不修复生成要求**：Repair 只能修改生成的 `src/` 文件；平台自有 scaffold 文件失败时进入人工升级，不能静默改写生成器。
 - **Agent 输出预算**：大型页面需要显式模型输出配置或进一步任务拆解。

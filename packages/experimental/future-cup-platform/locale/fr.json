@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plateforme Future Cup",
+    "description": "Fournit la persistance PostgreSQL, les événements de projet transactionnels, les baux de workflow, les instantanés REST et la relecture Socket.IO."
+  }
+}

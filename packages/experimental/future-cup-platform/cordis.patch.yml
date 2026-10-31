@@ -1,0 +1,12 @@
+- insert:
+    - id: future-cup-platform
+      name: '@deepseek-ai/dsh-experimental-future-cup-platform'
+      config:
+        host: 127.0.0.1
+        port: !!js Number(process.env.FUTURE_CUP_PORT ?? 3090)
+        databaseDriver: postgres
+        databaseUrl: !!js process.env.FUTURE_CUP_DATABASE_URL
+        sqlitePath: !!js process.env.FUTURE_CUP_SQLITE_PATH ?? '.artifacts/future-cup-platform.sqlite'
+        outboxPollMs: 100
+        outboxBatchSize: 100
+        outboxClaimMs: 30000

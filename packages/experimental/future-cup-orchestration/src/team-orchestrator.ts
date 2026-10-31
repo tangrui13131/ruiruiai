@@ -17,7 +17,7 @@ import {
   UI_DESIGNER_INSTRUCTIONS,
 } from './prompts.ts'
 import { renderDesignStylesheet, writeProjectScaffold, writeScopedFiles } from './project-scaffold.ts'
-import type { OrchestrationRepository } from './repository.ts'
+import type { OrchestrationStore } from './platform-store.ts'
 import {
   frontendOutputSchema,
   integrationOutputSchema,
@@ -35,6 +35,7 @@ import type {
   AgentProfile,
   GeneratedProject,
   PlannerOutput,
+  ProjectRecord,
   SelfHealingResult,
   SelfLoopConfig,
   TaskFailure,
@@ -48,7 +49,7 @@ import type { VerificationConfig } from './verification.ts'
 
 /** Inputs owned by the M3 team orchestrator. */
 export interface TeamOrchestratorOptions {
-  readonly repository: OrchestrationRepository
+  readonly repository: OrchestrationStore
   readonly invokers: ReadonlyMap<string, AgentInvoker>
   readonly profiles: readonly AgentProfile[]
   readonly workspace: string
@@ -63,7 +64,7 @@ export interface TeamOrchestratorOptions {
 interface RunningExecution {
   readonly task: TaskSnapshot
   readonly agent: AgentProfile
-  readonly executionId: ReturnType<OrchestrationRepository['startExecution']>
+  readonly executionId: Awaited<ReturnType<OrchestrationStore['startExecution']>>
 }
 
 interface FailedAssignment {
@@ -96,14 +97,15 @@ export class TeamOrchestrator {
   /**
    * Run the complete M3 team workflow from one user requirement.
    * @param requirement - frontend project requirement.
+   * @param project - optional platform-registered project to populate.
    * @returns the persisted DAG, decisions, executions, verification, and workspace.
    */
-  async run(requirement: string): Promise<TeamRunResult> {
-    const generated = await this.generate(requirement)
+  async run(requirement: string, project?: ProjectRecord): Promise<TeamRunResult> {
+    const generated = await this.generate(requirement, project)
     const selfHealing = await this.verifyAndRepair(generated)
     return {
       ...generated,
-      executions: this.options.repository.listExecutions(generated.projectId),
+      executions: await this.options.repository.listExecutions(generated.projectId),
       ...selfHealing,
     }
   }
@@ -111,18 +113,26 @@ export class TeamOrchestrator {
   /**
    * Generate the project and complete its DAG without running final verification.
    * @param requirement - frontend project requirement.
+   * @param registeredProject - optional platform project identity and user-facing name.
    * @returns the generated workspace and all generation evidence.
    */
-  async generate(requirement: string): Promise<GeneratedProject> {
+  async generate(requirement: string, registeredProject?: ProjectRecord): Promise<GeneratedProject> {
     if (this.closed) throw new Error('TeamOrchestrator is closed')
-    const projectId = ProjectId(`project-${randomUUID()}`)
+    const projectId = registeredProject?.id ?? ProjectId(`project-${randomUUID()}`)
+    const project: ProjectRecord = registeredProject ?? {
+      id: projectId,
+      name: requirement.slice(0, 120),
+      requirement,
+      createdAt: new Date().toISOString(),
+    }
+    await this.options.repository.createProject(project, [])
     writeProjectScaffold(this.options.workspace)
 
     const planner = await this.runPlanner(projectId, requirement)
     const taskDefinitions = planner.tasks.map(task => taskDefinition(task))
-    const dag = DagEngine.create(
+    const dag = await DagEngine.create(
       this.options.repository,
-      { id: projectId, name: planner.projectName, requirement },
+      project,
       taskDefinitions,
     )
 
@@ -135,7 +145,7 @@ export class TeamOrchestrator {
         )
         throw new Error(`DAG cannot progress; unfinished tasks: ${unfinished.map(task => `${task.id}:${task.status}`).join(', ')}`)
       }
-      const rates = this.options.repository.historicalSuccessRates(projectId)
+      const rates = await this.options.repository.historicalSuccessRates(projectId)
       const assignments = this.scheduler.schedule(
         projectId,
         ready,
@@ -143,13 +153,13 @@ export class TeamOrchestrator {
       )
       const running: RunningExecution[] = []
       for (const assignment of assignments) {
-        this.options.repository.saveSchedulerDecision(assignment.decision)
-        const executionId = this.options.repository.startExecution(
+        await this.options.repository.saveSchedulerDecision(assignment.decision)
+        const executionId = await this.options.repository.startExecution(
           projectId,
           assignment.task.id,
           assignment.agent.id,
         )
-        dag.startTask(assignment.task.id, assignment.agent.id)
+        await dag.startTask(assignment.task.id, assignment.agent.id)
         running.push({
           task: dag.getTask(assignment.task.id),
           agent: assignment.agent,
@@ -172,7 +182,7 @@ export class TeamOrchestrator {
               && profile.available
               && profile.id !== current.assignedAgentId,
           )
-          dag.requeueTask(current.id, retryableFailure.message, {
+          await dag.requeueTask(current.id, retryableFailure.message, {
             excludePreviousAgent: hasAlternativeAgent,
           })
           continue
@@ -194,8 +204,8 @@ export class TeamOrchestrator {
       planner,
       verificationSpec,
       tasks: finalTasks,
-      decisions: this.options.repository.listSchedulerDecisions(projectId),
-      executions: this.options.repository.listExecutions(projectId),
+      decisions: await this.options.repository.listSchedulerDecisions(projectId),
+      executions: await this.options.repository.listExecutions(projectId),
       workspace: this.options.workspace,
     }
   }
@@ -236,7 +246,7 @@ export class TeamOrchestrator {
     const profile = this.options.profiles.find(value => value.role === 'planner')
     if (profile === undefined) throw new Error('Planner profile is not configured')
     const invoker = requireAgentInvoker(this.options.invokers, profile.id)
-    const executionId = this.options.repository.startExecution(
+    const executionId = await this.options.repository.startExecution(
       projectId,
       TaskId('planner'),
       profile.id,
@@ -248,27 +258,27 @@ export class TeamOrchestrator {
         { requirement },
         plannerOutputSchema,
       )
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         executionId,
         'agent/started',
         jsonValueSchema.parse({ taskId: 'planner', agentId: profile.id }),
       )
       const result = await this.invoke(invoker, TaskId('planner'), prompt, plannerOutputSchema)
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         executionId,
         'agent/structured-output',
         jsonValueSchema.parse(result.output),
       )
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         executionId,
         'agent/session-events',
         jsonValueSchema.parse(result.eventTypes),
       )
-      this.options.repository.finishExecution(executionId, 'COMPLETED', result.sessionId)
+      await this.options.repository.finishExecution(executionId, 'COMPLETED', result.sessionId)
       return result.output
     } catch (error: unknown) {
       const failure = taskFailure('PLANNER_FAILED', error)
-      this.options.repository.finishExecution(executionId, 'FAILED', undefined, failure)
+      await this.options.repository.finishExecution(executionId, 'FAILED', undefined, failure)
       throw error
     }
   }
@@ -283,7 +293,7 @@ export class TeamOrchestrator {
     try {
       const invoker = requireAgentInvoker(this.options.invokers, running.agent.id)
       const invocation = this.invocationForTask(running.task, requirement, planner, outputs)
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         running.executionId,
         'agent/started',
         jsonValueSchema.parse({ taskId: running.task.id, agentId: running.agent.id }),
@@ -294,39 +304,39 @@ export class TeamOrchestrator {
         invocation.prompt,
         invocation.schema,
       )
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         running.executionId,
         'agent/session-events',
         jsonValueSchema.parse(result.eventTypes),
       )
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         running.executionId,
         'agent/structured-output',
         jsonValueSchema.parse(result.output),
       )
-      this.options.repository.finishExecution(
+      await this.options.repository.finishExecution(
         running.executionId,
         'COMPLETED',
         result.sessionId,
       )
       this.applyOutput(running.task, result.output)
       outputs.set(running.task.id, result.output)
-      dag.completeTask(running.task.id, jsonValueSchema.parse(result.output))
+      await dag.completeTask(running.task.id, jsonValueSchema.parse(result.output))
       return { ok: true }
     } catch (error: unknown) {
       const failure = taskFailure(`${running.task.role.toUpperCase()}_FAILED`, error)
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         running.executionId,
         'agent/error',
         jsonValueSchema.parse({ code: failure.code, message: failure.message }),
       )
-      this.options.repository.finishExecution(
+      await this.options.repository.finishExecution(
         running.executionId,
         'FAILED',
         undefined,
         failure,
       )
-      dag.failTask(running.task.id, failure)
+      await dag.failTask(running.task.id, failure)
       return {
         ok: false,
         taskId: running.task.id,

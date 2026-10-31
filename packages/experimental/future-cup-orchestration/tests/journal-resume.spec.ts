@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { AgentId, ProjectId, TaskId } from '../src/brand.ts'
-import { DagEngine, DagError } from '../src/dag-engine.ts'
+import { DagEngine } from '../src/dag-engine.ts'
 import { OrchestrationRepository } from '../src/repository.ts'
 import type { TaskDefinition } from '../src/types.ts'
 
@@ -24,13 +24,13 @@ function task(id: string, dependencies: string[] = []): TaskDefinition {
 }
 
 describe('DAG journaling and resume', () => {
-  it('replays every task revision after reopening the SQLite database', () => {
+  it('replays every task revision after reopening the SQLite database', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'future-cup-journal-'))
     const path = join(directory, 'orchestration.sqlite')
     const projectId = ProjectId('project-resume')
     try {
       const first = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
-      const dag = DagEngine.create(
+      const dag = await DagEngine.create(
         first,
         { id: projectId, name: 'Resume', requirement: 'resume project' },
         [
@@ -40,14 +40,14 @@ describe('DAG journaling and resume', () => {
         ],
         { now: NOW },
       )
-      dag.startTask(TaskId('design'), AgentId('ui-designer'))
-      dag.completeTask(TaskId('design'), { ok: true })
+      await dag.startTask(TaskId('design'), AgentId('ui-designer'))
+      await dag.completeTask(TaskId('design'), { ok: true })
       expect(first.listTaskJournal(projectId).length).toBeGreaterThanOrEqual(5)
       first.close()
 
       const second = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
       try {
-        const resumed = DagEngine.resume(second, projectId, { now: NOW })
+        const resumed = await DagEngine.resume(second, projectId, { now: NOW })
         expect(resumed.getTask(TaskId('design')).status).toBe('COMPLETED')
         expect(resumed.getTask(TaskId('dashboard')).status).toBe('READY')
         expect(resumed.getTask(TaskId('integration')).status).toBe('PENDING')
@@ -60,13 +60,13 @@ describe('DAG journaling and resume', () => {
     }
   })
 
-  it('rejects current task rows that do not match the Journal replay', () => {
+  it('rejects current task rows that do not match the Journal replay', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'future-cup-journal-corrupt-'))
     const path = join(directory, 'orchestration.sqlite')
     const projectId = ProjectId('project-corrupt')
     try {
       const repository = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
-      DagEngine.create(
+      await DagEngine.create(
         repository,
         { id: projectId, name: 'Corrupt', requirement: 'corrupt project' },
         [task('design')],
@@ -74,19 +74,27 @@ describe('DAG journaling and resume', () => {
       )
       repository.close()
 
+      const raw = new DatabaseSync(path)
+      const storedTask = raw.prepare(`
+        SELECT snapshot_json
+        FROM tasks
+        WHERE project_id = ?
+      `).get(projectId) as { snapshot_json: string }
+      raw.prepare(`
+        UPDATE tasks
+        SET snapshot_json = ?, revision = 2, status = 'FAILED'
+        WHERE project_id = ?
+      `).run(JSON.stringify({
+        ...JSON.parse(storedTask.snapshot_json),
+        revision: 2,
+        status: 'FAILED',
+      }), projectId)
+      raw.close()
+
       const corrupt = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
       try {
-        corrupt.saveTask(
-          {
-            ...corrupt.listTasks(projectId)[0]!,
-            revision: 100,
-            status: 'FAILED',
-          },
-          'task/failed',
-          'manual corruption',
-        )
-        expect(() => DagEngine.resume(corrupt, projectId, { now: NOW }))
-          .toThrow(expect.objectContaining<Partial<DagError>>({ code: 'JOURNAL_INCONSISTENT' }))
+        await expect(DagEngine.resume(corrupt, projectId, { now: NOW }))
+          .rejects.toMatchObject({ code: 'JOURNAL_INCONSISTENT' })
       } finally {
         corrupt.close()
       }
@@ -96,7 +104,7 @@ describe('DAG journaling and resume', () => {
     }
   })
 
-  it('migrates an M2 schema to M3 without dropping verification evidence', () => {
+  it('migrates an M2 schema to v4 without dropping verification evidence', () => {
     const directory = mkdtempSync(join(tmpdir(), 'future-cup-schema-v1-'))
     const path = join(directory, 'orchestration.sqlite')
     const projectId = ProjectId('project-v1')
@@ -108,6 +116,14 @@ describe('DAG journaling and resume', () => {
         name TEXT NOT NULL,
         requirement TEXT NOT NULL,
         created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE tasks (
+        project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        id            TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        revision      INTEGER NOT NULL,
+        status        TEXT NOT NULL,
+        PRIMARY KEY (project_id, id)
       ) STRICT;
       CREATE TABLE verification_reports (
         id TEXT PRIMARY KEY,
@@ -131,7 +147,7 @@ describe('DAG journaling and resume', () => {
 
     const repository = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
     try {
-      expect(repository.schemaVersion).toBe(2)
+      expect(repository.schemaVersion).toBe(4)
       const migrated = repository.listVerificationReports(projectId)
       expect(migrated).toHaveLength(1)
       expect(migrated[0]?.id).toBe('verification-existing')

@@ -20,7 +20,18 @@ import {
   taskSnapshotSchema,
   verificationStatusSchema,
 } from './schemas.ts'
+import { productEventSchema } from './product-events.ts'
+import { assertPositiveSafeInteger } from './platform-store.ts'
 import { openOrchestrationDatabase, ORCHESTRATION_SCHEMA_VERSION } from './sqlite.ts'
+import type {
+  LeaseAcquisition,
+  OrchestrationStore,
+  OutboxClaim,
+  PlatformProjectSnapshot,
+  PlatformProjectSummary,
+  ProductEventDraft,
+  WorkflowLeaseState,
+} from './platform-store.ts'
 import type {
   ExecutionEventRecord,
   ExecutionRecord,
@@ -39,6 +50,7 @@ import type {
   WorkflowRunRecord,
   WorkflowStatus,
 } from './types.ts'
+import type { ProductEvent } from './product-events.ts'
 
 interface RepositoryOptions {
   /** Override for deterministic test timestamps. */
@@ -53,6 +65,7 @@ const projectRowSchema = z.object({
   id: z.string(),
   name: z.string(),
   requirement: z.string(),
+  last_event_seq: z.number(),
   created_at: z.string(),
 }).strict()
 
@@ -132,6 +145,26 @@ const workflowRowSchema = z.object({
   updated_at: z.string(),
 }).strict()
 
+const productEventRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  seq: z.number(),
+  type: z.string(),
+  task_id: z.string().nullable(),
+  agent_id: z.string().nullable(),
+  payload_json: z.string(),
+  occurred_at: z.string(),
+}).strict()
+
+const workflowLeaseRowSchema = z.object({
+  resource_id: z.string(),
+  project_id: z.string(),
+  owner_id: z.string().nullable(),
+  fencing_token: z.number(),
+  heartbeat_at: z.string(),
+  expires_at: z.string(),
+}).strict()
+
 /** Current persisted DAG state used by resume verification. */
 export interface PersistedDag {
   readonly tasks: readonly TaskSnapshot[]
@@ -142,7 +175,7 @@ export interface PersistedDag {
  * Durable SQLite repository for one Future Cup orchestration database.
  * Call {@link close} exactly once when the owner finishes.
  */
-export class OrchestrationRepository {
+export class OrchestrationRepository implements OrchestrationStore {
   private readonly database: DatabaseSync
   private readonly now: () => Date
   private readonly createId: () => string
@@ -170,19 +203,48 @@ export class OrchestrationRepository {
    */
   createProject(project: ProjectRecord, tasks: readonly TaskSnapshot[]): void {
     this.transaction(() => {
-      this.database.prepare(
-        'INSERT INTO projects (id, name, requirement, created_at) VALUES (?, ?, ?, ?)',
-      ).run(project.id, project.name, project.requirement, project.createdAt)
+      const existing = this.database.prepare(`
+        SELECT id, name, requirement, created_at
+        FROM projects
+        WHERE id = ?
+      `).get(project.id) as {
+        id: string
+        name: string
+        requirement: string
+        created_at: string
+      } | undefined
+      if (existing === undefined) {
+        this.database.prepare(
+          'INSERT INTO projects (id, name, requirement, created_at) VALUES (?, ?, ?, ?)',
+        ).run(project.id, project.name, project.requirement, project.createdAt)
+      } else if (existing.name !== project.name || existing.requirement !== project.requirement) {
+        throw new Error(`project "${project.id}" already exists with a different name or requirement`)
+      }
+      const { count } = this.database.prepare(`
+        SELECT COUNT(*) AS count
+        FROM tasks
+        WHERE project_id = ?
+      `).get(project.id) as { count: number }
+      if (tasks.length > 0 && count > 0) {
+        throw new Error(`project "${project.id}" already has tasks`)
+      }
       const taskStatement = this.database.prepare(`
-        INSERT INTO tasks (project_id, id, snapshot_json, revision, status)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO tasks (project_id, id, snapshot_json, revision, status, position)
+        VALUES (?, ?, ?, ?, ?, ?)
       `)
       const dependencyStatement = this.database.prepare(`
         INSERT INTO task_dependencies (project_id, task_id, depends_on_task_id)
         VALUES (?, ?, ?)
       `)
-      for (const task of tasks) {
-        taskStatement.run(task.projectId, task.id, JSON.stringify(task), task.revision, task.status)
+      for (const [position, task] of tasks.entries()) {
+        taskStatement.run(
+          task.projectId,
+          task.id,
+          JSON.stringify(task),
+          task.revision,
+          task.status,
+          position,
+        )
         for (const dependency of task.dependencies) {
           dependencyStatement.run(task.projectId, task.id, dependency)
         }
@@ -198,7 +260,7 @@ export class OrchestrationRepository {
    */
   getProject(id: ProjectId): ProjectRecord | undefined {
     const raw = this.database.prepare(
-      'SELECT id, name, requirement, created_at FROM projects WHERE id = ?',
+      'SELECT id, name, requirement, last_event_seq, created_at FROM projects WHERE id = ?',
     ).get(id)
     if (raw === undefined) return undefined
     const row = projectRowSchema.parse(raw)
@@ -208,6 +270,311 @@ export class OrchestrationRepository {
       requirement: row.requirement,
       createdAt: row.created_at,
     }
+  }
+
+  /**
+   * List all projects with their current event cursor and workflow state.
+   * @returns project summaries in creation order.
+   */
+  listProjects(): PlatformProjectSummary[] {
+    const rows = projectRowSchema.extend({
+      workflow_status: z.string().nullable(),
+    }).array().parse(this.database.prepare(`
+      SELECT
+        p.id, p.name, p.requirement, p.last_event_seq, p.created_at,
+        w.status AS workflow_status
+      FROM projects p
+      LEFT JOIN workflow_runs w ON w.project_id = p.id
+      ORDER BY p.rowid
+    `).all())
+    return rows.map(row => ({
+      id: ProjectId(row.id),
+      name: row.name,
+      requirement: row.requirement,
+      lastEventSeq: row.last_event_seq,
+      workflowStatus: row.workflow_status === null
+        ? undefined
+        : decodeWorkflowStatus(row.workflow_status),
+      createdAt: row.created_at,
+    }))
+  }
+
+  /**
+   * Read the complete project state needed by an API snapshot.
+   * @param projectId - owning project.
+   * @param afterSeq - exclusive product-event cursor.
+   * @param limit - maximum returned events.
+   * @returns the project snapshot, or undefined when absent.
+   */
+  getProjectSnapshot(
+    projectId: string,
+    afterSeq: number,
+    limit: number,
+  ): PlatformProjectSnapshot | undefined {
+    const project = this.listProjects().find(value => value.id === projectId)
+    if (project === undefined) return undefined
+    const id = ProjectId(projectId)
+    return {
+      project,
+      tasks: this.listTasks(id),
+      decisions: this.listSchedulerDecisions(id),
+      executions: this.listExecutions(id),
+      verificationReports: this.listVerificationReports(id),
+      repairs: this.listRepairRecords(id),
+      workflow: this.getWorkflowRun(id),
+      events: this.listProductEvents(projectId, afterSeq, limit),
+      lastEventSeq: project.lastEventSeq,
+    }
+  }
+
+  /**
+   * Append one product event and Outbox row while advancing the project cursor.
+   * @param draft - event identity and payload.
+   * @returns the committed event.
+   */
+  appendProductEvent(draft: ProductEventDraft): ProductEvent {
+    return this.transaction(() => {
+      const cursor = this.database.prepare(`
+        UPDATE projects
+        SET last_event_seq = last_event_seq + 1
+        WHERE id = ?
+        RETURNING last_event_seq
+      `).get(draft.projectId) as { last_event_seq: number } | undefined
+      if (cursor === undefined) throw new Error(`cannot append event for missing project "${draft.projectId}"`)
+      const event = productEventSchema.parse({
+        type: draft.type,
+        projectId: draft.projectId,
+        seq: cursor.last_event_seq,
+        occurredAt: draft.occurredAt ?? this.timestamp(),
+        ...draft.taskId === undefined ? {} : { taskId: draft.taskId },
+        ...draft.agentId === undefined ? {} : { agentId: draft.agentId },
+        payload: draft.payload,
+      })
+      const id = `event-${this.createId()}`
+      this.database.prepare(`
+        INSERT INTO product_events (
+          id, project_id, seq, type, task_id, agent_id, payload_json, occurred_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        event.projectId,
+        event.seq,
+        event.type,
+        event.taskId ?? null,
+        event.agentId ?? null,
+        JSON.stringify(event.payload),
+        event.occurredAt,
+      )
+      this.database.prepare(
+        'INSERT INTO outbox_events (event_id, published_at) VALUES (?, NULL)',
+      ).run(id)
+      return event
+    })
+  }
+
+  /**
+   * Read product events after one project sequence.
+   * @param projectId - owning project.
+   * @param afterSeq - exclusive lower bound.
+   * @param limit - maximum events.
+   * @returns ordered events.
+   */
+  listProductEvents(projectId: string, afterSeq: number, limit: number): ProductEvent[] {
+    if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error('event limit must be a positive safe integer')
+    const rows = productEventRowSchema.array().parse(this.database.prepare(`
+      SELECT id, project_id, seq, type, task_id, agent_id, payload_json, occurred_at
+      FROM product_events
+      WHERE project_id = ? AND seq > ?
+      ORDER BY seq
+      LIMIT ?
+    `).all(projectId, afterSeq, limit))
+    return rows.map(decodeProductEvent)
+  }
+
+  /**
+   * Claim unpublished or expired Outbox rows for one dispatcher.
+   * @param ownerId - dispatcher identity.
+   * @param limit - maximum rows.
+   * @param claimDurationMs - positive duration before another dispatcher may reclaim.
+   * @returns events awaiting realtime delivery.
+   */
+  claimOutbox(ownerId: string, limit: number, claimDurationMs: number): OutboxClaim[] {
+    if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error('outbox limit must be a positive safe integer')
+    assertClaimDuration(claimDurationMs)
+    return this.transaction(() => {
+      const now = this.now()
+      const claimed = this.database.prepare(`
+        SELECT o.event_id
+        FROM outbox_events o
+        JOIN product_events e ON e.id = o.event_id
+        WHERE o.published_at IS NULL
+          AND (o.claim_expires_at IS NULL OR o.claim_expires_at <= ?)
+        ORDER BY e.rowid
+        LIMIT ?
+      `).all(now.toISOString(), limit) as { event_id: string }[]
+      const expiresAt = new Date(now.getTime() + claimDurationMs).toISOString()
+      const claimStatement = this.database.prepare(`
+        UPDATE outbox_events
+        SET claim_owner_id = ?, claim_token = ?, claimed_at = ?, claim_expires_at = ?
+        WHERE event_id = ? AND published_at IS NULL
+      `)
+      for (const row of claimed) {
+        claimStatement.run(ownerId, this.createId(), now.toISOString(), expiresAt, row.event_id)
+      }
+      if (claimed.length === 0) return []
+      const placeholders = claimed.map(() => '?').join(', ')
+      const rows = productEventRowSchema.extend({
+        claim_token: z.string(),
+        claim_expires_at: z.string(),
+      }).array().parse(this.database.prepare(`
+        SELECT
+          e.id, e.project_id, e.seq, e.type, e.task_id, e.agent_id, e.payload_json, e.occurred_at,
+          o.claim_token, o.claim_expires_at
+        FROM outbox_events o
+        JOIN product_events e ON e.id = o.event_id
+        WHERE o.event_id IN (${placeholders}) AND o.claim_owner_id = ?
+        ORDER BY e.rowid
+      `).all(...claimed.map(row => row.event_id), ownerId))
+      return rows.map(row => ({
+        eventId: row.id,
+        event: decodeProductEvent(row),
+        claimToken: row.claim_token,
+        expiresAt: row.claim_expires_at,
+      }))
+    })
+  }
+
+  /**
+   * Mark this dispatcher's Outbox rows published after a broadcast attempt.
+   * @param ownerId - dispatcher identity.
+   * @param eventIds - durable event identities.
+   */
+  markOutboxPublished(ownerId: string, eventIds: readonly string[]): void {
+    if (eventIds.length === 0) return
+    const statement = this.database.prepare(
+      `UPDATE outbox_events
+       SET published_at = ?, claim_owner_id = NULL, claim_token = NULL,
+           claimed_at = NULL, claim_expires_at = NULL
+       WHERE event_id = ? AND published_at IS NULL AND claim_owner_id = ?`,
+    )
+    const publishedAt = this.timestamp()
+    this.transaction(() => {
+      for (const eventId of eventIds) statement.run(publishedAt, eventId, ownerId)
+    })
+  }
+
+  /**
+   * Acquire or take over one expired workflow lease.
+   * @param resourceId - stable workflow resource identity.
+   * @param projectId - owning project.
+   * @param ownerId - worker identity.
+   * @param leaseDurationMs - positive lease duration.
+   * @returns fencing token and acquisition status.
+   */
+  acquireWorkflowLease(
+    resourceId: string,
+    projectId: string,
+    ownerId: string,
+    leaseDurationMs: number,
+  ): LeaseAcquisition {
+    assertLeaseDuration(leaseDurationMs)
+    return this.transaction(() => {
+      const now = this.now()
+      const current = this.database.prepare(`
+        SELECT resource_id, project_id, owner_id, fencing_token, heartbeat_at, expires_at
+        FROM workflow_leases
+        WHERE resource_id = ?
+      `).get(resourceId)
+      const expiresAt = new Date(now.getTime() + leaseDurationMs).toISOString()
+      if (current === undefined) {
+        this.database.prepare(`
+          INSERT INTO workflow_leases (
+            resource_id, project_id, owner_id, fencing_token, heartbeat_at, expires_at
+          ) VALUES (?, ?, ?, 1, ?, ?)
+        `).run(resourceId, projectId, ownerId, now.toISOString(), expiresAt)
+        return { acquired: true, ownerId, fencingToken: 1n, expiresAt }
+      }
+      const row = workflowLeaseRowSchema.parse(current)
+      if (row.owner_id !== null && Date.parse(row.expires_at) > now.getTime()) {
+        return {
+          acquired: false,
+          ownerId: row.owner_id,
+          fencingToken: BigInt(row.fencing_token),
+          expiresAt: row.expires_at,
+        }
+      }
+      const fencingToken = BigInt(row.fencing_token) + 1n
+      this.database.prepare(`
+        UPDATE workflow_leases
+        SET owner_id = ?, fencing_token = ?, heartbeat_at = ?, expires_at = ?
+        WHERE resource_id = ?
+      `).run(ownerId, Number(fencingToken), now.toISOString(), expiresAt, resourceId)
+      return { acquired: true, ownerId, fencingToken, expiresAt }
+    })
+  }
+
+  /**
+   * Read one workflow lease.
+   * @param resourceId - stable workflow resource identity.
+   * @returns lease state when present.
+   */
+  getWorkflowLease(resourceId: string): WorkflowLeaseState | undefined {
+    const raw = this.database.prepare(`
+      SELECT resource_id, project_id, owner_id, fencing_token, heartbeat_at, expires_at
+      FROM workflow_leases
+      WHERE resource_id = ?
+    `).get(resourceId)
+    if (raw === undefined) return undefined
+    const row = workflowLeaseRowSchema.parse(raw)
+    return {
+      resourceId: row.resource_id,
+      projectId: row.project_id,
+      ownerId: row.owner_id ?? undefined,
+      fencingToken: BigInt(row.fencing_token),
+      heartbeatAt: row.heartbeat_at,
+      expiresAt: row.expires_at,
+    }
+  }
+
+  /**
+   * Renew one currently owned workflow lease.
+   * @param resourceId - stable workflow resource identity.
+   * @param ownerId - worker identity.
+   * @param fencingToken - token returned by acquisition.
+   * @param leaseDurationMs - positive renewal duration.
+   * @returns whether the lease matched and was renewed.
+   */
+  heartbeatWorkflowLease(
+    resourceId: string,
+    ownerId: string,
+    fencingToken: bigint,
+    leaseDurationMs: number,
+  ): boolean {
+    assertLeaseDuration(leaseDurationMs)
+    const now = this.now()
+    const expiresAt = new Date(now.getTime() + leaseDurationMs).toISOString()
+    const result = this.database.prepare(`
+      UPDATE workflow_leases
+      SET heartbeat_at = ?, expires_at = ?
+      WHERE resource_id = ? AND owner_id = ? AND fencing_token = ? AND expires_at > ?
+    `).run(now.toISOString(), expiresAt, resourceId, ownerId, Number(fencingToken), now.toISOString())
+    return result.changes === 1
+  }
+
+  /**
+   * Release one currently owned workflow lease.
+   * @param resourceId - stable workflow resource identity.
+   * @param ownerId - worker identity.
+   * @param fencingToken - token returned by acquisition.
+   * @returns whether the lease matched and was released.
+   */
+  releaseWorkflowLease(resourceId: string, ownerId: string, fencingToken: bigint): boolean {
+    const result = this.database.prepare(`
+      UPDATE workflow_leases
+      SET owner_id = NULL, expires_at = ?, heartbeat_at = ?
+      WHERE resource_id = ? AND owner_id = ? AND fencing_token = ?
+    `).run(this.timestamp(), this.timestamp(), resourceId, ownerId, Number(fencingToken))
+    return result.changes === 1
   }
 
   /**
@@ -221,10 +588,17 @@ export class OrchestrationRepository {
       const result = this.database.prepare(`
         UPDATE tasks
         SET snapshot_json = ?, revision = ?, status = ?
-        WHERE project_id = ? AND id = ?
-      `).run(JSON.stringify(task), task.revision, task.status, task.projectId, task.id)
+        WHERE project_id = ? AND id = ? AND revision = ?
+      `).run(
+        JSON.stringify(task),
+        task.revision,
+        task.status,
+        task.projectId,
+        task.id,
+        task.revision - 1,
+      )
       if (result.changes !== 1) {
-        throw new Error(`cannot update missing task "${task.id}" in project "${task.projectId}"`)
+        throw new Error(`cannot update missing or stale task "${task.id}" in project "${task.projectId}"`)
       }
       this.appendTaskJournal(task, eventType, reason)
     })
@@ -240,7 +614,7 @@ export class OrchestrationRepository {
       SELECT snapshot_json
       FROM tasks
       WHERE project_id = ?
-      ORDER BY rowid
+      ORDER BY position
     `).all(projectId))
     return rows.map(row => decodeTask(JSON.parse(row.snapshot_json)))
   }
@@ -714,6 +1088,29 @@ function decodeSchedulerDecision(value: unknown): SchedulerDecision {
       ? {}
       : { previousAgentId: AgentId(previousAgentId) },
   }
+}
+
+/** Decode one durable product event row. */
+function decodeProductEvent(row: z.infer<typeof productEventRowSchema>): ProductEvent {
+  return productEventSchema.parse({
+    type: row.type,
+    projectId: row.project_id,
+    seq: row.seq,
+    occurredAt: row.occurred_at,
+    ...row.task_id === null ? {} : { taskId: row.task_id },
+    ...row.agent_id === null ? {} : { agentId: row.agent_id },
+    payload: jsonValueSchema.parse(JSON.parse(row.payload_json)),
+  })
+}
+
+/** Validate a lease duration before touching durable rows. */
+function assertLeaseDuration(leaseDurationMs: number): void {
+  assertPositiveSafeInteger(leaseDurationMs, 'leaseDurationMs')
+}
+
+/** Validate one Outbox claim lease before touching durable rows. */
+function assertClaimDuration(claimDurationMs: number): void {
+  assertPositiveSafeInteger(claimDurationMs, 'claimDurationMs')
 }
 
 /** Decode a persisted execution status. */

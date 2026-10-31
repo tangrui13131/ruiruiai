@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/future-cup-platform/README.md
+/:
+  en: 2b7848244fb7c9e9
+  zh: 4b9a890638eb1495
+/deepseek-ai-dsh-experimental-future-cup-platform:
+  en: 6e38731f45861971
+  zh: 0197d28adf589d53
+/deepseek-ai-dsh-experimental-future-cup-platform/summary:
+  en: 1e6a09b30675ab04
+  zh: 9df81466427598a1
+/deepseek-ai-dsh-experimental-future-cup-platform/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 718125983f6b80d4
+/deepseek-ai-dsh-experimental-future-cup-platform/use-this-package:
+  en: df30a78c5aec2a6f
+  zh: 5574f2e99ba380c9
+/deepseek-ai-dsh-experimental-future-cup-platform/use-this-package/rest-api:
+  en: aaea71a2f38f1198
+  zh: c7d828632861ce9c
+/deepseek-ai-dsh-experimental-future-cup-platform/use-this-package/realtime-replay:
+  en: ef53af7d81607e1f
+  zh: 40504f9ad89dbfee
+/deepseek-ai-dsh-experimental-future-cup-platform/understand-the-implementation:
+  en: 1b2741108ed5609a
+  zh: ac10671c026451f0
+/deepseek-ai-dsh-experimental-future-cup-platform/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-experimental-future-cup-platform/model-experience/platform-data-plane:
+  en: d5a06204cb097326
+  zh: d5a06204cb097326
+/deepseek-ai-dsh-experimental-future-cup-platform/model-experience/platform-data-plane/what-the-model-sees:
+  en: 71d06f74f9033eb8
+  zh: 64a5c8dd1fd9a08c
+/deepseek-ai-dsh-experimental-future-cup-platform/model-experience/platform-data-plane/token-effect:
+  en: b4de7a7d1902a50c
+  zh: 84ae86e9f17ba513
+/deepseek-ai-dsh-experimental-future-cup-platform/model-experience/platform-data-plane/kv-cache-effect:
+  en: 2eb840cd51af8d4f
+  zh: d5d47ef889760135
+/deepseek-ai-dsh-experimental-future-cup-platform/known-limitations-and-deferred-work:
+  en: f07ebe90d7415d9d
+  zh: a23d8d73573f08ab
+/deepseek-ai-dsh-experimental-future-cup-platform/known-limitations-and-deferred-work/dev-note:
+  en: 5e21c99a3d5a2cf4
+  zh: dd5e3ba3f6e7993a

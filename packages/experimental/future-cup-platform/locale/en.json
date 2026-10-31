@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Future Cup platform",
+    "description": "Provides PostgreSQL persistence, transactional project events, workflow leases, REST snapshots, and Socket.IO replay."
+  }
+}

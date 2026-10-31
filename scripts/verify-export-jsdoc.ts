@@ -557,8 +557,9 @@ function loadCompilerOptions(scanRoot: string): ts.CompilerOptions {
 }
 
 /**
- * Walk every non-vendored package source file and collect JSDoc-completeness
- * violations for its module-level exports. Returns findings instead of
+ * Walk every non-vendored, non-generated package source file and collect
+ * JSDoc-completeness violations for its module-level exports. Generated clients
+ * retain their generator-owned declarations. Returns findings instead of
  * throwing so tests assert on the list; the CLI entry turns a non-empty list
  * into exit 1.
  * @param scanRoot - the repo root to scan; tests pass a fixture dir.
@@ -568,6 +569,7 @@ export function collectExportJsdocViolations(scanRoot: string = root): string[] 
   const violations: string[] = []
   const rels = globSync('packages/*/*/src/**/*.ts', { cwd: scanRoot })
     .map(path => path.split(sep).join('/'))
+    .filter(path => !path.split('/').includes('generated'))
     .sort()
   const program = ts.createProgram(rels.map(rel => resolve(scanRoot, rel)), loadCompilerOptions(scanRoot))
   const checker = program.getTypeChecker()

@@ -10,7 +10,7 @@
  * Loader fixtures resolve from their package manifest.
  */
 
-import { globSync, readFileSync } from 'node:fs'
+import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { Script } from 'node:vm'
 import ts from 'typescript'
@@ -63,7 +63,7 @@ if (import.meta.main) {
   const files = cordisConfigFiles(root)
 
   for (const file of files) {
-    const document = loadCordisYaml(readFileSync(resolve(root, file), 'utf8'))
+    const document = readCordisConfig(file)
     if (!isUnknownArray(document)) {
       errors.push(`${file}: root must be a Loader entry array`)
       continue
@@ -168,8 +168,33 @@ function validatePresetPlaneSeparation(): string[] {
 
 /** Every entry of one config file, or an empty list when it is not an entry array. */
 function loadEntries(file: string): unknown[] {
-  const document = loadCordisYaml(readFileSync(resolve(root, file), 'utf8'))
+  const document = readCordisConfig(file)
   return isUnknownArray(document) ? document : []
+}
+
+/**
+ * Read one Cordis YAML file, following a repository-relative pointer file used by test fixtures.
+ * @param file - repository-relative YAML path.
+ * @returns the parsed YAML document.
+ */
+function readCordisConfig(file: string): unknown {
+  const seen = new Set<string>()
+  let current = resolve(root, file)
+  while (true) {
+    if (seen.has(current)) throw new Error(`Cordis YAML pointer cycle at ${relative(root, current)}`)
+    seen.add(current)
+    const source = readFileSync(current, 'utf8')
+    const pointer = source.trim()
+    if (!pointer.includes('\n') && /^\.\.?[\\/].*\.ya?ml$/u.test(pointer)) {
+      const target = resolve(dirname(current), pointer)
+      if (!existsSync(target)) {
+        throw new Error(`${file}: Cordis YAML pointer target ${relative(root, target)} does not exist`)
+      }
+      current = target
+      continue
+    }
+    return loadCordisYaml(source)
+  }
 }
 
 /**

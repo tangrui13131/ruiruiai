@@ -73,6 +73,7 @@ Promotion requires a named product role, documented public behavior and limitati
 | [`agent-team`](agent-team/README.md) | Named teammates with direct messages and a durable shared task board | `ctx.agentTeams` |
 | [`client-ui-agent-team`](client-ui-agent-team/README.md) | Team roster, task board, and teammate navigation for Web | — |
 | [`future-cup-orchestration`](future-cup-orchestration/README.md) | Durable DAG, explainable scheduling, browser verification, bounded repair, and real Harness Agent-team orchestration for a frontend project | library (no ctx key) |
+| [`future-cup-platform`](future-cup-platform/README.md) | Future Cup PostgreSQL persistence, transactional events, workflow leases, Fastify snapshots, and Socket.IO replay | reads optional `ctx.futureCupRunLauncher` |
 | [`client-ui-stats`](client-ui-stats/README.md) | Per-turn and per-step context, timing, cache, and tool cost for Web | — |
 | [`auto-review`](auto-review/README.md) | Explicit Web layer for same-model review before each native or PTC inner tool call | — |
 | [`subagent-oar`](subagent-oar/README.md) | Run standalone external coding-agent tasks through OAR | `ctx.subagents` |

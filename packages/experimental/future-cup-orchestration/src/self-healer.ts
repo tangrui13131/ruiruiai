@@ -7,7 +7,7 @@ import type { ProjectId as ProjectIdType } from './brand.ts'
 import { requireAgentInvoker } from './harness-agents.ts'
 import { REPAIR_INSTRUCTIONS } from './prompts.ts'
 import { writeScopedFiles } from './project-scaffold.ts'
-import type { OrchestrationRepository } from './repository.ts'
+import type { OrchestrationStore } from './platform-store.ts'
 import {
   jsonValueSchema,
   repairOutputSchema,
@@ -26,7 +26,7 @@ import { createWorkspaceDiff, readWorkspaceSourceSnapshot } from './workspace-di
 
 /** Explicit self-loop dependencies and bounds. */
 export interface SelfLoopControllerOptions {
-  readonly repository: OrchestrationRepository
+  readonly repository: OrchestrationStore
   readonly invokers: ReadonlyMap<string, AgentInvoker>
   readonly profiles: readonly AgentProfile[]
   readonly workspace: string
@@ -81,7 +81,7 @@ export class SelfLoopController {
    * @returns the final report, all reports, repair diffs, and workflow terminal state.
    */
   async run(projectId: ProjectIdType, spec: TesterOutput): Promise<SelfHealingResult> {
-    this.options.repository.startWorkflowRun(projectId)
+    await this.options.repository.startWorkflowRun(projectId)
     let current = await this.verifyAndPersist(projectId, spec)
     if (current.status === 'PASS') {
       return this.completed(projectId, current, 0)
@@ -134,7 +134,7 @@ export class SelfLoopController {
         )
       }
 
-      this.options.repository.saveRepairRecord(projectId, {
+      await this.options.repository.saveRepairRecord(projectId, {
         repairRound: round,
         verificationReportId: current.id,
         repairAgentId: repairProfile(this.options.profiles).id,
@@ -195,12 +195,12 @@ export class SelfLoopController {
     const invoker = requireAgentInvoker(this.options.invokers, profile.id)
     const startedAt = this.timestamp()
     const before = await readWorkspaceSourceSnapshot(this.options.workspace)
-    const executionId = this.options.repository.startExecution(
+    const executionId = await this.options.repository.startExecution(
       projectId,
       TaskId(`repair-round-${round}`),
       profile.id,
     )
-    this.options.repository.appendExecutionEvent(
+    await this.options.repository.appendExecutionEvent(
       executionId,
       'repair/started',
       jsonValueSchema.parse({ round, failureSignature: requiredSignature(report) }),
@@ -214,7 +214,7 @@ export class SelfLoopController {
           verification: report.report,
           verificationSpec: spec,
           sources: selectRepairSources(before, report),
-          priorRepairs: this.options.repository.listRepairRecords(projectId).map(record => ({
+          priorRepairs: (await this.options.repository.listRepairRecords(projectId)).map(record => ({
             round: record.repairRound,
             failureSignature: record.failureSignature,
             errorSummary: record.errorSummary,
@@ -228,12 +228,12 @@ export class SelfLoopController {
         invoker.run({ taskId: `repair-round-${round}`, prompt }, repairOutputSchema),
         this.options.config.repairTimeoutMs,
       )
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         executionId,
         'agent/session-events',
         jsonValueSchema.parse(run.eventTypes),
       )
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         executionId,
         'agent/structured-output',
         jsonValueSchema.parse(run.output),
@@ -241,16 +241,16 @@ export class SelfLoopController {
       writeScopedFiles(this.options.workspace, run.output.files, ['src/'])
       const after = await readWorkspaceSourceSnapshot(this.options.workspace)
       const diff = createWorkspaceDiff(before, after)
-      this.options.repository.finishExecution(executionId, 'COMPLETED', run.sessionId)
+      await this.options.repository.finishExecution(executionId, 'COMPLETED', run.sessionId)
       return { ok: true, attempt: { output: run.output, diff, startedAt } }
     } catch (error: unknown) {
       const timeout = error instanceof RepairTimeoutError
-      this.options.repository.finishExecution(executionId, 'FAILED', undefined, {
+      await this.options.repository.finishExecution(executionId, 'FAILED', undefined, {
         code: timeout ? 'REPAIR_TIMEOUT' : 'REPAIR_FAILED',
         message: error instanceof Error ? error.message : String(error),
         retryable: false,
       })
-      this.options.repository.appendExecutionEvent(
+      await this.options.repository.appendExecutionEvent(
         executionId,
         'agent/error',
         jsonValueSchema.parse({
@@ -258,7 +258,7 @@ export class SelfLoopController {
           message: error instanceof Error ? error.message : String(error),
         }),
       )
-      this.options.repository.saveRepairRecord(projectId, {
+      await this.options.repository.saveRepairRecord(projectId, {
         repairRound: round,
         verificationReportId: report.id,
         repairAgentId: profile.id,
@@ -283,7 +283,7 @@ export class SelfLoopController {
     spec: TesterOutput,
   ): Promise<VerificationReport> {
     const result = await this.verifier(this.options.workspace, spec)
-    return this.options.repository.saveVerificationReport(
+    return await this.options.repository.saveVerificationReport(
       projectId,
       result.status,
       jsonValueSchema.parse(result.report),
@@ -293,29 +293,29 @@ export class SelfLoopController {
   }
 
   /** Commit a successful workflow and assemble all current evidence. */
-  private completed(
+  private async completed(
     projectId: ProjectIdType,
     verification: VerificationReport,
     repairRound: number,
-  ): SelfHealingResult {
-    const workflow = this.options.repository.updateWorkflowRun(projectId, 'PASSED', repairRound)
+  ): Promise<SelfHealingResult> {
+    const workflow = await this.options.repository.updateWorkflowRun(projectId, 'PASSED', repairRound)
     return {
       verification,
-      verificationReports: this.options.repository.listVerificationReports(projectId),
-      repairs: this.options.repository.listRepairRecords(projectId),
+      verificationReports: await this.options.repository.listVerificationReports(projectId),
+      repairs: await this.options.repository.listRepairRecords(projectId),
       workflow,
     }
   }
 
   /** Commit a visible terminal state that requires a human decision. */
-  private escalate(
+  private async escalate(
     projectId: ProjectIdType,
     verification: VerificationReport,
     repairRound: number,
-    reason: NonNullable<ReturnType<OrchestrationRepository['getWorkflowRun']>>['escalationReason'],
+    reason: NonNullable<Awaited<ReturnType<OrchestrationStore['getWorkflowRun']>>>['escalationReason'],
     message: string,
-  ): SelfHealingResult {
-    const workflow = this.options.repository.updateWorkflowRun(
+  ): Promise<SelfHealingResult> {
+    const workflow = await this.options.repository.updateWorkflowRun(
       projectId,
       'ESCALATED',
       repairRound,
@@ -324,8 +324,8 @@ export class SelfLoopController {
     )
     return {
       verification,
-      verificationReports: this.options.repository.listVerificationReports(projectId),
-      repairs: this.options.repository.listRepairRecords(projectId),
+      verificationReports: await this.options.repository.listVerificationReports(projectId),
+      repairs: await this.options.repository.listRepairRecords(projectId),
       workflow,
     }
   }

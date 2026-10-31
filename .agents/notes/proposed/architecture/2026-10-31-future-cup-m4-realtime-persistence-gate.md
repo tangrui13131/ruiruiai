@@ -33,6 +33,15 @@ Keep the HQ source under PolyForm Noncommercial License 1.0.0, preserve its lice
 - `dsh --profile future-cup-platform --from-default-profile web --dump-config` created and composed a custom profile through the supported launcher.
 - HQ rendered its native WebGL scene at 1920×1080. Its source explicitly identifies local simulation and contains no fetch or Socket.IO integration.
 
+### M4.1 implementation results
+
+- SQLite schema v4 and the checked-in Prisma migration implement the same `OrchestrationStore` contract for DAG revisions, Journaling, scheduling, executions, execution events, verification, repair, workflow state, project events, Outbox, and leases.
+- Task updates match the previous revision. Project events and Outbox rows commit in one Serializable transaction with a project-scoped sequence.
+- Outbox claims carry an owner, token, and expiry. SQLite excludes active claims, PostgreSQL uses `FOR UPDATE SKIP LOCKED`, and expired claims can be redelivered for client-side deduplication.
+- Fastify serves project snapshots and focused task, scheduling, execution-event, verification, repair, workflow, run, and cancel routes. Socket.IO emits `sync.snapshot` and committed `project.event` frames and rejects invalid cursors.
+- PostgreSQL E2E passed store writes and reads, concurrent event ordering, Outbox claims, reconnect cursors, and cross-process lease fencing. The real `dsh` Future Cup profile composed and served the API.
+- A concrete run launcher remains a service boundary for M4.2. Without `ctx.futureCupRunLauncher`, the run routes return 503 rather than simulating execution.
+
 ## Alternatives considered
 
 **Replace SQLite immediately with PostgreSQL.** Rejected because M2/M3 deterministic tests depend on the current fast in-memory SQLite adapter, and a migration should preserve those semantics rather than rewrite them.

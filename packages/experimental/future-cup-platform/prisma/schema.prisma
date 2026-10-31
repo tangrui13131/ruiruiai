@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  projects  Project[]
+
+  @@map("users")
+}
+
+model Agent {
+  id                 String   @id
+  name               String
+  role               String
+  model              String
+  capabilities       Json     @db.JsonB
+  maxConcurrency     Int      @map("max_concurrency")
+  currentLoad        Int      @default(0) @map("current_load")
+  historicalSuccessRate Float @default(0.75) @map("historical_success_rate")
+  available          Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("agents")
+}
+
+model Project {
+  id           String   @id
+  ownerId      String?  @map("owner_id")
+  name         String
+  requirement  String
+  lastEventSeq Int      @default(0) @map("last_event_seq")
+  createdAt    DateTime @default(now()) @map("created_at")
+  owner        User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  tasks        Task[]
+  dependencies TaskDependency[]
+  journal      TaskJournal[]
+  decisions    SchedulerDecision[]
+  executions   Execution[]
+  verifications VerificationReport[]
+  repairs      RepairRecord[]
+  workflow     WorkflowRun?
+  events       ProductEvent[]
+  lease        WorkflowLease?
+
+  @@map("projects")
+}
+
+model Task {
+  id           String
+  projectId    String @map("project_id")
+  title        String
+  description  String
+  role         String
+  priority     Int
+  requiredCapabilities Json @map("required_capabilities") @db.JsonB
+  writeScopes  Json   @map("write_scopes") @db.JsonB
+  pageId       String? @map("page_id")
+  snapshotJson Json   @map("snapshot_json") @db.JsonB
+  revision     Int
+  status       String
+  retryCount   Int    @default(0) @map("retry_count")
+  assignedAgentId String? @map("assigned_agent_id")
+  position     Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outgoingDependencies TaskDependency[] @relation("TaskDependencySource")
+  incomingDependencies TaskDependency[] @relation("TaskDependencyTarget")
+  journal      TaskJournal[]
+
+  @@id([projectId, id])
+  @@index([projectId, status])
+  @@map("tasks")
+}
+
+model TaskDependency {
+  projectId        String @map("project_id")
+  taskId           String @map("task_id")
+  dependsOnTaskId  String @map("depends_on_task_id")
+  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task             Task @relation("TaskDependencySource", fields: [projectId, taskId], references: [projectId, id], onDelete: Cascade)
+  dependsOnTask    Task @relation("TaskDependencyTarget", fields: [projectId, dependsOnTaskId], references: [projectId, id], onDelete: Cascade)
+
+  @@id([projectId, taskId, dependsOnTaskId])
+  @@map("task_dependencies")
+}
+
+model TaskJournal {
+  seq         BigInt   @id @default(autoincrement())
+  projectId   String   @map("project_id")
+  taskId      String   @map("task_id")
+  revision    Int
+  eventType   String   @map("event_type")
+  reason      String?
+  snapshotJson Json    @map("snapshot_json") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task     @relation(fields: [projectId, taskId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, taskId, revision])
+  @@index([projectId, seq])
+  @@map("task_journal")
+}
+
+model SchedulerDecision {
+  seq          BigInt   @id @default(autoincrement())
+  id           String   @unique
+  projectId    String   @map("project_id")
+  taskId       String   @map("task_id")
+  decisionJson Json     @map("decision_json") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at")
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, seq])
+  @@map("scheduler_decisions")
+}
+
+model Execution {
+  id          String   @id
+  projectId   String   @map("project_id")
+  taskId      String   @map("task_id")
+  agentId     String   @map("agent_id")
+  sessionId   String?  @map("session_id")
+  status      String
+  startedAt   DateTime @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  errorJson   Json?    @map("error_json") @db.JsonB
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events      ExecutionEvent[]
+
+  @@index([projectId, taskId])
+  @@map("executions")
+}
+
+model ExecutionEvent {
+  seq         BigInt   @id @default(autoincrement())
+  executionId String   @map("execution_id")
+  eventType   String   @map("event_type")
+  payloadJson Json     @map("payload_json") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+  execution   Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, seq])
+  @@map("execution_events")
+}
+
+model VerificationReport {
+  id               String   @id
+  projectId        String   @map("project_id")
+  taskId           String?  @map("task_id")
+  status           String
+  failureSignature String?  @map("failure_signature")
+  reportJson       Json     @map("report_json") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at")
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  repairs          RepairRecord[]
+
+  @@index([projectId, createdAt])
+  @@map("verification_reports")
+}
+
+model RepairRecord {
+  id                   String   @id
+  projectId            String   @map("project_id")
+  repairRound          Int      @map("repair_round")
+  verificationReportId String   @map("verification_report_id")
+  repairAgentId        String   @map("repair_agent_id")
+  failureSignature     String   @map("failure_signature")
+  errorSummary         String   @map("error_summary")
+  changeSummary        String   @map("change_summary")
+  diff                 String
+  beforeStatus         String   @map("before_status")
+  afterStatus          String   @map("after_status")
+  startedAt            DateTime @map("started_at")
+  completedAt          DateTime @map("completed_at")
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  verification         VerificationReport @relation(fields: [verificationReportId], references: [id])
+
+  @@unique([projectId, repairRound])
+  @@index([projectId, repairRound])
+  @@map("repair_records")
+}
+
+model WorkflowRun {
+  id                String   @id
+  projectId         String   @unique @map("project_id")
+  status            String
+  repairRound       Int      @map("repair_round")
+  escalationReason  String?  @map("escalation_reason")
+  escalationMessage String?  @map("escalation_message")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_runs")
+}
+
+model ProductEvent {
+  id          String   @id
+  projectId   String   @map("project_id")
+  seq         Int
+  type        String
+  taskId      String?  @map("task_id")
+  agentId     String?  @map("agent_id")
+  payloadJson Json     @map("payload_json") @db.JsonB
+  occurredAt  DateTime @map("occurred_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outbox      OutboxEvent?
+
+  @@unique([projectId, seq])
+  @@index([projectId, seq])
+  @@map("product_events")
+}
+
+model OutboxEvent {
+  eventId        String    @id @map("event_id")
+  publishedAt    DateTime? @map("published_at")
+  claimOwnerId   String?   @map("claim_owner_id")
+  claimToken     String?   @map("claim_token")
+  claimedAt      DateTime? @map("claimed_at")
+  claimExpiresAt DateTime? @map("claim_expires_at")
+  event          ProductEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([publishedAt, claimExpiresAt])
+  @@map("outbox_events")
+}
+
+model WorkflowLease {
+  resourceId   String   @id @map("resource_id")
+  projectId    String   @unique @map("project_id")
+  ownerId      String?  @map("owner_id")
+  fencingToken BigInt   @default(0) @map("fencing_token")
+  heartbeatAt  DateTime @map("heartbeat_at")
+  expiresAt    DateTime @map("expires_at")
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_leases")
+}

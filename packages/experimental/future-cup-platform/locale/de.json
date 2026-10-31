@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Future-Cup-Plattform",
+    "description": "Stellt PostgreSQL-Persistenz, transaktionale Projekt-Ereignisse, Workflow-Leases, REST-Snapshots und Socket.IO-Wiedergabe bereit."
+  }
+}

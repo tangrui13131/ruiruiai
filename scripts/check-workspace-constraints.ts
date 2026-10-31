@@ -203,6 +203,12 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
     'lib/viewer-declarations.js',
     'lib/viewer-declarations-*.js',
   ],
+  // The platform package runs Prisma generation at install time and ships its checked-in migration as a deployable tool.
+  '@deepseek-ai/dsh-experimental-future-cup-platform': [
+    'prisma.config.ts',
+    'prisma/schema.prisma',
+    'prisma/migrations/**',
+  ],
   // Owned Worker bundles import this public bootstrap before their business entry.
   '@deepseek-ai/dsh-app-boot': ['lib/worker/profile-resolution-bootstrap.js'],
   // Statically linked client libraries keep their stylesheets next to the emitted

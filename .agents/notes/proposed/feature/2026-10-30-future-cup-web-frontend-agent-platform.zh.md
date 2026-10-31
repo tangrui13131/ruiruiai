@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1、M2、M3 与 M4.0 已经完成，M4.1 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4.0 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2、M3、M4.0 与 M4.1 已经完成，M4.2 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -27,7 +27,7 @@ M1、M2、M3 与 M4.0 已经完成，M4.1 是下一个受门禁约束的阶段�
 ### System architecture
 
 - 管理界面使用 React、TypeScript、Vite、Ant Design，并使用 React Flow 展示工作流与 DAG。
-- 平台后端使用 Node.js、Fastify、Zod、PostgreSQL、Prisma 与 Socket.IO。这些选择仍是待验证的技术基线，不代表所有集成已经可用。
+- 平台后端使用 Node.js、Fastify、Zod、PostgreSQL、Prisma 与 Socket.IO。M4.1 已实现持久化、API、Outbox、重放与 profile 组合。
 - M4.0 已用 PostgreSQL 17.11、Prisma 7.10.1 与真实 Docker 验证 migration、事务 Outbox、项目级事件序号、跨进程租约与 fencing token。
 - 后端通过官方 TypeScript SDK 控制 DeepSeek Harness，在重复实现前使用原生 Session、Agent 执行、工具、事件与取消能力。
 - 工作流先验证 Harness 原生能力。只有在出现明确的持久化、恢复或条件分支缺口时，才评估自研轻量 DAG。LangGraph.js 属于后续比较项，不是初始依赖；同一时间只能有一个工作流负责人。
@@ -106,7 +106,7 @@ HQ 将这些事件映射到 Agent、部门、工作流、进度、日志、验�
 
 每个里程碑交付设计、实现、测试、验收报告和遗留问题。可观察验收标准通过前，不进入下一里程碑。
 
-### M1、M2、M3 与 M4.0 结果和后续工作
+### M1、M2、M3、M4.0 与 M4.1 结果和后续工作
 
 M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runtime，真实 DeepSeek 模型完成了轮次，真实模型生成了 React、TypeScript、Vite 与 Ant Design 工程。后续真实模型轮次安装依赖并运行生产构建；独立 Playwright 验证在桌面与移动视口通过，计数器交互正常。
 
@@ -122,7 +122,11 @@ M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runt
 - 真实 DeepSeek M3 E2E 先完成六个独立生成 Session，再注入确定性 TypeScript 错误。Playwright 随后捕获另一项真实浏览器失败。两个独立 Repair Session 分别移除构建错误并修复用户管理页可见断言，最终工程通过 TypeScript、Vite、桌面与移动浏览器验证。
 - M4.0 已在真实 PostgreSQL 17.11 与 Prisma 7.10.1 上验证 migration、Serializable 事务、项目级事件序号、事务 Outbox、跨进程租约、fencing token、外键与回滚。真实 Harness SDK 在 run 完成前投递了 Agent 状态、`tool/call` 与 `tool/result` 通知。`dsh` 可从 Web 模板创建自定义 profile。
 - HQ 实际路径为 `agent-display-main/theme-10-hq`，采用 PolyForm Noncommercial License 1.0.0，必须保留 `Required Notice: Copyright (c) 2026 赛博老爸`。当前大屏明确标注本地模拟，尚未连接实时事件。
-- M4.1 将实现 SQLite/PostgreSQL 双仓储、项目事件 Outbox、跨进程租约、Fastify REST Snapshot、Socket.IO 重连增量与 Future Cup profile bundle。
+- M4.1 为 SQLite 与 PostgreSQL 实现同一 `OrchestrationStore` 约定。PostgreSQL 现在可持久化 DAG revision、调度决策、执行、执行事件、验证报告、修复与工作流状态，而不只是快照。
+- 任务写入要求匹配前一 revision；项目事件与 Outbox 义务在同一 Serializable 事务中提交。Outbox dispatcher 使用过期 owner claim，PostgreSQL 通过 `FOR UPDATE SKIP LOCKED` 领取。
+- Fastify 现在提供项目、任务、执行事件、调度、验证、修复、工作流、启动与取消路由，并包含 Zod 校验及明确的 400、404、409、503 失败。Socket.IO 按 `projectId + afterSeq` 重放快照与已提交增量，非法游标以 `INVALID_CURSOR` 断开。
+- 真实 PostgreSQL 迁移与 E2E 测试通过 DAG 写入、revision Journal、执行证据、验证、修复、工作流完成、并发事件序号、Outbox claim、重连查询与跨进程 fencing。
+- Future Cup bundle 通过 `dsh` 完成组合，真实平台 API 已在 PostgreSQL 上提供 health、Agent、项目创建与 snapshot 路由。M4.2 将增加管理界面，以及消费该仓储约定的具体运行启动器。
 
 详细技术门禁见 [Future Cup M4 realtime persistence gate](../architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.zh.md)。
 

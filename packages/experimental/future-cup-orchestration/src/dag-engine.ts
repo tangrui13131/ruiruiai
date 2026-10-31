@@ -3,7 +3,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { TaskId } from './brand.ts'
 import type { AgentId as AgentIdType, ProjectId as ProjectIdType, TaskId as TaskIdType } from './brand.ts'
-import type { OrchestrationRepository } from './repository.ts'
+import type { OrchestrationStore } from './platform-store.ts'
 import type {
   JsonValue,
   ProjectRecord,
@@ -99,9 +99,10 @@ type UnderlyingTask = Pick<TaskDefinition, 'id' | 'dependencies'>
 export class DagEngine {
   private readonly tasksById: Map<TaskIdType, TaskSnapshot>
   private readonly now: () => Date
+  private mutationTail: Promise<void> = Promise.resolve()
 
   private constructor(
-    private readonly repository: OrchestrationRepository,
+    private readonly repository: OrchestrationStore,
     readonly project: ProjectRecord,
     tasks: readonly TaskSnapshot[],
     options: DagOptions,
@@ -118,12 +119,12 @@ export class DagEngine {
    * @param options - deterministic clock override.
    * @returns the ready DAG owner.
    */
-  static create(
-    repository: OrchestrationRepository,
+  static async create(
+    repository: OrchestrationStore,
     project: Omit<ProjectRecord, 'createdAt'>,
     definitions: readonly TaskDefinition[],
     options: DagOptions = {},
-  ): DagEngine {
+  ): Promise<DagEngine> {
     const now = options.now ?? (() => new Date())
     topologicalTaskIds(definitions)
     const timestamp = now().toISOString()
@@ -138,9 +139,9 @@ export class DagEngine {
       createdAt: timestamp,
       updatedAt: timestamp,
     }))
-    repository.createProject(projectRecord, snapshots)
+    await repository.createProject(projectRecord, snapshots)
     const engine = new DagEngine(repository, projectRecord, snapshots, options)
-    engine.syncReadiness()
+    await engine.syncReadiness()
     return engine
   }
 
@@ -151,17 +152,17 @@ export class DagEngine {
    * @param options - deterministic clock override.
    * @returns the reconstructed DAG owner.
    */
-  static resume(
-    repository: OrchestrationRepository,
+  static async resume(
+    repository: OrchestrationStore,
     projectId: ProjectIdType,
     options: DagOptions = {},
-  ): DagEngine {
-    const project = repository.getProject(projectId)
+  ): Promise<DagEngine> {
+    const project = await repository.getProject(projectId)
     if (project === undefined) {
       throw new DagError(`project "${projectId}" does not exist`, 'PROJECT_NOT_FOUND')
     }
-    const tasks = repository.listTasks(projectId)
-    const journal = repository.listTaskJournal(projectId)
+    const tasks = await repository.listTasks(projectId)
+    const journal = await repository.listTaskJournal(projectId)
     const replayed = new Map<TaskIdType, TaskSnapshot>()
     for (const entry of journal) {
       const previous = replayed.get(entry.taskId)
@@ -224,17 +225,25 @@ export class DagEngine {
   }
 
   /** Transition every dependency-resolved PENDING/BLOCKED task to READY. */
-  syncReadiness(): void {
+  async syncReadiness(): Promise<void> {
+    await this.withMutationLock(async () => {
+      await this.syncReadinessLocked()
+    })
+  }
+
+  private async syncReadinessLocked(): Promise<void> {
     for (const taskId of this.topologicalOrder()) {
       const task = this.requireTask(taskId)
       if (task.status !== 'PENDING' && task.status !== 'BLOCKED') continue
       const dependencyStates = task.dependencies.map(id => this.requireTask(id).status)
       if (dependencyStates.some(status => status === 'FAILED' || status === 'CANCELLED' || status === 'BLOCKED')) {
-        if (task.status !== 'BLOCKED') this.replaceTask(task, { status: 'BLOCKED' }, 'task/blocked', 'dependency is not viable')
+        if (task.status !== 'BLOCKED') {
+          await this.replaceTask(task, { status: 'BLOCKED' }, 'task/blocked', 'dependency is not viable')
+        }
         continue
       }
       if (dependencyStates.every(status => status === 'COMPLETED')) {
-        this.replaceTask(task, { status: 'READY' }, 'task/ready', 'all dependencies completed')
+        await this.replaceTask(task, { status: 'READY' }, 'task/ready', 'all dependencies completed')
       }
     }
   }
@@ -245,14 +254,16 @@ export class DagEngine {
    * @param agentId - selected Agent.
    * @returns the committed RUNNING task.
    */
-  startTask(taskId: TaskIdType, agentId: AgentIdType): TaskSnapshot {
-    const task = this.requireStatus(taskId, 'READY')
-    return this.replaceTask(
-      task,
-      { status: 'RUNNING', assignedAgentId: agentId },
-      'task/assigned',
-      `assigned to ${agentId}`,
-    )
+  async startTask(taskId: TaskIdType, agentId: AgentIdType): Promise<TaskSnapshot> {
+    return await this.withMutationLock(async () => {
+      const task = this.requireStatus(taskId, 'READY')
+      return await this.replaceTask(
+        task,
+        { status: 'RUNNING', assignedAgentId: agentId },
+        'task/assigned',
+        `assigned to ${agentId}`,
+      )
+    })
   }
 
   /**
@@ -261,15 +272,17 @@ export class DagEngine {
    * @param result - durable structured result.
    * @returns the committed COMPLETED task.
    */
-  completeTask(taskId: TaskIdType, result: JsonValue): TaskSnapshot {
-    const task = this.requireStatus(taskId, 'RUNNING')
-    const completed = this.replaceTask(
-      task,
-      { status: 'COMPLETED', result, failure: undefined },
-      'task/completed',
-    )
-    this.syncReadiness()
-    return completed
+  async completeTask(taskId: TaskIdType, result: JsonValue): Promise<TaskSnapshot> {
+    return await this.withMutationLock(async () => {
+      const task = this.requireStatus(taskId, 'RUNNING')
+      const completed = await this.replaceTask(
+        task,
+        { status: 'COMPLETED', result, failure: undefined },
+        'task/completed',
+      )
+      await this.syncReadinessLocked()
+      return completed
+    })
   }
 
   /**
@@ -278,11 +291,18 @@ export class DagEngine {
    * @param failure - structured failure.
    * @returns the committed FAILED task.
    */
-  failTask(taskId: TaskIdType, failure: TaskFailure): TaskSnapshot {
-    const task = this.requireStatus(taskId, 'RUNNING')
-    const failed = this.replaceTask(task, { status: 'FAILED', failure }, 'task/failed', failure.message)
-    this.blockDownstream(taskId, `dependency ${taskId} failed`)
-    return failed
+  async failTask(taskId: TaskIdType, failure: TaskFailure): Promise<TaskSnapshot> {
+    return await this.withMutationLock(async () => {
+      const task = this.requireStatus(taskId, 'RUNNING')
+      const failed = await this.replaceTask(
+        task,
+        { status: 'FAILED', failure },
+        'task/failed',
+        failure.message,
+      )
+      await this.blockDownstream(taskId, `dependency ${taskId} failed`)
+      return failed
+    })
   }
 
   /**
@@ -292,32 +312,38 @@ export class DagEngine {
    * @param options - whether to exclude the previous Agent from the retry.
    * @returns the committed READY or BLOCKED task.
    */
-  requeueTask(taskId: TaskIdType, reason: string, options: RequeueOptions = {}): TaskSnapshot {
-    const task = this.requireTask(taskId)
-    if (task.status !== 'FAILED' && task.status !== 'CANCELLED') {
-      throw new DagError(`task "${taskId}" cannot be requeued from ${task.status}`, 'INVALID_TRANSITION')
-    }
-    const excludePreviousAgent = options.excludePreviousAgent ?? true
-    const excluded = task.assignedAgentId === undefined
-      ? task.excludedAgentIds
-      : excludePreviousAgent
-        ? task.excludedAgentIds.includes(task.assignedAgentId)
-          ? task.excludedAgentIds
-          : [...task.excludedAgentIds, task.assignedAgentId]
-        : task.excludedAgentIds.filter(agentId => agentId !== task.assignedAgentId)
-    const requeued = this.replaceTask(
-      task,
-      {
-        status: 'PENDING',
-        assignedAgentId: undefined,
-        retryCount: task.retryCount + 1,
-        excludedAgentIds: excluded,
-      },
-      'task/requeued',
-      reason,
-    )
-    this.syncReadiness()
-    return this.getTask(requeued.id)
+  async requeueTask(
+    taskId: TaskIdType,
+    reason: string,
+    options: RequeueOptions = {},
+  ): Promise<TaskSnapshot> {
+    return await this.withMutationLock(async () => {
+      const task = this.requireTask(taskId)
+      if (task.status !== 'FAILED' && task.status !== 'CANCELLED') {
+        throw new DagError(`task "${taskId}" cannot be requeued from ${task.status}`, 'INVALID_TRANSITION')
+      }
+      const excludePreviousAgent = options.excludePreviousAgent ?? true
+      const excluded = task.assignedAgentId === undefined
+        ? task.excludedAgentIds
+        : excludePreviousAgent
+          ? task.excludedAgentIds.includes(task.assignedAgentId)
+            ? task.excludedAgentIds
+            : [...task.excludedAgentIds, task.assignedAgentId]
+          : task.excludedAgentIds.filter(agentId => agentId !== task.assignedAgentId)
+      const requeued = await this.replaceTask(
+        task,
+        {
+          status: 'PENDING',
+          assignedAgentId: undefined,
+          retryCount: task.retryCount + 1,
+          excludedAgentIds: excluded,
+        },
+        'task/requeued',
+        reason,
+      )
+      await this.syncReadinessLocked()
+      return this.getTask(requeued.id)
+    })
   }
 
   /**
@@ -325,14 +351,16 @@ export class DagEngine {
    * @param taskId - task to cancel.
    * @returns the committed CANCELLED task.
    */
-  cancelTask(taskId: TaskIdType): TaskSnapshot {
-    const task = this.requireTask(taskId)
-    if (task.status === 'COMPLETED' || task.status === 'FAILED' || task.status === 'CANCELLED') {
-      throw new DagError(`task "${taskId}" cannot be cancelled from ${task.status}`, 'INVALID_TRANSITION')
-    }
-    const cancelled = this.replaceTask(task, { status: 'CANCELLED' }, 'task/cancelled')
-    this.blockDownstream(taskId, `dependency ${taskId} was cancelled`)
-    return cancelled
+  async cancelTask(taskId: TaskIdType): Promise<TaskSnapshot> {
+    return await this.withMutationLock(async () => {
+      const task = this.requireTask(taskId)
+      if (task.status === 'COMPLETED' || task.status === 'FAILED' || task.status === 'CANCELLED') {
+        throw new DagError(`task "${taskId}" cannot be cancelled from ${task.status}`, 'INVALID_TRANSITION')
+      }
+      const cancelled = await this.replaceTask(task, { status: 'CANCELLED' }, 'task/cancelled')
+      await this.blockDownstream(taskId, `dependency ${taskId} was cancelled`)
+      return cancelled
+    })
   }
 
   /**
@@ -345,7 +373,7 @@ export class DagEngine {
     )
   }
 
-  private blockDownstream(taskId: TaskIdType, reason: string): void {
+  private async blockDownstream(taskId: TaskIdType, reason: string): Promise<void> {
     const queue = [taskId]
     const visited = new Set<TaskIdType>()
     while (queue.length > 0) {
@@ -356,7 +384,7 @@ export class DagEngine {
       for (const task of this.tasksById.values()) {
         if (!task.dependencies.includes(current)) continue
         if (task.status === 'PENDING' || task.status === 'READY') {
-          this.replaceTask(task, { status: 'BLOCKED' }, 'task/blocked', reason)
+          await this.replaceTask(task, { status: 'BLOCKED' }, 'task/blocked', reason)
         }
         queue.push(task.id)
       }
@@ -377,21 +405,35 @@ export class DagEngine {
     return task
   }
 
-  private replaceTask(
+  private async replaceTask(
     task: TaskSnapshot,
     changes: Partial<Pick<TaskSnapshot, 'status' | 'assignedAgentId' | 'result' | 'failure' | 'retryCount' | 'excludedAgentIds'>>,
     eventType: TaskJournalEventType,
     reason?: string,
-  ): TaskSnapshot {
+  ): Promise<TaskSnapshot> {
     const next: TaskSnapshot = {
       ...task,
       ...changes,
       revision: task.revision + 1,
       updatedAt: this.now().toISOString(),
     }
-    this.repository.saveTask(next, eventType, reason)
+    await this.repository.saveTask(next, eventType, reason)
     this.tasksById.set(next.id, next)
     return next
+  }
+
+  private async withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.mutationTail
+    let release: () => void = () => {}
+    this.mutationTail = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await previous
+    try {
+      return await operation()
+    } finally {
+      release()
+    }
   }
 }
 
