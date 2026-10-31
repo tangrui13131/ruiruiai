@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-10-31-future-cup-m4-realtime-persistence-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.md
+/agent-note-future-cup-m4-realtime-persistence-gate:
+  en: dbdcf7620257fb9d
+  zh: 01cc6d5b1e9cf7fe
+/agent-note-future-cup-m4-realtime-persistence-gate/problem:
+  en: 48c1b6e8d97f15dc
+  zh: 3fd7644809210b60
+/agent-note-future-cup-m4-realtime-persistence-gate/proposal:
+  en: 366e5c8508a02746
+  zh: 73d32092a93b68fc
+/agent-note-future-cup-m4-realtime-persistence-gate/proposal/m4-0-verified-decisions:
+  en: 4a3e9c2b05e1e243
+  zh: efb452fd9a903cab
+/agent-note-future-cup-m4-realtime-persistence-gate/alternatives-considered:
+  en: 980039ee1d01f2b2
+  zh: 15a52730c549122a
+/agent-note-future-cup-m4-realtime-persistence-gate/acceptance-criteria:
+  en: 399c394dcac7aec8
+  zh: 61edf473ccb930e5
+/agent-note-future-cup-m4-realtime-persistence-gate/risks:
+  en: d4006ac39718bd2d
+  zh: d72f288f595ebe5f

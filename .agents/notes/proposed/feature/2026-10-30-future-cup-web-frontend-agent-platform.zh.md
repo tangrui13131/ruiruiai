@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1、M2 与 M3 已经完成，M4 是下一个受门禁约束的里程碑。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2、M3 与 M4.0 已经完成，M4.1 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4.0 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -28,6 +28,7 @@ M1、M2 与 M3 已经完成，M4 是下一个受门禁约束的里程碑。项�
 
 - 管理界面使用 React、TypeScript、Vite、Ant Design，并使用 React Flow 展示工作流与 DAG。
 - 平台后端使用 Node.js、Fastify、Zod、PostgreSQL、Prisma 与 Socket.IO。这些选择仍是待验证的技术基线，不代表所有集成已经可用。
+- M4.0 已用 PostgreSQL 17.11、Prisma 7.10.1 与真实 Docker 验证 migration、事务 Outbox、项目级事件序号、跨进程租约与 fencing token。
 - 后端通过官方 TypeScript SDK 控制 DeepSeek Harness，在重复实现前使用原生 Session、Agent 执行、工具、事件与取消能力。
 - 工作流先验证 Harness 原生能力。只有在出现明确的持久化、恢复或条件分支缺口时，才评估自研轻量 DAG。LangGraph.js 属于后续比较项，不是初始依赖；同一时间只能有一个工作流负责人。
 - 被生成的项目代码属于不可信输入。执行需要独立工作区、文件访问限制、命令控制、CPU 与内存限制、网络限制、超时、并发限制、生命周期清理与资源回收。
@@ -49,6 +50,9 @@ MVP 的逻辑数据模型包含以下记录；索引、外键、唯一约束、�
 | `execution_events` | 有序的产品与运行时事件 |
 | `verification_reports` | 结构化的静态检查、构建与浏览器证据 |
 | `repair_records` | 修复轮次、错误、变更摘要、差异与结果 |
+| `project_events` | 项目级单调序号的产品事件与重连来源 |
+| `outbox_events` | 与状态事务同提交的实时投递义务 |
+| `workflow_leases` | owner、heartbeat、expiry 与 fencing token |
 
 ### Agent team
 
@@ -102,7 +106,7 @@ HQ 将这些事件映射到 Agent、部门、工作流、进度、日志、验�
 
 每个里程碑交付设计、实现、测试、验收报告和遗留问题。可观察验收标准通过前，不进入下一里程碑。
 
-### M1、M2 与 M3 结果和后续工作
+### M1、M2、M3 与 M4.0 结果和后续工作
 
 M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runtime，真实 DeepSeek 模型完成了轮次，真实模型生成了 React、TypeScript、Vite 与 Ant Design 工程。后续真实模型轮次安装依赖并运行生产构建；独立 Playwright 验证在桌面与移动视口通过，计数器交互正常。
 
@@ -116,7 +120,11 @@ M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runt
 - Tester 在独立 Session 中生成路由、可见文本与导航交互断言。独立 Verifier 顺序运行工程结构、依赖安装、`tsc --noEmit`、Vite build，以及桌面与移动 Playwright 检查；`pageerror`、`console.error`、Ant Design 弃用告警、失败请求和 HTTP 4xx/5xx 均可阻止 PASS。
 - 有界 Self-loop 每次修复后重新运行完整验证，保存真实源码 Diff 和修复前后状态；显式配置控制最大轮次与超时，重复失败签名、超时、验证环境不完整或轮次耗尽都会落盘为可见 `ESCALATED` 状态。
 - 真实 DeepSeek M3 E2E 先完成六个独立生成 Session，再注入确定性 TypeScript 错误。Playwright 随后捕获另一项真实浏览器失败。两个独立 Repair Session 分别移除构建错误并修复用户管理页可见断言，最终工程通过 TypeScript、Vite、桌面与移动浏览器验证。
-- M4 将开始管理界面、PostgreSQL/Prisma、Socket.IO 实时事件与 HQ 集成。
+- M4.0 已在真实 PostgreSQL 17.11 与 Prisma 7.10.1 上验证 migration、Serializable 事务、项目级事件序号、事务 Outbox、跨进程租约、fencing token、外键与回滚。真实 Harness SDK 在 run 完成前投递了 Agent 状态、`tool/call` 与 `tool/result` 通知。`dsh` 可从 Web 模板创建自定义 profile。
+- HQ 实际路径为 `agent-display-main/theme-10-hq`，采用 PolyForm Noncommercial License 1.0.0，必须保留 `Required Notice: Copyright (c) 2026 赛博老爸`。当前大屏明确标注本地模拟，尚未连接实时事件。
+- M4.1 将实现 SQLite/PostgreSQL 双仓储、项目事件 Outbox、跨进程租约、Fastify REST Snapshot、Socket.IO 重连增量与 Future Cup profile bundle。
+
+详细技术门禁见 [Future Cup M4 realtime persistence gate](../architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.zh.md)。
 
 ## Alternatives considered
 

@@ -98,6 +98,12 @@ Verifier 检查必需工程文件、要求使用 `HashRouter` 而非 `BrowserRou
 
 全部 finding 会规范化为确定性的 SHA-256 `failureSignature`。Self-loop 按显式配置允许 Repair Agent 轮次，每次修复后运行完整验证，保存真实源码 Diff 与修复前后状态；重复签名、超时、验证环境不完整或轮次耗尽时以 `ESCALATED` 终止。每次 Repair 调用使用独立 Harness Session。
 
+### 实时产品事件
+
+`product-events.ts` 定义持久事件、REST Snapshot 与 Socket.IO 投递共用的 Zod 约定。每个事件包含 `projectId`、项目内正数 `seq`、`occurredAt`、`type` 与 JSON payload。只有事件所属语义需要时才要求 `taskId` 或 `agentId`。客户端使用 `projectId + afterSeq` 续传，并以 `projectId + seq` 作为去重身份。
+
+M4.0 门禁已用真实 PostgreSQL 序号与 TypeScript SDK 通知流验证该信封。Socket.IO 传输与事务性 Outbox Provider 属于 M4.1 实现。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -118,6 +124,7 @@ Verifier 检查必需工程文件、要求使用 `HashRouter` 而非 `BrowserRou
 | `src/failure-signature.ts` | 诊断规范化与稳定的重复失败哈希 |
 | `src/self-healer.ts` | 有界修复循环、超时处理、重复失败熔断与人工升级 |
 | `src/workspace-diff.ts` | 源码快照与真实统一 Diff 生成 |
+| `src/product-events.ts` | Zod 产品事件约定与重连游标 |
 
 ## Model Experience
 

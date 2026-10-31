@@ -1,0 +1,68 @@
+# Agent Note: Future Cup M4 realtime persistence gate
+
+Status: proposed
+
+English | [中文](2026-10-31-future-cup-m4-realtime-persistence-gate.zh.md)
+
+## Problem
+
+Future Cup M4 integrates PostgreSQL, Prisma, realtime events, a management application, and the HQ display around the verified M3 orchestration loop. These additions can create competing state owners: an API process can broadcast before a transaction commits, a stale worker can write after losing a lease, a client can render local guesses after reconnect, or HQ can continue presenting simulated activity as formal execution.
+
+M4.0 must settle these risks before the product packages and UI are built.
+
+## Proposal
+
+Keep SQLite as the deterministic local adapter while introducing a domain-level persistence interface with a PostgreSQL/Prisma adapter. Persist canonical project events and their transactional outbox rows in the same transaction that advances project state. Assign `seq` from a locked project row so every project has a gap-free monotonic event stream.
+
+Use `projectId + seq` as the client deduplication identity. REST snapshots return current state, current `lastEventSeq`, and the recent event window. Socket.IO reconnects request events after the client's last received sequence; UI state is projected from the snapshot plus ordered events rather than maintained as a second source of truth.
+
+Use a workflow lease with owner, heartbeat, expiry, and monotonic fencing token. Every lease acquisition, renewal, release, and fenced write runs in a database transaction. A stale owner must be unable to mutate workflow or task state even if it resumes after expiry.
+
+Launch the platform only through a named `dsh` profile. M4.1 adds a Future Cup bundle to the profile created from the Web template; Fastify, Socket.IO, PostgreSQL, and platform UI code remain plugin contributions rather than a separate Node entrypoint.
+
+Keep the HQ source under PolyForm Noncommercial License 1.0.0, preserve its license and `Required Notice`, and treat its current local simulation as non-authoritative data. HQ becomes realtime only after the M4.3 license review and Socket.IO projection are complete.
+
+### M4.0 verified decisions
+
+- PostgreSQL 17.11 and Prisma 7.10.1 with `@prisma/adapter-pg` applied a real migration through the Prisma CLI.
+- Two concurrent serializable writers produced project event sequences `1, 2` with matching Outbox rows and no duplicates.
+- A second lease contender failed while the lease was active; after expiry, two separate Node processes raced and exactly one acquired the lease.
+- The stale fencing token wrote `0` rows; the current token wrote `1`.
+- Foreign-key rejection and transaction rollback both behaved as required by the spike.
+- A real Harness Session delivered 22 `onNotification` events before run completion, including `tool/call` and `tool/result`.
+- `dsh --profile future-cup-platform --from-default-profile web --dump-config` created and composed a custom profile through the supported launcher.
+- HQ rendered its native WebGL scene at 1920×1080. Its source explicitly identifies local simulation and contains no fetch or Socket.IO integration.
+
+## Alternatives considered
+
+**Replace SQLite immediately with PostgreSQL.** Rejected because M2/M3 deterministic tests depend on the current fast in-memory SQLite adapter, and a migration should preserve those semantics rather than rewrite them.
+
+**Broadcast directly after each database write.** Rejected because process failure between commit and broadcast loses the realtime event. A transactional outbox keeps the durable fact and delivery obligation in the same commit.
+
+**Use global database sequence values as client cursors.** Rejected because unrelated projects would create gaps in a project stream and make snapshot-resume reasoning harder. Each project owns its monotonic sequence.
+
+**Lease with owner and expiry only.** Rejected because an expired worker can resume and overwrite a newer worker's state. Every write needs a fencing token checked against the current lease.
+
+**Run Fastify as a standalone Node application.** Rejected by the repository's application-launch rule and by the need for one composition, compatibility, lifecycle, and shutdown model.
+
+**Embed HQ directly under the root MIT license.** Rejected because PolyForm Noncommercial terms and the required copyright notice must remain attached to every distributed copy.
+
+**Keep HQ simulation until after visual integration.** Rejected because simulated activity presented as product execution would invalidate the platform's evidence. The simulation remains acceptable only as a clearly labeled standalone design reference.
+
+## Acceptance criteria
+
+- M4.0 evidence proves PostgreSQL migrations, transactional event sequencing, Outbox persistence, reconnect queries, lease exclusion, fencing, and rollback.
+- M4.1 implements the shared persistence contract and passes the same behavior tests against SQLite and PostgreSQL.
+- M4.1 exposes a snapshot plus `afterSeq` replay contract and broadcasts only committed Outbox rows.
+- Every product event validates through the shared Zod discriminated union.
+- A Future Cup bundle launches through `dsh` and owns Fastify, Socket.IO, PostgreSQL, and platform UI lifecycle.
+- HQ integration preserves the PolyForm license, required notice, and noncommercial boundary; no mock activity is accepted as execution evidence.
+
+## Risks
+
+- The competition's use must remain noncommercial or obtain separate permission. This engineering record is not legal advice.
+- The remote validation host has about 2 GiB RAM; PostgreSQL tests must use a bounded container and teardown.
+- Prisma 7 uses driver adapters and generated clients; M4.1 must pin compatible versions and avoid mixing generated clients across packages.
+- SDK notification methods are wire names, not yet the product event names. M4.1 needs an explicit projector with stable mapping and ignored-event policy.
+- Long-lived Socket.IO delivery needs Outbox polling, acknowledgements, retention, and lag monitoring rather than assuming one in-process broadcast always succeeds.
+- HQ uses remote Google Fonts and local simulated data; offline packaging and realtime replacement remain M4.3 work.

@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, and M3 are complete and M4 is the next gated milestone. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, and M4.0 are complete and M4.1 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4.0 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -28,6 +28,7 @@ Build a multi-Agent orchestration and self-healing platform for web frontend eng
 
 - The management interface uses React, TypeScript, Vite, Ant Design, and React Flow for workflow and DAG display.
 - The platform backend uses Node.js, Fastify, Zod, PostgreSQL, Prisma, and Socket.IO. These choices remain a validated baseline, not an assertion that every integration already works.
+- M4.0 validated PostgreSQL 17.11, Prisma 7.10.1, real Docker migrations, transactional Outbox rows, project event sequences, cross-process leases, and fencing tokens.
 - The backend controls DeepSeek Harness through its official TypeScript SDK and uses native Sessions, Agent execution, tools, events, and cancellation before adding duplicate runtime behavior.
 - Workflow selection starts with native Harness workflow capabilities. A lightweight owned DAG is considered only for a demonstrated persistence, recovery, or conditional-branch gap. LangGraph.js is a later comparison, not an initial dependency, and only one workflow owner may be active.
 - Generated project code is untrusted input. Execution requires an isolated workspace, restricted files, command controls, CPU and memory limits, network limits, timeouts, concurrency limits, lifecycle cleanup, and resource recovery.
@@ -49,6 +50,9 @@ The logical MVP data model contains the following records; indexes, foreign keys
 | `execution_events` | Ordered product and runtime events |
 | `verification_reports` | Structured static, build, and browser evidence |
 | `repair_records` | Repair round, error, change summary, diff, and result |
+| `project_events` | Product events with a project-scoped monotonic sequence and reconnect source |
+| `outbox_events` | Realtime delivery obligations committed with state changes |
+| `workflow_leases` | Owner, heartbeat, expiry, and fencing token |
 
 ### Agent team
 
@@ -102,7 +106,7 @@ The project uses five gated milestones instead of building the document chapters
 
 Each milestone delivers its design, implementation, tests, acceptance report, and remaining issues. Work does not advance until the milestone's observable acceptance criteria pass.
 
-### M1, M2, and M3 results and next work
+### M1, M2, M3, and M4.0 results and next work
 
 M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness runtime, a real DeepSeek model completed a turn, and a real model generated a React, TypeScript, Vite, and Ant Design project. A later real-model turn installed dependencies and ran the production build; independent Playwright verification passed on desktop and mobile with working counter behavior.
 
@@ -116,7 +120,11 @@ M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness r
 - A Tester Session generates route, required-text, and navigation assertions. The independent Verifier runs project structure, dependency installation, `tsc --noEmit`, Vite build, and desktop/mobile Playwright checks; `pageerror`, `console.error`, Ant Design deprecation warnings, failed requests, and HTTP 4xx/5xx responses prevent PASS.
 - The bounded self-loop reruns complete verification after every repair, persists the real source diff and before/after statuses, reads its maximum rounds and timeout from explicit configuration, and publishes `ESCALATED` on repeated signatures, timeout, verifier incompleteness, or exhaustion.
 - A real DeepSeek M3 E2E completed six independent generation Sessions, then injected a deterministic TypeScript error. Playwright subsequently found another real browser failure. Two independent Repair Sessions removed the build error and repaired a user-management visibility assertion before the final project passed TypeScript, Vite, desktop, and mobile browser verification.
-- M4 begins management UI, PostgreSQL/Prisma, Socket.IO realtime events, and HQ integration.
+- M4.0 validated migration, Serializable transactions, project event sequencing, transactional Outbox, cross-process leases, fencing tokens, foreign keys, and rollback on real PostgreSQL 17.11 with Prisma 7.10.1. The real Harness SDK delivered Agent status, `tool/call`, and `tool/result` notifications before run completion. `dsh` created a custom profile from the Web template.
+- The actual HQ source is `agent-display-main/theme-10-hq`, licensed under PolyForm Noncommercial License 1.0.0. Every distributed copy must retain `Required Notice: Copyright (c) 2026 赛博老爸`. The current display explicitly identifies local simulation and has no realtime event connection.
+- M4.1 implements the SQLite/PostgreSQL repository pair, project-event Outbox, cross-process leases, Fastify REST snapshots, Socket.IO reconnect increments, and the Future Cup profile bundle.
+
+The technical gate is recorded in [Future Cup M4 realtime persistence gate](../architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.md).
 
 ## Alternatives considered
 

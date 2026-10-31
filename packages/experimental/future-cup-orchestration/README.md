@@ -98,6 +98,12 @@ The Verifier checks required project files, requires `HashRouter` instead of `Br
 
 Findings are normalized into a deterministic SHA-256 `failureSignature`. The self-loop permits the configured number of Repair Agent rounds, runs the complete verification pipeline after every repair, stores the real source diff and before/after statuses, and stops with `ESCALATED` on repeated signatures, timeout, verifier incompleteness, or exhausted rounds. Every Repair call uses its own Harness Session.
 
+### Realtime product events
+
+`product-events.ts` defines the Zod contract shared by durable events, REST snapshots, and Socket.IO delivery. Every event carries `projectId`, a project-scoped positive `seq`, `occurredAt`, `type`, and a JSON payload. Task and Agent identities are required only for event types that own them. Clients resume with `projectId` plus `afterSeq`; `projectId + seq` is the deduplication identity.
+
+The M4.0 gate verified this envelope against real PostgreSQL sequencing and the TypeScript SDK notification stream. The Socket.IO transport and transactional outbox provider remain M4.1 implementation work.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -118,6 +124,7 @@ Findings are normalized into a deterministic SHA-256 `failureSignature`. The sel
 | `src/failure-signature.ts` | Diagnostic normalization and stable repeated-failure hashing |
 | `src/self-healer.ts` | Bounded repair loop, timeout handling, repeated-failure circuit breaker, and escalation |
 | `src/workspace-diff.ts` | Source snapshot and real unified repair diff generation |
+| `src/product-events.ts` | Zod product event contract and reconnect cursor |
 
 ## Model Experience
 
