@@ -42,6 +42,17 @@ Keep the HQ source under PolyForm Noncommercial License 1.0.0, preserve its lice
 - PostgreSQL E2E passed store writes and reads, concurrent event ordering, Outbox claims, reconnect cursors, and cross-process lease fencing. The real `dsh` Future Cup profile composed and served the API.
 - A concrete run launcher remains a service boundary for M4.2. Without `ctx.futureCupRunLauncher`, the run routes return 503 rather than simulating execution.
 
+### M4.2 implementation results
+
+- SQLite schema v5 and a second PostgreSQL migration add `project_runs`, private workspace and preview paths, terminal failure details, and one active run per project.
+- `FutureCupRunLauncher` owns workflow lease acquisition, heartbeat, real Harness team startup, cancellation by runtime closure, stale-run reconciliation, and terminal settlement. Service shutdown waits for in-flight startup before closing active teams.
+- Task completion and execution settlement commit together. Task, execution, verification, repair, workflow, and run product events are appended in the same store transaction as their domain mutation.
+- Launcher writes carry `ownerId + fencingToken`, and each store transaction rejects stale or expired lease owners. Settlement keeps its heartbeat during transient retries, reconciles an already-terminal row after ambiguous responses, and bounds cancel/close with explicit pending and timeout failures.
+- Fastify serves the same-origin management SPA, controlled verification screenshots, delivery summaries, and generated-project production previews. Public projections remove absolute paths and serialize fencing tokens as strings.
+- Project-scoped Agent metrics derive load from `RUNNING` executions and observed success rates from persisted outcomes; the React application reloads them when the authoritative event cursor advances.
+- The React management application provides project control, Agent status, React Flow DAG, scheduler evidence, verification screenshots, Self-Loop diffs, live events, and delivery preview across desktop, tablet, and mobile layouts.
+- Generated Vite builds use a relative asset base so the same production output works both in the independent verifier and below `/preview/:projectId/`.
+
 ## Alternatives considered
 
 **Replace SQLite immediately with PostgreSQL.** Rejected because M2/M3 deterministic tests depend on the current fast in-memory SQLite adapter, and a migration should preserve those semantics rather than rewrite them.

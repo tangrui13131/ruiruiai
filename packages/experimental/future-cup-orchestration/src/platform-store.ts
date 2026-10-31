@@ -1,12 +1,15 @@
 /** Platform persistence contract for project queries, realtime events, and workflow leases. */
 
 import type { ProductEvent, ProductEventType } from './product-events.ts'
+import type { ExecutionId } from './brand.ts'
 import type {
   ExecutionRecord,
   ExecutionEventRecord,
   ExecutionStatus,
   JsonValue,
   ProjectRecord,
+  ProjectRunRecord,
+  ProjectRunStatus,
   RepairRecord,
   RepairRecordDraft,
   SchedulerDecision,
@@ -23,6 +26,25 @@ import type {
 /** Synchronous SQLite results and asynchronous PostgreSQL results share one contract. */
 export type Awaitable<T> = T | Promise<T>
 
+/** One live workflow lease identity that authorizes durable domain writes. */
+export interface WorkflowWriteContext {
+  readonly resourceId: string
+  readonly ownerId: string
+  readonly fencingToken: bigint
+}
+
+/** A write was attempted by an expired or superseded workflow owner. */
+export class WorkflowFenceError extends Error {
+  /** Stable machine-readable fence failure code. */
+  readonly code = 'WORKFLOW_FENCE_LOST'
+
+  /** @param resourceId - workflow resource whose fence was lost. */
+  constructor(readonly resourceId: string) {
+    super(`Workflow lease fence was lost for "${resourceId}"`)
+    this.name = 'WorkflowFenceError'
+  }
+}
+
 /**
  * Reject non-positive or unsafe integer bounds before a durable or network operation.
  * @param value - value to validate.
@@ -38,6 +60,8 @@ export function assertPositiveSafeInteger(value: number, name: string): void {
 export interface PlatformProjectSummary extends ProjectRecord {
   readonly lastEventSeq: number
   readonly workflowStatus?: WorkflowStatus | undefined
+  readonly latestRunId?: ProjectRunRecord['id'] | undefined
+  readonly latestRunStatus?: ProjectRunStatus | undefined
 }
 
 /** One validated product event ready to append to a project stream. */
@@ -59,6 +83,7 @@ export interface PlatformProjectSnapshot {
   readonly verificationReports: readonly VerificationReport[]
   readonly repairs: readonly RepairRecord[]
   readonly workflow?: WorkflowRunRecord | undefined
+  readonly runs: readonly ProjectRunRecord[]
   readonly events: readonly ProductEvent[]
   readonly lastEventSeq: number
 }
@@ -97,7 +122,11 @@ export interface PlatformStore {
    * @param project - project identity and requirement.
    * @param tasks - initial task snapshots.
    */
-  createProject(project: ProjectRecord, tasks: readonly TaskSnapshot[]): Awaitable<void>
+  createProject(
+    project: ProjectRecord,
+    tasks: readonly TaskSnapshot[],
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
   /**
    * Read one project.
    * @param id - project identity.
@@ -121,9 +150,13 @@ export interface PlatformStore {
   /**
    * Append one product event and its Outbox obligation.
    * @param draft - event identity and payload.
+   * @param write - optional live workflow lease that authorizes the write.
    * @returns the committed event with its assigned project sequence.
    */
-  appendProductEvent(draft: ProductEventDraft): Awaitable<ProductEvent>
+  appendProductEvent(
+    draft: ProductEventDraft,
+    write?: WorkflowWriteContext,
+  ): Awaitable<ProductEvent>
   /**
    * Read project events after a cursor.
    * @param projectId - owning project.
@@ -142,6 +175,54 @@ export interface PlatformStore {
    * @returns ordered execution events.
    */
   listExecutionEvents(executionId: string): Awaitable<ExecutionEventRecord[]>
+  /**
+   * Derive historical Agent success rates from completed executions.
+   * @param projectId - owning project.
+   * @returns success rate by Agent id; unknown Agents are absent.
+   */
+  historicalSuccessRates(projectId: string): Awaitable<Readonly<Record<string, number>>>
+  /**
+   * Create one durable project run and enforce one active run per project.
+   * @param projectId - owning project.
+   * @param ownerId - worker identity holding the workflow lease.
+   * @param fencingToken - current workflow lease token.
+   * @param workspacePath - private absolute run workspace retained by the server.
+   * @returns the committed project run.
+   */
+  createProjectRun(
+    projectId: string,
+    ownerId: string,
+    fencingToken: bigint,
+    workspacePath: string,
+    write?: WorkflowWriteContext,
+  ): Awaitable<ProjectRunRecord>
+  /**
+   * Finish one running project run.
+   * @param runId - project-run identity.
+   * @param status - terminal run status.
+   * @param previewPath - private absolute production build path when available.
+   * @param error - structured launch or execution failure.
+   * @returns the committed project run.
+   */
+  finishProjectRun(
+    runId: string,
+    status: Exclude<ProjectRunStatus, 'RUNNING'>,
+    previewPath?: string,
+    error?: TaskFailure,
+    write?: WorkflowWriteContext,
+  ): Awaitable<ProjectRunRecord>
+  /**
+   * Read one project run.
+   * @param runId - project-run identity.
+   * @returns the project run when present.
+   */
+  getProjectRun(runId: string): Awaitable<ProjectRunRecord | undefined>
+  /**
+   * List project runs in start order.
+   * @param projectId - owning project.
+   * @returns durable project runs.
+   */
+  listProjectRuns(projectId: string): Awaitable<ProjectRunRecord[]>
   /**
    * Claim unpublished or expired Outbox rows in sequence order.
    * @param ownerId - dispatcher identity receiving the bounded claim.
@@ -214,7 +295,30 @@ export interface OrchestrationStore extends PlatformStore {
    * @param eventType - mutation kind.
    * @param reason - optional scheduling or lifecycle explanation.
    */
-  saveTask(task: TaskSnapshot, eventType: TaskJournalEventType, reason?: string): Awaitable<void>
+  saveTask(
+    task: TaskSnapshot,
+    eventType: TaskJournalEventType,
+    reason?: string,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
+  /**
+   * Replace one task snapshot, append its Journal entry, and settle its execution atomically.
+   * @param task - next task snapshot with revision already incremented.
+   * @param eventType - task mutation kind.
+   * @param executionId - running execution to settle.
+   * @param status - terminal execution status.
+   * @param sessionId - real Harness Session identity.
+   * @param error - structured failure when the execution did not succeed.
+   */
+  saveTaskAndFinishExecution(
+    task: TaskSnapshot,
+    eventType: TaskJournalEventType,
+    executionId: string,
+    status: Exclude<ExecutionStatus, 'RUNNING'>,
+    sessionId?: string,
+    error?: TaskFailure,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
   /**
    * Load current tasks in creation order.
    * @param projectId - owning project.
@@ -231,7 +335,10 @@ export interface OrchestrationStore extends PlatformStore {
    * Persist one explainable scheduling decision.
    * @param decision - complete candidate and score record.
    */
-  saveSchedulerDecision(decision: SchedulerDecision): Awaitable<void>
+  saveSchedulerDecision(
+    decision: SchedulerDecision,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
   /**
    * Read persisted scheduler decisions in insertion order.
    * @param projectId - owning project.
@@ -245,7 +352,12 @@ export interface OrchestrationStore extends PlatformStore {
    * @param agentId - assigned Agent.
    * @returns the execution identity.
    */
-  startExecution(projectId: string, taskId: string, agentId: string): Awaitable<string>
+  startExecution(
+    projectId: string,
+    taskId: string,
+    agentId: string,
+    write?: WorkflowWriteContext,
+  ): Awaitable<ExecutionId>
   /**
    * Finish one execution with its real Harness Session and optional failure.
    * @param id - execution identity.
@@ -258,6 +370,7 @@ export interface OrchestrationStore extends PlatformStore {
     status: Exclude<ExecutionStatus, 'RUNNING'>,
     sessionId?: string,
     error?: TaskFailure,
+    write?: WorkflowWriteContext,
   ): Awaitable<void>
   /**
    * Append one execution event.
@@ -265,19 +378,18 @@ export interface OrchestrationStore extends PlatformStore {
    * @param eventType - event discriminator.
    * @param payload - JSON audit value.
    */
-  appendExecutionEvent(executionId: string, eventType: string, payload: JsonValue): Awaitable<void>
+  appendExecutionEvent(
+    executionId: string,
+    eventType: string,
+    payload: JsonValue,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
   /**
    * List executions in start order.
    * @param projectId - owning project.
    * @returns decoded execution records.
    */
   listExecutions(projectId: string): Awaitable<ExecutionRecord[]>
-  /**
-   * Derive historical Agent success rates from completed executions.
-   * @param projectId - owning project.
-   * @returns success rate by Agent id; unknown Agents are absent.
-   */
-  historicalSuccessRates(projectId: string): Awaitable<Readonly<Record<string, number>>>
   /**
    * Persist one verification report.
    * @param projectId - owning project.
@@ -293,6 +405,7 @@ export interface OrchestrationStore extends PlatformStore {
     report: JsonValue,
     taskId?: string,
     failureSignature?: string,
+    write?: WorkflowWriteContext,
   ): Awaitable<VerificationReport>
   /**
    * List verification reports in insertion order.
@@ -305,7 +418,7 @@ export interface OrchestrationStore extends PlatformStore {
    * @param projectId - owning project.
    * @returns the initial running workflow record.
    */
-  startWorkflowRun(projectId: string): Awaitable<WorkflowRunRecord>
+  startWorkflowRun(projectId: string, write?: WorkflowWriteContext): Awaitable<WorkflowRunRecord>
   /**
    * Publish one workflow commit point.
    * @param projectId - owning project.
@@ -321,6 +434,7 @@ export interface OrchestrationStore extends PlatformStore {
     repairRound: number,
     escalationReason?: WorkflowRunRecord['escalationReason'],
     escalationMessage?: string,
+    write?: WorkflowWriteContext,
   ): Awaitable<WorkflowRunRecord>
   /**
    * Read one project's workflow state.
@@ -334,7 +448,11 @@ export interface OrchestrationStore extends PlatformStore {
    * @param draft - completion evidence from the self-loop.
    * @returns the durable repair record.
    */
-  saveRepairRecord(projectId: string, draft: RepairRecordDraft): Awaitable<RepairRecord>
+  saveRepairRecord(
+    projectId: string,
+    draft: RepairRecordDraft,
+    write?: WorkflowWriteContext,
+  ): Awaitable<RepairRecord>
   /**
    * List repair attempts in round order.
    * @param projectId - owning project.

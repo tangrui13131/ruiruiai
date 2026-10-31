@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1、M2、M3、M4.0 与 M4.1 已经完成，M4.2 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2、M3、M4.0、M4.1 与 M4.2 已经完成，M4.3 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -106,7 +106,7 @@ HQ 将这些事件映射到 Agent、部门、工作流、进度、日志、验�
 
 每个里程碑交付设计、实现、测试、验收报告和遗留问题。可观察验收标准通过前，不进入下一里程碑。
 
-### M1、M2、M3、M4.0 与 M4.1 结果和后续工作
+### M1、M2、M3、M4.0、M4.1 与 M4.2 结果和后续工作
 
 M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runtime，真实 DeepSeek 模型完成了轮次，真实模型生成了 React、TypeScript、Vite 与 Ant Design 工程。后续真实模型轮次安装依赖并运行生产构建；独立 Playwright 验证在桌面与移动视口通过，计数器交互正常。
 
@@ -126,7 +126,16 @@ M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runt
 - 任务写入要求匹配前一 revision；项目事件与 Outbox 义务在同一 Serializable 事务中提交。Outbox dispatcher 使用过期 owner claim，PostgreSQL 通过 `FOR UPDATE SKIP LOCKED` 领取。
 - Fastify 现在提供项目、任务、执行事件、调度、验证、修复、工作流、启动与取消路由，并包含 Zod 校验及明确的 400、404、409、503 失败。Socket.IO 按 `projectId + afterSeq` 重放快照与已提交增量，非法游标以 `INVALID_CURSOR` 断开。
 - 真实 PostgreSQL 迁移与 E2E 测试通过 DAG 写入、revision Journal、执行证据、验证、修复、工作流完成、并发事件序号、Outbox claim、重连查询与跨进程 fencing。
-- Future Cup bundle 通过 `dsh` 完成组合，真实平台 API 已在 PostgreSQL 上提供 health、Agent、项目创建与 snapshot 路由。M4.2 将增加管理界面，以及消费该仓储约定的具体运行启动器。
+- Future Cup bundle 通过 `dsh` 完成组合，真实平台 API 已在 PostgreSQL 上提供 health、Agent、项目创建与 snapshot 路由。M4.2 随后增加管理界面，以及消费该仓储约定的具体运行启动器。
+- M4.2 新增 `project_runs`、SQLite schema v5、PostgreSQL migration，并限制每个项目只有一个活跃运行。运行状态与 M3 验证工作流分开保存。
+- 真实 `FutureCupRunLauncher` 创建隔离 workspace 与 Agent home root，获取并续期 workflow lease，运行真实 Harness 团队，在进程重启后回收中断运行，并记录 PASSED、FAILED、CANCELLED 或 ESCALATED，不使用模拟状态。
+- SQLite 与 PostgreSQL 现在会在拥有状态的事务中写入任务、执行、验证、修复、工作流与运行产品事件。任务完成与执行结算也共享同一事务。
+- 真实启动器的每次领域写都携带 workflow owner 与 fencing token。终态结算在短暂数据库错误期间保持 heartbeat 重试，能识别“提交成功但响应丢失”的终态行，并以 `PROJECT_RUN_SETTLEMENT_PENDING` 或 `PROJECT_RUN_SETTLEMENT_TIMEOUT` 报告未完成状态，不伪装成功。
+- 同源管理 SPA 使用 React、TypeScript、Vite、Ant Design、React Flow、HashRouter 与 Socket.IO，提供项目创建与控制、Agent 状态、DAG、调度证据、验证截图、修复 Diff、事件日志与交付预览。
+- 项目级 Agent 卡片从 `RUNNING` 执行记录计算当前负载，从持久化执行结果计算历史成功率；权威事件游标推进时，界面会刷新该投影。
+- Fastify 托管构建后的管理 SPA、截图产物与生成工程生产预览。公共响应以相对标识替代私有 workspace 路径，截图文件名只能通过受控路由访问。
+- 最终真实 M4.2 运行通过八个独立 Session 完成五个 DAG 任务，经两次真实 Repair Session 后通过，并在平台预览路径下提供生成工程生产构建。桌面、900 px 平板与 390 px 移动浏览器验证均通过，采集十一张截图，无失败请求或图片解码错误。
+- M4.3 接下来把真实平台事件流接入符合许可证要求的 HQ 3D 大屏，并移除剩余的独立模拟路径。
 
 详细技术门禁见 [Future Cup M4 realtime persistence gate](../architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.zh.md)。
 

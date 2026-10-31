@@ -99,12 +99,26 @@ export function buildGates(
     for (const step of libraryBuildSteps(root, 'all')) {
       gates.push(libraryGate(step, step.id === 'host-src' ? ['native', ...step.needs] : step.needs, env))
     }
+    gates.push(pnpmGate(
+      'future-cup-ui',
+      'Future Cup UI build',
+      ['--filter', '@deepseek-ai/dsh-experimental-future-cup-platform', 'run', 'build:ui'],
+      [],
+      env,
+    ))
     gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['client-bundle'], env))
   }
   if (scope === 'typecheck') {
     for (const step of contractSteps(root, 'all')) gates.push(libraryGate(step, step.needs, env))
   }
   if (scope !== 'artifacts') {
+    gates.push(pnpmGate(
+      'future-cup-ui-check',
+      'Future Cup UI typecheck',
+      ['--filter', '@deepseek-ai/dsh-experimental-future-cup-platform', 'run', 'typecheck:ui'],
+      [],
+      env,
+    ))
     for (const face of ['host', 'client'] as const) {
       gates.push({
         id: `${face}-check`,

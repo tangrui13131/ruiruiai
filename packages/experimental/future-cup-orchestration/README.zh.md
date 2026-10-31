@@ -147,7 +147,7 @@ Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默
 - **实验性包**：M3 孵化期间公共 API 可能变化。
 - **两个存储适配器**：SQLite 继续作为确定性测试适配器；`future-cup-platform` 通过 Prisma 提供 PostgreSQL。
 - **固定进程内团队**：M3 团队由配置驱动，但不是通用 Agent 市场。
-- **租约获取由消费者负责**：存储提供工作流租约与 revision 守卫，后续平台运行启动器必须为每个项目获取并续期租约。
+- **租约获取由启动器负责**：存储提供工作流租约与 revision 守卫；`future-cup-platform` 为每个项目运行获取、续期并校验 fencing token。
 - **Playwright 运行时**：浏览器验证要求安装匹配的 Chromium 构建；浏览器不可用时产生 `INCOMPLETE`，不能产生 `PASS`。
 - **不修复生成要求**：Repair 只能修改生成的 `src/` 文件；平台自有 scaffold 文件失败时进入人工升级，不能静默改写生成器。
 - **Agent 输出预算**：大型页面需要显式模型输出配置或进一步任务拆解。

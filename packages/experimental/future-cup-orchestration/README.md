@@ -147,7 +147,7 @@ Role prompts are stable for a given role, generated schema, and task input. Diff
 - **Experimental package:** the public API can change while M3 incubates.
 - **Two storage adapters:** SQLite remains the deterministic test adapter; `future-cup-platform` provides PostgreSQL through Prisma.
 - **Fixed in-process team:** the M3 team is configuration-driven but not a general Agent marketplace.
-- **Lease acquisition is consumer-owned:** the store exposes workflow leases and revision guards, while a future platform run launcher must acquire and renew the lease for each project.
+- **Lease acquisition is launcher-owned:** the store exposes workflow leases and revision guards; `future-cup-platform` acquires, renews, and fences them for each project run.
 - **Playwright runtime:** browser verification requires a matching installed Chromium build; an unavailable browser produces `INCOMPLETE`, never `PASS`.
 - **No requirement-generation repair:** Repair can change only generated `src/` files; failures in platform-owned scaffold files escalate instead of silently rewriting the generator.
 - **Agent output budgets:** large generated pages require explicit model-output configuration or additional decomposition.

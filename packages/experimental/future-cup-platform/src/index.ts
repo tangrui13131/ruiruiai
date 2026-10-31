@@ -1,12 +1,15 @@
 /** Future Cup platform service plugin: storage, REST API, and realtime events. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { fileURLToPath } from 'node:url'
 import {
   defaultAgentProfiles,
   OrchestrationRepository,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import z from '@deepseek-ai/schemastery'
+import { closeFutureCupResources } from './lifecycle.ts'
 import { PostgresPlatformStore } from './postgres-store.ts'
+import { FutureCupRunLauncher } from './run-launcher.ts'
 import { createFutureCupServer } from './server.ts'
 import type { ProjectRunLauncher } from './server-types.ts'
 
@@ -40,6 +43,38 @@ export interface Config {
   readonly outboxBatchSize: number
   /** Expiry of one dispatcher's Outbox claim before redelivery is allowed. */
   readonly outboxClaimMs: number
+  /** Private root containing generated workspaces, Agent homes, screenshots, and previews. */
+  readonly workspaceRoot: string
+  /** Root containing one isolated Harness home per Agent invocation. */
+  readonly agentHomeRoot: string
+  /** Optional built management UI directory. */
+  readonly uiRoot?: string | undefined
+  /** Optional DeepSeek provider route used by project Agents. */
+  readonly runProvider?: string | undefined
+  /** Optional model used by project Agents. */
+  readonly runModel?: string | undefined
+  /** Maximum output tokens for one project-Agent request. */
+  readonly runMaxTokens: number
+  /** Timeout for one project-Agent request. */
+  readonly runRequestTimeoutMs: number
+  /** Timeout for generated-project dependency installation and build. */
+  readonly verificationBuildTimeoutMs: number
+  /** Timeout for generated-project browser verification. */
+  readonly verificationBrowserTimeoutMs: number
+  /** Maximum automatic repair rounds. */
+  readonly maxRepairRounds: number
+  /** Timeout for one Repair Agent turn. */
+  readonly repairTimeoutMs: number
+  /** Maximum retries for one failed task assignment. */
+  readonly maxAgentRetries: number
+  /** Duration of one workflow lease. */
+  readonly leaseDurationMs: number
+  /** Lease heartbeat interval, which must be smaller than the lease duration. */
+  readonly heartbeatIntervalMs: number
+  /** Delay between terminal project-run settlement retries after transient database failures. */
+  readonly settlementRetryMs: number
+  /** Maximum bounded wait for cancel or close to observe settlement. */
+  readonly settlementWaitMs: number
 }
 
 /** Schemastery schema for the platform plugin. */
@@ -52,6 +87,22 @@ export const Config = z.object({
   outboxPollMs: z.number().min(1),
   outboxBatchSize: z.number().min(1),
   outboxClaimMs: z.number().min(1),
+  workspaceRoot: z.string().min(1),
+  agentHomeRoot: z.string().min(1),
+  uiRoot: z.union([z.string().min(1), z.const(undefined)]).default(undefined),
+  runProvider: z.union([z.string().min(1), z.const(undefined)]).default(undefined),
+  runModel: z.union([z.string().min(1), z.const(undefined)]).default(undefined),
+  runMaxTokens: z.number().min(1),
+  runRequestTimeoutMs: z.number().min(1),
+  verificationBuildTimeoutMs: z.number().min(1),
+  verificationBrowserTimeoutMs: z.number().min(1),
+  maxRepairRounds: z.number().min(0),
+  repairTimeoutMs: z.number().min(1),
+  maxAgentRetries: z.number().min(0),
+  leaseDurationMs: z.number().min(1),
+  heartbeatIntervalMs: z.number().min(1),
+  settlementRetryMs: z.number().min(1),
+  settlementWaitMs: z.number().min(1),
 })
 
 /**
@@ -64,17 +115,48 @@ export function apply(ctx: Context, config: Config): void {
     const store = config.databaseDriver === 'postgres'
       ? createPostgresStore(config.databaseUrl)
       : new OrchestrationRepository(config.sqlitePath ?? ':memory:', { journalMode: 'wal' })
+    const profiles = defaultAgentProfiles()
+    let launcher: FutureCupRunLauncher | undefined
     let server: ReturnType<typeof createFutureCupServer> | undefined
     try {
+      launcher = new FutureCupRunLauncher({
+        store,
+        workspaceRoot: config.workspaceRoot,
+        agentHomeRoot: config.agentHomeRoot,
+        profiles,
+        harness: {
+          ...config.runProvider === undefined ? {} : { provider: config.runProvider },
+          ...config.runModel === undefined ? {} : { model: config.runModel },
+          maxTokens: config.runMaxTokens,
+          requestTimeoutMs: config.runRequestTimeoutMs,
+        },
+        verification: {
+          buildTimeoutMs: config.verificationBuildTimeoutMs,
+          browserTimeoutMs: config.verificationBrowserTimeoutMs,
+        },
+        selfLoop: {
+          maxRepairRounds: config.maxRepairRounds,
+          repairTimeoutMs: config.repairTimeoutMs,
+        },
+        maxAgentRetries: config.maxAgentRetries,
+        leaseDurationMs: config.leaseDurationMs,
+        heartbeatIntervalMs: config.heartbeatIntervalMs,
+        settlementRetryMs: config.settlementRetryMs,
+        settlementWaitMs: config.settlementWaitMs,
+        onError: (error) => { ctx.logger.error(error) },
+      })
+      ctx.provide('futureCupRunLauncher', launcher)
       server = createFutureCupServer({
         store,
-        profiles: defaultAgentProfiles(),
+        profiles,
         host: config.host,
         port: config.port,
         outboxPollMs: config.outboxPollMs,
         outboxBatchSize: config.outboxBatchSize,
         outboxClaimMs: config.outboxClaimMs,
-        getLauncher: () => ctx.get('futureCupRunLauncher'),
+        runRoot: config.workspaceRoot,
+        uiRoot: config.uiRoot ?? fileURLToPath(new URL('../lib/web', import.meta.url)),
+        getLauncher: () => launcher,
         onError: (error) => { ctx.logger.error(error) },
       })
       const address = await server.start()
@@ -82,12 +164,11 @@ export function apply(ctx: Context, config: Config): void {
         `future-cup-platform listening on http://${address.host}:${address.port}`,
       )
     } catch (error: unknown) {
-      await server?.close()
-      if (server === undefined) await store.close()
+      await closeFutureCupResources({ launcher, server, store }, error)
       throw error
     }
     return async () => {
-      await server.close()
+      await closeFutureCupResources({ launcher, server })
     }
   }, 'future-cup-platform.listen')
 }

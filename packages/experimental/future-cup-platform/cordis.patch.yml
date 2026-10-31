@@ -10,3 +10,19 @@
         outboxPollMs: 100
         outboxBatchSize: 100
         outboxClaimMs: 30000
+        workspaceRoot: !!js process.env.FUTURE_CUP_RUN_ROOT ?? '.artifacts/future-cup-runs'
+        agentHomeRoot: !!js process.env.FUTURE_CUP_AGENT_HOME_ROOT ?? '.artifacts/future-cup-agent-homes'
+        uiRoot: !!js process.env.FUTURE_CUP_UI_ROOT ?? undefined
+        runProvider: !!js process.env.FUTURE_CUP_PROVIDER ?? undefined
+        runModel: !!js process.env.FUTURE_CUP_MODEL ?? undefined
+        runMaxTokens: 32000
+        runRequestTimeoutMs: 600000
+        verificationBuildTimeoutMs: 600000
+        verificationBrowserTimeoutMs: 60000
+        maxRepairRounds: 3
+        repairTimeoutMs: 600000
+        maxAgentRetries: 1
+        leaseDurationMs: 60000
+        heartbeatIntervalMs: 15000
+        settlementRetryMs: 1000
+        settlementWaitMs: 30000

@@ -48,6 +48,7 @@ model Project {
   verifications VerificationReport[]
   repairs      RepairRecord[]
   workflow     WorkflowRun?
+  runs         ProjectRun[]
   events       ProductEvent[]
   lease        WorkflowLease?
 
@@ -202,6 +203,23 @@ model WorkflowRun {
   project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("workflow_runs")
+}
+
+model ProjectRun {
+  id            String    @id
+  projectId     String    @map("project_id")
+  status        String
+  ownerId       String    @map("owner_id")
+  fencingToken  BigInt    @map("fencing_token")
+  workspacePath String    @map("workspace_path")
+  previewPath   String?   @map("preview_path")
+  startedAt     DateTime  @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  errorJson     Json?     @map("error_json") @db.JsonB
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, startedAt])
+  @@map("project_runs")
 }
 
 model ProductEvent {

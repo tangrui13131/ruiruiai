@@ -2,7 +2,12 @@
 
 import { isDeepStrictEqual } from 'node:util'
 import { TaskId } from './brand.ts'
-import type { AgentId as AgentIdType, ProjectId as ProjectIdType, TaskId as TaskIdType } from './brand.ts'
+import type {
+  AgentId as AgentIdType,
+  ExecutionId as ExecutionIdType,
+  ProjectId as ProjectIdType,
+  TaskId as TaskIdType,
+} from './brand.ts'
 import type { OrchestrationStore } from './platform-store.ts'
 import type {
   JsonValue,
@@ -43,6 +48,11 @@ interface DagOptions {
 interface RequeueOptions {
   /** Exclude the previous Agent only when another instance can take the retry. */
   readonly excludePreviousAgent?: boolean
+}
+
+interface ExecutionSettlement {
+  readonly executionId: ExecutionIdType
+  readonly sessionId?: string | undefined
 }
 
 /**
@@ -270,15 +280,28 @@ export class DagEngine {
    * Complete one RUNNING task.
    * @param taskId - running task.
    * @param result - durable structured result.
+   * @param execution - optional running execution settled in the same transaction.
    * @returns the committed COMPLETED task.
    */
-  async completeTask(taskId: TaskIdType, result: JsonValue): Promise<TaskSnapshot> {
+  async completeTask(
+    taskId: TaskIdType,
+    result: JsonValue,
+    execution?: ExecutionSettlement,
+  ): Promise<TaskSnapshot> {
     return await this.withMutationLock(async () => {
       const task = this.requireStatus(taskId, 'RUNNING')
       const completed = await this.replaceTask(
         task,
         { status: 'COMPLETED', result, failure: undefined },
         'task/completed',
+        undefined,
+        execution === undefined
+          ? undefined
+          : {
+            executionId: execution.executionId,
+            status: 'COMPLETED',
+            sessionId: execution.sessionId,
+          },
       )
       await this.syncReadinessLocked()
       return completed
@@ -289,9 +312,14 @@ export class DagEngine {
    * Fail one RUNNING task and automatically block every unfinished descendant.
    * @param taskId - running task.
    * @param failure - structured failure.
+   * @param execution - optional running execution settled in the same transaction.
    * @returns the committed FAILED task.
    */
-  async failTask(taskId: TaskIdType, failure: TaskFailure): Promise<TaskSnapshot> {
+  async failTask(
+    taskId: TaskIdType,
+    failure: TaskFailure,
+    execution?: Pick<ExecutionSettlement, 'executionId'>,
+  ): Promise<TaskSnapshot> {
     return await this.withMutationLock(async () => {
       const task = this.requireStatus(taskId, 'RUNNING')
       const failed = await this.replaceTask(
@@ -299,6 +327,13 @@ export class DagEngine {
         { status: 'FAILED', failure },
         'task/failed',
         failure.message,
+        execution === undefined
+          ? undefined
+          : {
+            executionId: execution.executionId,
+            status: 'FAILED',
+            error: failure,
+          },
       )
       await this.blockDownstream(taskId, `dependency ${taskId} failed`)
       return failed
@@ -410,6 +445,12 @@ export class DagEngine {
     changes: Partial<Pick<TaskSnapshot, 'status' | 'assignedAgentId' | 'result' | 'failure' | 'retryCount' | 'excludedAgentIds'>>,
     eventType: TaskJournalEventType,
     reason?: string,
+    execution?: {
+      readonly executionId: ExecutionIdType
+      readonly status: 'COMPLETED' | 'FAILED' | 'CANCELLED'
+      readonly sessionId?: string | undefined
+      readonly error?: TaskFailure | undefined
+    },
   ): Promise<TaskSnapshot> {
     const next: TaskSnapshot = {
       ...task,
@@ -417,7 +458,18 @@ export class DagEngine {
       revision: task.revision + 1,
       updatedAt: this.now().toISOString(),
     }
-    await this.repository.saveTask(next, eventType, reason)
+    if (execution === undefined) {
+      await this.repository.saveTask(next, eventType, reason)
+    } else {
+      await this.repository.saveTaskAndFinishExecution(
+        next,
+        eventType,
+        execution.executionId,
+        execution.status,
+        execution.sessionId,
+        execution.error,
+      )
+    }
     this.tasksById.set(next.id, next)
     return next
   }

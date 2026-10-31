@@ -7,6 +7,7 @@ import {
   AgentId,
   ExecutionId,
   ProjectId,
+  ProjectRunId,
   RepairRecordId,
   TaskId,
   VerificationReportId,
@@ -20,8 +21,17 @@ import {
   taskSnapshotSchema,
   verificationStatusSchema,
 } from './schemas.ts'
-import { productEventSchema } from './product-events.ts'
-import { assertPositiveSafeInteger } from './platform-store.ts'
+import {
+  executionProductEventPayload,
+  executionProductEventType,
+  productEventSchema,
+  taskProductEventPayload,
+  taskProductEventType,
+} from './product-events.ts'
+import {
+  assertPositiveSafeInteger,
+  WorkflowFenceError,
+} from './platform-store.ts'
 import { openOrchestrationDatabase, ORCHESTRATION_SCHEMA_VERSION } from './sqlite.ts'
 import type {
   LeaseAcquisition,
@@ -31,6 +41,7 @@ import type {
   PlatformProjectSummary,
   ProductEventDraft,
   WorkflowLeaseState,
+  WorkflowWriteContext,
 } from './platform-store.ts'
 import type {
   ExecutionEventRecord,
@@ -38,6 +49,8 @@ import type {
   ExecutionStatus,
   JsonValue,
   ProjectRecord,
+  ProjectRunRecord,
+  ProjectRunStatus,
   RepairRecord,
   RepairRecordDraft,
   SchedulerDecision,
@@ -165,6 +178,19 @@ const workflowLeaseRowSchema = z.object({
   expires_at: z.string(),
 }).strict()
 
+const projectRunRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  status: z.string(),
+  owner_id: z.string(),
+  fencing_token: z.number(),
+  workspace_path: z.string(),
+  preview_path: z.string().nullable(),
+  started_at: z.string(),
+  completed_at: z.string().nullable(),
+  error_json: z.string().nullable(),
+}).strict()
+
 /** Current persisted DAG state used by resume verification. */
 export interface PersistedDag {
   readonly tasks: readonly TaskSnapshot[]
@@ -201,8 +227,13 @@ export class OrchestrationRepository implements OrchestrationStore {
    * @param project - project identity and user requirement.
    * @param tasks - revision-one task snapshots in creation order.
    */
-  createProject(project: ProjectRecord, tasks: readonly TaskSnapshot[]): void {
+  createProject(
+    project: ProjectRecord,
+    tasks: readonly TaskSnapshot[],
+    write?: WorkflowWriteContext,
+  ): void {
     this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
       const existing = this.database.prepare(`
         SELECT id, name, requirement, created_at
         FROM projects
@@ -249,6 +280,12 @@ export class OrchestrationRepository implements OrchestrationStore {
           dependencyStatement.run(task.projectId, task.id, dependency)
         }
         this.appendTaskJournal(task, 'task/created')
+        this.appendProductEventInTransaction({
+          projectId: project.id,
+          type: 'task.created',
+          taskId: task.id,
+          payload: taskProductEventPayload(task),
+        })
       }
     })
   }
@@ -279,12 +316,23 @@ export class OrchestrationRepository implements OrchestrationStore {
   listProjects(): PlatformProjectSummary[] {
     const rows = projectRowSchema.extend({
       workflow_status: z.string().nullable(),
+      latest_run_id: z.string().nullable(),
+      latest_run_status: z.string().nullable(),
     }).array().parse(this.database.prepare(`
       SELECT
         p.id, p.name, p.requirement, p.last_event_seq, p.created_at,
-        w.status AS workflow_status
+        w.status AS workflow_status,
+        r.id AS latest_run_id,
+        r.status AS latest_run_status
       FROM projects p
       LEFT JOIN workflow_runs w ON w.project_id = p.id
+      LEFT JOIN project_runs r ON r.id = (
+        SELECT latest.id
+        FROM project_runs latest
+        WHERE latest.project_id = p.id
+        ORDER BY latest.started_at DESC, latest.rowid DESC
+        LIMIT 1
+      )
       ORDER BY p.rowid
     `).all())
     return rows.map(row => ({
@@ -295,6 +343,10 @@ export class OrchestrationRepository implements OrchestrationStore {
       workflowStatus: row.workflow_status === null
         ? undefined
         : decodeWorkflowStatus(row.workflow_status),
+      latestRunId: row.latest_run_id === null ? undefined : ProjectRunId(row.latest_run_id),
+      latestRunStatus: row.latest_run_status === null
+        ? undefined
+        : decodeProjectRunStatus(row.latest_run_status),
       createdAt: row.created_at,
     }))
   }
@@ -322,6 +374,7 @@ export class OrchestrationRepository implements OrchestrationStore {
       verificationReports: this.listVerificationReports(id),
       repairs: this.listRepairRecords(id),
       workflow: this.getWorkflowRun(id),
+      runs: this.listProjectRuns(id),
       events: this.listProductEvents(projectId, afterSeq, limit),
       lastEventSeq: project.lastEventSeq,
     }
@@ -330,45 +383,13 @@ export class OrchestrationRepository implements OrchestrationStore {
   /**
    * Append one product event and Outbox row while advancing the project cursor.
    * @param draft - event identity and payload.
+   * @param write - optional live workflow lease that authorizes the write.
    * @returns the committed event.
    */
-  appendProductEvent(draft: ProductEventDraft): ProductEvent {
+  appendProductEvent(draft: ProductEventDraft, write?: WorkflowWriteContext): ProductEvent {
     return this.transaction(() => {
-      const cursor = this.database.prepare(`
-        UPDATE projects
-        SET last_event_seq = last_event_seq + 1
-        WHERE id = ?
-        RETURNING last_event_seq
-      `).get(draft.projectId) as { last_event_seq: number } | undefined
-      if (cursor === undefined) throw new Error(`cannot append event for missing project "${draft.projectId}"`)
-      const event = productEventSchema.parse({
-        type: draft.type,
-        projectId: draft.projectId,
-        seq: cursor.last_event_seq,
-        occurredAt: draft.occurredAt ?? this.timestamp(),
-        ...draft.taskId === undefined ? {} : { taskId: draft.taskId },
-        ...draft.agentId === undefined ? {} : { agentId: draft.agentId },
-        payload: draft.payload,
-      })
-      const id = `event-${this.createId()}`
-      this.database.prepare(`
-        INSERT INTO product_events (
-          id, project_id, seq, type, task_id, agent_id, payload_json, occurred_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        id,
-        event.projectId,
-        event.seq,
-        event.type,
-        event.taskId ?? null,
-        event.agentId ?? null,
-        JSON.stringify(event.payload),
-        event.occurredAt,
-      )
-      this.database.prepare(
-        'INSERT INTO outbox_events (event_id, published_at) VALUES (?, NULL)',
-      ).run(id)
-      return event
+      this.assertWorkflowWriteFence(write)
+      return this.appendProductEventInTransaction(draft)
     })
   }
 
@@ -583,24 +604,65 @@ export class OrchestrationRepository implements OrchestrationStore {
    * @param eventType - mutation kind.
    * @param reason - optional scheduling or lifecycle explanation.
    */
-  saveTask(task: TaskSnapshot, eventType: TaskJournalEventType, reason?: string): void {
+  saveTask(
+    task: TaskSnapshot,
+    eventType: TaskJournalEventType,
+    reason?: string,
+    write?: WorkflowWriteContext,
+  ): void {
     this.transaction(() => {
-      const result = this.database.prepare(`
-        UPDATE tasks
-        SET snapshot_json = ?, revision = ?, status = ?
-        WHERE project_id = ? AND id = ? AND revision = ?
+      this.assertWorkflowWriteFence(write)
+      this.updateTaskRevision(task)
+      this.appendTaskJournalAndProductEvent(task, eventType, reason)
+    })
+  }
+
+  /**
+   * Replace one task revision and settle its running execution in one transaction.
+   * @param task - next task snapshot with revision already incremented.
+   * @param eventType - task mutation kind.
+   * @param executionId - running execution to settle.
+   * @param status - terminal execution status.
+   * @param sessionId - real Harness Session identity.
+   * @param error - structured failure when the execution did not succeed.
+   */
+  saveTaskAndFinishExecution(
+    task: TaskSnapshot,
+    eventType: TaskJournalEventType,
+    executionId: string,
+    status: Exclude<ExecutionStatus, 'RUNNING'>,
+    sessionId?: string,
+    error?: TaskFailure,
+    write?: WorkflowWriteContext,
+  ): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      this.updateTaskRevision(task)
+      this.appendTaskJournalAndProductEvent(task, eventType)
+      const updatedExecution = this.database.prepare(`
+        UPDATE executions
+        SET status = ?, session_id = ?, completed_at = ?, error_json = ?
+        WHERE id = ? AND project_id = ? AND task_id = ? AND agent_id = ? AND status = 'RUNNING'
       `).run(
-        JSON.stringify(task),
-        task.revision,
-        task.status,
+        status,
+        sessionId ?? null,
+        this.timestamp(),
+        error === undefined ? null : JSON.stringify(error),
+        executionId,
         task.projectId,
         task.id,
-        task.revision - 1,
+        task.assignedAgentId ?? '',
       )
-      if (result.changes !== 1) {
-        throw new Error(`cannot update missing or stale task "${task.id}" in project "${task.projectId}"`)
+      if (updatedExecution.changes !== 1) {
+        throw new Error(`cannot settle missing or mismatched execution "${executionId}"`)
       }
-      this.appendTaskJournal(task, eventType, reason)
+      const raw = this.database.prepare(`
+        SELECT id, project_id, task_id, agent_id, session_id, status, started_at, completed_at, error_json
+        FROM executions
+        WHERE id = ?
+      `).get(executionId)
+      if (raw === undefined) throw new Error(`execution "${executionId}" disappeared after update`)
+      this.appendExecutionProductEvent(decodeExecutionRow(executionRowSchema.parse(raw)))
     })
   }
 
@@ -638,17 +700,23 @@ export class OrchestrationRepository implements OrchestrationStore {
    * Persist one explainable scheduling decision.
    * @param decision - complete candidate and score record.
    */
-  saveSchedulerDecision(decision: SchedulerDecision): void {
-    this.database.prepare(`
-      INSERT INTO scheduler_decisions (id, project_id, task_id, decision_json, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      decision.id,
-      decision.projectId,
-      decision.taskId,
-      JSON.stringify(decision),
-      decision.createdAt,
-    )
+  saveSchedulerDecision(
+    decision: SchedulerDecision,
+    write?: WorkflowWriteContext,
+  ): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      this.database.prepare(`
+        INSERT INTO scheduler_decisions (id, project_id, task_id, decision_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        decision.id,
+        decision.projectId,
+        decision.taskId,
+        JSON.stringify(decision),
+        decision.createdAt,
+      )
+    })
   }
 
   /**
@@ -673,14 +741,37 @@ export class OrchestrationRepository implements OrchestrationStore {
    * @param agentId - assigned Agent.
    * @returns the execution identity.
    */
-  startExecution(projectId: ProjectId, taskId: TaskId, agentId: AgentId): ExecutionId {
-    const id = ExecutionId(`execution-${this.createId()}`)
-    this.database.prepare(`
-      INSERT INTO executions (
-        id, project_id, task_id, agent_id, session_id, status, started_at, completed_at, error_json
-      ) VALUES (?, ?, ?, ?, NULL, 'RUNNING', ?, NULL, NULL)
-    `).run(id, projectId, taskId, agentId, this.timestamp())
-    return id
+  startExecution(
+    projectId: ProjectId,
+    taskId: TaskId,
+    agentId: AgentId,
+    write?: WorkflowWriteContext,
+  ): ExecutionId {
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const id = ExecutionId(`execution-${this.createId()}`)
+      const startedAt = this.timestamp()
+      this.database.prepare(`
+        INSERT INTO executions (
+          id, project_id, task_id, agent_id, session_id, status, started_at, completed_at, error_json
+        ) VALUES (?, ?, ?, ?, NULL, 'RUNNING', ?, NULL, NULL)
+      `).run(id, projectId, taskId, agentId, startedAt)
+      this.appendProductEventInTransaction({
+        projectId,
+        type: 'task.dispatched',
+        taskId,
+        agentId,
+        payload: { executionId: id, taskId, agentId, status: 'RUNNING', startedAt },
+      })
+      this.appendProductEventInTransaction({
+        projectId,
+        type: 'agent.started',
+        taskId,
+        agentId,
+        payload: { executionId: id, taskId, agentId, status: 'RUNNING', startedAt },
+      })
+      return id
+    })
   }
 
   /**
@@ -695,19 +786,31 @@ export class OrchestrationRepository implements OrchestrationStore {
     status: Exclude<ExecutionStatus, 'RUNNING'>,
     sessionId: string | undefined,
     error?: TaskFailure,
+    write?: WorkflowWriteContext,
   ): void {
-    const result = this.database.prepare(`
-      UPDATE executions
-      SET status = ?, session_id = ?, completed_at = ?, error_json = ?
-      WHERE id = ?
-    `).run(
-      status,
-      sessionId ?? null,
-      this.timestamp(),
-      error === undefined ? null : JSON.stringify(error),
-      id,
-    )
-    if (result.changes !== 1) throw new Error(`cannot finish missing execution "${id}"`)
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const completedAt = this.timestamp()
+      const result = this.database.prepare(`
+        UPDATE executions
+        SET status = ?, session_id = ?, completed_at = ?, error_json = ?
+        WHERE id = ? AND status = 'RUNNING'
+      `).run(
+        status,
+        sessionId ?? null,
+        completedAt,
+        error === undefined ? null : JSON.stringify(error),
+        id,
+      )
+      if (result.changes !== 1) throw new Error(`cannot finish missing or settled execution "${id}"`)
+      const raw = this.database.prepare(`
+        SELECT id, project_id, task_id, agent_id, session_id, status, started_at, completed_at, error_json
+        FROM executions
+        WHERE id = ?
+      `).get(id)
+      if (raw === undefined) throw new Error(`execution "${id}" disappeared after update`)
+      this.appendExecutionProductEvent(decodeExecutionRow(executionRowSchema.parse(raw)))
+    })
   }
 
   /**
@@ -716,11 +819,45 @@ export class OrchestrationRepository implements OrchestrationStore {
    * @param eventType - event discriminator.
    * @param payload - JSON audit value.
    */
-  appendExecutionEvent(executionId: ExecutionId, eventType: string, payload: JsonValue): void {
-    this.database.prepare(`
-      INSERT INTO execution_events (execution_id, event_type, payload_json, created_at)
-      VALUES (?, ?, ?, ?)
-    `).run(executionId, eventType, JSON.stringify(payload), this.timestamp())
+  appendExecutionEvent(
+    executionId: ExecutionId,
+    eventType: string,
+    payload: JsonValue,
+    write?: WorkflowWriteContext,
+  ): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      this.database.prepare(`
+        INSERT INTO execution_events (execution_id, event_type, payload_json, created_at)
+        VALUES (?, ?, ?, ?)
+      `).run(executionId, eventType, JSON.stringify(payload), this.timestamp())
+      const raw = this.database.prepare(`
+        SELECT id, project_id, task_id, agent_id, session_id, status, started_at, completed_at, error_json
+        FROM executions
+        WHERE id = ?
+      `).get(executionId)
+      if (raw === undefined) throw new Error(`cannot append event for missing execution "${executionId}"`)
+      const row = executionRowSchema.parse(raw)
+      if (eventType === 'repair/started') {
+        this.appendProductEventInTransaction({
+          projectId: row.project_id,
+          type: 'repair.started',
+          taskId: row.task_id,
+          agentId: row.agent_id,
+          payload,
+        })
+      } else if (eventType === 'agent/session-events') {
+        const eventTypes = jsonValueSchema.parse(payload)
+        if (!Array.isArray(eventTypes) || !eventTypes.includes('tool/call')) return
+        this.appendProductEventInTransaction({
+          projectId: row.project_id,
+          type: 'agent.tool.called',
+          taskId: row.task_id,
+          agentId: row.agent_id,
+          payload,
+        })
+      }
+    })
   }
 
   /**
@@ -735,17 +872,7 @@ export class OrchestrationRepository implements OrchestrationStore {
       WHERE project_id = ?
       ORDER BY rowid
     `).all(projectId))
-    return rows.map(row => ({
-      id: ExecutionId(row.id),
-      projectId: ProjectId(row.project_id),
-      taskId: TaskId(row.task_id),
-      agentId: AgentId(row.agent_id),
-      sessionId: row.session_id ?? undefined,
-      status: decodeExecutionStatus(row.status),
-      startedAt: row.started_at,
-      completedAt: row.completed_at ?? undefined,
-      error: row.error_json === null ? undefined : taskFailureSchema.parse(JSON.parse(row.error_json)),
-    }))
+    return rows.map(decodeExecutionRow)
   }
 
   /**
@@ -767,6 +894,137 @@ export class OrchestrationRepository implements OrchestrationStore {
       payload: jsonValueSchema.parse(JSON.parse(row.payload_json)),
       createdAt: row.created_at,
     }))
+  }
+
+  /**
+   * Create one durable project run and append its product event atomically.
+   * @param projectId - owning project.
+   * @param ownerId - workflow lease owner.
+   * @param fencingToken - current workflow lease token.
+   * @param workspacePath - private run workspace.
+   * @returns the committed project run.
+   */
+  createProjectRun(
+    projectId: string,
+    ownerId: string,
+    fencingToken: bigint,
+    workspacePath: string,
+    write?: WorkflowWriteContext,
+  ): ProjectRunRecord {
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const run: ProjectRunRecord = {
+        id: ProjectRunId(`run-${this.createId()}`),
+        projectId: ProjectId(projectId),
+        status: 'RUNNING',
+        ownerId,
+        fencingToken,
+        workspacePath,
+        startedAt: this.timestamp(),
+      }
+      this.database.prepare(`
+        INSERT INTO project_runs (
+          id, project_id, status, owner_id, fencing_token, workspace_path,
+          preview_path, started_at, completed_at, error_json
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL)
+      `).run(
+        run.id,
+        run.projectId,
+        run.status,
+        run.ownerId,
+        Number(run.fencingToken),
+        workspacePath,
+        run.startedAt,
+      )
+      this.appendProductEventInTransaction({
+        projectId,
+        type: 'run.started',
+        payload: { runId: run.id, status: run.status },
+      })
+      return run
+    })
+  }
+
+  /**
+   * Finish one running project run and append its terminal event atomically.
+   * @param runId - project-run identity.
+   * @param status - terminal status.
+   * @param previewPath - private production build path.
+   * @param error - structured failure.
+   * @returns the committed project run.
+   */
+  finishProjectRun(
+    runId: string,
+    status: Exclude<ProjectRunStatus, 'RUNNING'>,
+    previewPath?: string,
+    error?: TaskFailure,
+    write?: WorkflowWriteContext,
+  ): ProjectRunRecord {
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const completedAt = this.timestamp()
+      const result = this.database.prepare(`
+        UPDATE project_runs
+        SET status = ?, preview_path = COALESCE(?, preview_path),
+            completed_at = ?, error_json = ?
+        WHERE id = ? AND status = 'RUNNING'
+      `).run(
+        status,
+        previewPath ?? null,
+        completedAt,
+        error === undefined ? null : JSON.stringify(error),
+        runId,
+      )
+      if (result.changes !== 1) {
+        throw new Error(`cannot finish missing or settled project run "${runId}"`)
+      }
+      const run = this.getProjectRun(runId)
+      if (run === undefined) throw new Error(`project run "${runId}" disappeared after update`)
+      const type = status === 'CANCELLED'
+        ? 'run.cancelled'
+        : status === 'FAILED'
+          ? 'run.failed'
+          : 'run.completed'
+      this.appendProductEventInTransaction({
+        projectId: run.projectId,
+        type,
+        payload: { runId: run.id, status: run.status },
+      })
+      return run
+    })
+  }
+
+  /**
+   * Read one project run.
+   * @param runId - project-run identity.
+   * @returns the run when present.
+   */
+  getProjectRun(runId: string): ProjectRunRecord | undefined {
+    const row = this.database.prepare(`
+      SELECT
+        id, project_id, status, owner_id, fencing_token, workspace_path,
+        preview_path, started_at, completed_at, error_json
+      FROM project_runs
+      WHERE id = ?
+    `).get(runId)
+    return row === undefined ? undefined : decodeProjectRun(projectRunRowSchema.parse(row))
+  }
+
+  /**
+   * List project runs in start order.
+   * @param projectId - owning project.
+   * @returns durable project runs.
+   */
+  listProjectRuns(projectId: string): ProjectRunRecord[] {
+    const rows = projectRunRowSchema.array().parse(this.database.prepare(`
+      SELECT
+        id, project_id, status, owner_id, fencing_token, workspace_path,
+        preview_path, started_at, completed_at, error_json
+      FROM project_runs
+      WHERE project_id = ?
+      ORDER BY started_at, rowid
+    `).all(projectId))
+    return rows.map(decodeProjectRun)
   }
 
   /**
@@ -809,23 +1067,42 @@ export class OrchestrationRepository implements OrchestrationStore {
     report: JsonValue,
     taskId?: TaskId,
     failureSignature?: string,
+    write?: WorkflowWriteContext,
   ): VerificationReport {
-    const id = VerificationReportId(`verification-${this.createId()}`)
-    const createdAt = this.timestamp()
-    this.database.prepare(`
-      INSERT INTO verification_reports (
-        id, project_id, task_id, status, failure_signature, report_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      projectId,
-      taskId ?? null,
-      status,
-      failureSignature ?? null,
-      JSON.stringify(report),
-      createdAt,
-    )
-    return { id, projectId, taskId, status, failureSignature, report, createdAt }
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const id = VerificationReportId(`verification-${this.createId()}`)
+      const createdAt = this.timestamp()
+      this.database.prepare(`
+        INSERT INTO verification_reports (
+          id, project_id, task_id, status, failure_signature, report_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        projectId,
+        taskId ?? null,
+        status,
+        failureSignature ?? null,
+        JSON.stringify(report),
+        createdAt,
+      )
+      const type = status === 'PASS'
+        ? 'verification.passed'
+        : status === 'INCOMPLETE'
+          ? 'verification.incomplete'
+          : 'verification.failed'
+      this.appendProductEventInTransaction({
+        projectId,
+        type,
+        ...taskId === undefined ? {} : { taskId },
+        payload: jsonValueSchema.parse(JSON.parse(JSON.stringify({
+          verificationReportId: id,
+          status,
+          failureSignature,
+        }))),
+      })
+      return { id, projectId, taskId, status, failureSignature, report, createdAt }
+    })
   }
 
   /**
@@ -856,22 +1133,28 @@ export class OrchestrationRepository implements OrchestrationStore {
    * @param projectId - owning project.
    * @returns the initial running workflow record.
    */
-  startWorkflowRun(projectId: ProjectId): WorkflowRunRecord {
-    const id = WorkflowRunId(`workflow-${this.createId()}`)
-    const createdAt = this.timestamp()
-    this.database.prepare(`
-      INSERT INTO workflow_runs (
-        id, project_id, status, repair_round, escalation_reason, escalation_message, created_at, updated_at
-      ) VALUES (?, ?, 'RUNNING', 0, NULL, NULL, ?, ?)
-    `).run(id, projectId, createdAt, createdAt)
-    return {
-      id,
-      projectId,
-      status: 'RUNNING',
-      repairRound: 0,
-      createdAt,
-      updatedAt: createdAt,
-    }
+  startWorkflowRun(
+    projectId: ProjectId,
+    write?: WorkflowWriteContext,
+  ): WorkflowRunRecord {
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const id = WorkflowRunId(`workflow-${this.createId()}`)
+      const createdAt = this.timestamp()
+      this.database.prepare(`
+        INSERT INTO workflow_runs (
+          id, project_id, status, repair_round, escalation_reason, escalation_message, created_at, updated_at
+        ) VALUES (?, ?, 'RUNNING', 0, NULL, NULL, ?, ?)
+      `).run(id, projectId, createdAt, createdAt)
+      return {
+        id,
+        projectId,
+        status: 'RUNNING',
+        repairRound: 0,
+        createdAt,
+        updatedAt: createdAt,
+      }
+    })
   }
 
   /**
@@ -889,24 +1172,35 @@ export class OrchestrationRepository implements OrchestrationStore {
     repairRound: number,
     escalationReason?: WorkflowRunRecord['escalationReason'],
     escalationMessage?: string,
+    write?: WorkflowWriteContext,
   ): WorkflowRunRecord {
-    const updatedAt = this.timestamp()
-    const result = this.database.prepare(`
-      UPDATE workflow_runs
-      SET status = ?, repair_round = ?, escalation_reason = ?, escalation_message = ?, updated_at = ?
-      WHERE project_id = ?
-    `).run(
-      status,
-      repairRound,
-      escalationReason ?? null,
-      escalationMessage ?? null,
-      updatedAt,
-      projectId,
-    )
-    if (result.changes !== 1) throw new Error(`cannot update missing workflow for project "${projectId}"`)
-    const workflow = this.getWorkflowRun(projectId)
-    if (workflow === undefined) throw new Error(`workflow for project "${projectId}" disappeared after update`)
-    return workflow
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const updatedAt = this.timestamp()
+      const result = this.database.prepare(`
+        UPDATE workflow_runs
+        SET status = ?, repair_round = ?, escalation_reason = ?, escalation_message = ?, updated_at = ?
+        WHERE project_id = ?
+      `).run(
+        status,
+        repairRound,
+        escalationReason ?? null,
+        escalationMessage ?? null,
+        updatedAt,
+        projectId,
+      )
+      if (result.changes !== 1) throw new Error(`cannot update missing workflow for project "${projectId}"`)
+      const workflow = this.getWorkflowRun(projectId)
+      if (workflow === undefined) throw new Error(`workflow for project "${projectId}" disappeared after update`)
+      if (status === 'ESCALATED') {
+        this.appendProductEventInTransaction({
+          projectId,
+          type: 'workflow.escalated',
+          payload: jsonValueSchema.parse(JSON.parse(JSON.stringify(workflow))),
+        })
+      }
+      return workflow
+    })
   }
 
   /**
@@ -929,34 +1223,47 @@ export class OrchestrationRepository implements OrchestrationStore {
    * @param draft - completion evidence from the self-loop.
    * @returns the durable repair record.
    */
-  saveRepairRecord(projectId: ProjectId, draft: RepairRecordDraft): RepairRecord {
-    const record: RepairRecord = {
-      id: RepairRecordId(`repair-${this.createId()}`),
-      projectId,
-      ...draft,
-    }
-    this.database.prepare(`
-      INSERT INTO repair_records (
-        id, project_id, repair_round, verification_report_id, repair_agent_id,
-        failure_signature, error_summary, change_summary, diff,
-        before_status, after_status, started_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      record.id,
-      record.projectId,
-      record.repairRound,
-      record.verificationReportId,
-      record.repairAgentId,
-      record.failureSignature,
-      record.errorSummary,
-      record.changeSummary,
-      record.diff,
-      record.beforeStatus,
-      record.afterStatus,
-      record.startedAt,
-      record.completedAt,
-    )
-    return record
+  saveRepairRecord(
+    projectId: ProjectId,
+    draft: RepairRecordDraft,
+    write?: WorkflowWriteContext,
+  ): RepairRecord {
+    return this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const record: RepairRecord = {
+        id: RepairRecordId(`repair-${this.createId()}`),
+        projectId,
+        ...draft,
+      }
+      this.database.prepare(`
+        INSERT INTO repair_records (
+          id, project_id, repair_round, verification_report_id, repair_agent_id,
+          failure_signature, error_summary, change_summary, diff,
+          before_status, after_status, started_at, completed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.id,
+        record.projectId,
+        record.repairRound,
+        record.verificationReportId,
+        record.repairAgentId,
+        record.failureSignature,
+        record.errorSummary,
+        record.changeSummary,
+        record.diff,
+        record.beforeStatus,
+        record.afterStatus,
+        record.startedAt,
+        record.completedAt,
+      )
+      this.appendProductEventInTransaction({
+        projectId,
+        type: 'repair.completed',
+        agentId: record.repairAgentId,
+        payload: jsonValueSchema.parse(JSON.parse(JSON.stringify(record))),
+      })
+      return record
+    })
   }
 
   /**
@@ -998,6 +1305,51 @@ export class OrchestrationRepository implements OrchestrationStore {
     this.database.close()
   }
 
+  private updateTaskRevision(task: TaskSnapshot): void {
+    const result = this.database.prepare(`
+      UPDATE tasks
+      SET snapshot_json = ?, revision = ?, status = ?
+      WHERE project_id = ? AND id = ? AND revision = ?
+    `).run(
+      JSON.stringify(task),
+      task.revision,
+      task.status,
+      task.projectId,
+      task.id,
+      task.revision - 1,
+    )
+    if (result.changes !== 1) {
+      throw new Error(`cannot update missing or stale task "${task.id}" in project "${task.projectId}"`)
+    }
+  }
+
+  private appendTaskJournalAndProductEvent(
+    task: TaskSnapshot,
+    eventType: TaskJournalEventType,
+    reason?: string,
+  ): void {
+    this.appendTaskJournal(task, eventType, reason)
+    const productType = taskProductEventType(eventType, task)
+    if (productType === undefined) return
+    this.appendProductEventInTransaction({
+      projectId: task.projectId,
+      type: productType,
+      taskId: task.id,
+      ...task.assignedAgentId === undefined ? {} : { agentId: task.assignedAgentId },
+      payload: taskProductEventPayload(task),
+    })
+  }
+
+  private appendExecutionProductEvent(execution: ExecutionRecord): void {
+    this.appendProductEventInTransaction({
+      projectId: execution.projectId,
+      type: executionProductEventType(terminalExecutionStatus(execution.status)),
+      taskId: execution.taskId,
+      agentId: execution.agentId,
+      payload: executionProductEventPayload(execution),
+    })
+  }
+
   private appendTaskJournal(task: TaskSnapshot, eventType: TaskJournalEventType, reason?: string): void {
     this.database.prepare(`
       INSERT INTO task_journal (
@@ -1012,6 +1364,60 @@ export class OrchestrationRepository implements OrchestrationStore {
       JSON.stringify(task),
       task.updatedAt,
     )
+  }
+
+  private appendProductEventInTransaction(draft: ProductEventDraft): ProductEvent {
+    const cursor = this.database.prepare(`
+      UPDATE projects
+      SET last_event_seq = last_event_seq + 1
+      WHERE id = ?
+      RETURNING last_event_seq
+    `).get(draft.projectId) as { last_event_seq: number } | undefined
+    if (cursor === undefined) throw new Error(`cannot append event for missing project "${draft.projectId}"`)
+    const event = productEventSchema.parse({
+      type: draft.type,
+      projectId: draft.projectId,
+      seq: cursor.last_event_seq,
+      occurredAt: draft.occurredAt ?? this.timestamp(),
+      ...draft.taskId === undefined ? {} : { taskId: draft.taskId },
+      ...draft.agentId === undefined ? {} : { agentId: draft.agentId },
+      payload: draft.payload,
+    })
+    const id = `event-${this.createId()}`
+    this.database.prepare(`
+      INSERT INTO product_events (
+        id, project_id, seq, type, task_id, agent_id, payload_json, occurred_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      event.projectId,
+      event.seq,
+      event.type,
+      event.taskId ?? null,
+      event.agentId ?? null,
+      JSON.stringify(event.payload),
+      event.occurredAt,
+    )
+    this.database.prepare(
+      'INSERT INTO outbox_events (event_id, published_at) VALUES (?, NULL)',
+    ).run(id)
+    return event
+  }
+
+  private assertWorkflowWriteFence(write: WorkflowWriteContext | undefined): void {
+    if (write === undefined) return
+    const raw = this.database.prepare(`
+      SELECT resource_id, project_id, owner_id, fencing_token, heartbeat_at, expires_at
+      FROM workflow_leases
+      WHERE resource_id = ?
+    `).get(write.resourceId)
+    if (raw === undefined) throw new WorkflowFenceError(write.resourceId)
+    const lease = workflowLeaseRowSchema.parse(raw)
+    if (lease.owner_id !== write.ownerId
+      || BigInt(lease.fencing_token) !== write.fencingToken
+      || Date.parse(lease.expires_at) <= this.now().getTime()) {
+      throw new WorkflowFenceError(write.resourceId)
+    }
   }
 
   private transaction<T>(operation: () => T): T {
@@ -1048,6 +1454,21 @@ function decodeTask(value: unknown): TaskSnapshot {
     ...assignedAgentId === undefined
       ? {}
       : { assignedAgentId: AgentId(assignedAgentId) },
+  }
+}
+
+/** Decode one execution row with branded identities and structured failure. */
+function decodeExecutionRow(row: z.infer<typeof executionRowSchema>): ExecutionRecord {
+  return {
+    id: ExecutionId(row.id),
+    projectId: ProjectId(row.project_id),
+    taskId: TaskId(row.task_id),
+    agentId: AgentId(row.agent_id),
+    sessionId: row.session_id ?? undefined,
+    status: decodeExecutionStatus(row.status),
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    error: row.error_json === null ? undefined : taskFailureSchema.parse(JSON.parse(row.error_json)),
   }
 }
 
@@ -1126,6 +1547,13 @@ function decodeExecutionStatus(value: string): ExecutionStatus {
   }
 }
 
+function terminalExecutionStatus(
+  status: ExecutionStatus,
+): Exclude<ExecutionStatus, 'RUNNING'> {
+  if (status === 'RUNNING') throw new Error('running execution has no terminal product event')
+  return status
+}
+
 /** Decode a persisted verification status. */
 function decodeVerificationStatus(value: string): VerificationStatus {
   return verificationStatusSchema.parse(value)
@@ -1144,6 +1572,38 @@ function decodeWorkflowRun(row: z.infer<typeof workflowRowSchema>): WorkflowRunR
     escalationMessage: row.escalation_message ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+/** Decode one project-run row with branded identities and structured failure. */
+function decodeProjectRun(row: z.infer<typeof projectRunRowSchema>): ProjectRunRecord {
+  return {
+    id: ProjectRunId(row.id),
+    projectId: ProjectId(row.project_id),
+    status: decodeProjectRunStatus(row.status),
+    ownerId: row.owner_id,
+    fencingToken: BigInt(row.fencing_token),
+    workspacePath: row.workspace_path,
+    previewPath: row.preview_path ?? undefined,
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    error: row.error_json === null
+      ? undefined
+      : taskFailureSchema.parse(JSON.parse(row.error_json)),
+  }
+}
+
+/** Decode one durable project-run status. */
+function decodeProjectRunStatus(value: string): ProjectRunStatus {
+  switch (value) {
+    case 'RUNNING':
+    case 'PASSED':
+    case 'FAILED':
+    case 'CANCELLED':
+    case 'ESCALATED':
+      return value
+    default:
+      throw new Error(`unknown project run status "${value}"`)
   }
 }
 

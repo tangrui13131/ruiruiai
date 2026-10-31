@@ -57,7 +57,7 @@ const BASE_FILES: Readonly<Record<string, string>> = {
     "import { defineConfig } from 'vite'",
     "import react from '@vitejs/plugin-react'",
     '',
-    'export default defineConfig({ plugins: [react()] })',
+    'export default defineConfig({ base: \'./\', plugins: [react()] })',
     '',
   ].join('\n'),
   'index.html': [

@@ -242,6 +242,17 @@ describe('TeamOrchestrator', () => {
       expect(result.tasks.every(task => task.status === 'COMPLETED')).toBe(true)
       expect(result.decisions).toHaveLength(5)
       expect(readFileSync(join(workspace, 'src/App.tsx'), 'utf8')).toContain('HashRouter')
+      const eventTypes = repository.listProductEvents(result.projectId, 0, 200)
+        .map(event => event.type)
+      expect(eventTypes).toEqual(expect.arrayContaining([
+        'task.created',
+        'task.ready',
+        'task.dispatched',
+        'agent.started',
+        'task.completed',
+        'agent.completed',
+        'verification.passed',
+      ]))
     } finally {
       await team.close()
       repository.close()

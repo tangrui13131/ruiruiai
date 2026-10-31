@@ -166,11 +166,11 @@ describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL pla
           payload: { sequence: 2 },
         }),
       ])
-      expect([first.seq, second.seq].sort((left, right) => left - right)).toEqual([1, 2])
+      expect(second.seq).toBe(first.seq + 1)
 
-      const snapshot = await store.getProjectSnapshot(projectId, 1, 20)
-      expect(snapshot?.lastEventSeq).toBe(2)
-      expect(snapshot?.events.map(event => event.seq)).toEqual([2])
+      const snapshot = await store.getProjectSnapshot(projectId, first.seq, 20)
+      expect(snapshot?.lastEventSeq).toBe(second.seq)
+      expect(snapshot?.events.map(event => event.seq)).toEqual([second.seq])
       expect(snapshot?.tasks).toEqual([expect.objectContaining({ id: 'design', status: 'COMPLETED' })])
       expect(snapshot?.decisions).toHaveLength(1)
       expect(snapshot?.executions).toEqual([
@@ -182,18 +182,51 @@ describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL pla
       expect(snapshot?.verificationReports).toHaveLength(1)
       expect(snapshot?.repairs).toHaveLength(1)
       expect(snapshot?.workflow).toMatchObject({ status: 'PASSED', repairRound: 1 })
-      const outbox = await store.claimOutbox('postgres-test-a', 20, 1_000)
-      expect(outbox.filter(item => item.event.projectId === projectId)).toHaveLength(2)
+
+      const run = await store.createProjectRun(
+        projectId,
+        'worker-a',
+        1n,
+        'D:/future-cup/runs/run-a/workspace',
+      )
+      await expect(store.createProjectRun(
+        projectId,
+        'worker-b',
+        2n,
+        'D:/future-cup/runs/run-b/workspace',
+      )).rejects.toThrow()
+      const finishedRun = await store.finishProjectRun(
+        run.id,
+        'PASSED',
+        'D:/future-cup/runs/run-a/workspace/dist',
+      )
+      expect(finishedRun).toMatchObject({
+        status: 'PASSED',
+        previewPath: 'D:/future-cup/runs/run-a/workspace/dist',
+      })
+      expect((await store.getProjectSnapshot(projectId, 0, 1))?.runs)
+        .toEqual([expect.objectContaining({ id: run.id, status: 'PASSED' })])
+
+      const outbox = await store.claimOutbox('postgres-test-a', 100, 1_000)
+      const projectEvents = outbox.filter(item => item.event.projectId === projectId)
+      expect(projectEvents.length).toBeGreaterThan(2)
       await store.markOutboxPublished(
         'postgres-test-a',
-        outbox.filter(item => item.event.projectId === projectId).map(item => item.eventId),
+        projectEvents.map(item => item.eventId),
       )
-      expect((await store.claimOutbox('postgres-test-b', 20, 1_000))
+      expect((await store.claimOutbox('postgres-test-b', 100, 1_000))
         .filter(item => item.event.projectId === projectId)).toEqual([])
 
-      const firstLease = await store.acquireWorkflowLease(resourceId, projectId, 'worker-a', 80)
+      const firstLease = await store.acquireWorkflowLease(resourceId, projectId, 'worker-a', 2_000)
       expect(firstLease).toMatchObject({ acquired: true, ownerId: 'worker-a', fencingToken: 1n })
-      expect(await store.acquireWorkflowLease(resourceId, projectId, 'worker-b', 80))
+      const staleRun = await store.createProjectRun(
+        projectId,
+        'worker-a',
+        1n,
+        'D:/future-cup/runs/stale/workspace',
+        { resourceId, ownerId: 'worker-a', fencingToken: 1n },
+      )
+      expect(await store.acquireWorkflowLease(resourceId, projectId, 'worker-b', 2_000))
         .toMatchObject({ acquired: false, ownerId: 'worker-a' })
       await waitForExpiry(store, resourceId)
       const contenders = await Promise.all([
@@ -204,6 +237,24 @@ describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL pla
       const lease = await store.getWorkflowLease(resourceId)
       expect(lease?.fencingToken).toBe(2n)
       expect(lease?.ownerId).toBe(contenders.find(value => value.acquired)?.ownerId)
+      await expect(store.finishProjectRun(
+        staleRun.id,
+        'FAILED',
+        undefined,
+        { code: 'STALE_WRITER', message: 'stale writer', retryable: false },
+        { resourceId, ownerId: 'worker-a', fencingToken: 1n },
+      )).rejects.toMatchObject({ code: 'WORKFLOW_FENCE_LOST' })
+      expect(await store.finishProjectRun(
+        staleRun.id,
+        'FAILED',
+        undefined,
+        { code: 'PROJECT_RUN_INTERRUPTED', message: 'interrupted', retryable: true },
+        {
+          resourceId,
+          ownerId: lease?.ownerId ?? '',
+          fencingToken: lease?.fencingToken ?? 0n,
+        },
+      )).toMatchObject({ status: 'FAILED' })
       expect(await store.releaseWorkflowLease(resourceId, lease?.ownerId ?? '', lease?.fencingToken ?? 0n))
         .toBe(true)
     } finally {

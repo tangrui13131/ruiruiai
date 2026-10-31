@@ -314,29 +314,24 @@ export class TeamOrchestrator {
         'agent/structured-output',
         jsonValueSchema.parse(result.output),
       )
-      await this.options.repository.finishExecution(
-        running.executionId,
-        'COMPLETED',
-        result.sessionId,
-      )
       this.applyOutput(running.task, result.output)
       outputs.set(running.task.id, result.output)
-      await dag.completeTask(running.task.id, jsonValueSchema.parse(result.output))
+      await dag.completeTask(running.task.id, jsonValueSchema.parse(result.output), {
+        executionId: running.executionId,
+        sessionId: result.sessionId,
+      })
       return { ok: true }
     } catch (error: unknown) {
+      if (dag.getTask(running.task.id).status === 'COMPLETED') throw error
       const failure = taskFailure(`${running.task.role.toUpperCase()}_FAILED`, error)
       await this.options.repository.appendExecutionEvent(
         running.executionId,
         'agent/error',
         jsonValueSchema.parse({ code: failure.code, message: failure.message }),
       )
-      await this.options.repository.finishExecution(
-        running.executionId,
-        'FAILED',
-        undefined,
-        failure,
-      )
-      await dag.failTask(running.task.id, failure)
+      await dag.failTask(running.task.id, failure, {
+        executionId: running.executionId,
+      })
       return {
         ok: false,
         taskId: running.task.id,

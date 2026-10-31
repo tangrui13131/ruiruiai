@@ -42,6 +42,17 @@ HQ 源码继续采用 PolyForm Noncommercial License 1.0.0，保留许可证与 
 - PostgreSQL E2E 通过存储读写、并发事件排序、Outbox claim、重连游标与跨进程租约 fencing。真实 `dsh` Future Cup profile 完成组合并提供 API。
 - 具体运行启动器仍是 M4.2 的服务边界。未挂载 `ctx.futureCupRunLauncher` 时，运行路由返回 503，而不是模拟执行。
 
+### M4.2 实现结果
+
+- SQLite schema v5 与第二个 PostgreSQL migration 新增 `project_runs`、私有 workspace 与 preview 路径、终态失败详情，并限制每个项目只有一个活跃运行。
+- `FutureCupRunLauncher` 拥有 workflow lease 获取、心跳、真实 Harness 团队启动、通过 runtime 关闭实现取消、遗留运行回收与终态结算。服务关闭会等待启动中的运行再关闭活跃团队。
+- 任务完成与执行结算在同一事务中提交。任务、执行、验证、修复、工作流与运行产品事件都在领域写入所在的存储事务中追加。
+- 启动器写入携带 `ownerId + fencingToken`，每个存储事务都会拒绝过期或非当前 owner 的写入。结算在短暂重试期间保持 heartbeat，在响应歧义后对账已终态行，并以显式 pending 与 timeout 失败限制 cancel/close 的等待。
+- Fastify 提供同源管理 SPA、受控验证截图、交付摘要与生成工程生产预览。公共投影移除绝对路径，并把 fencing token 序列化为字符串。
+- 项目级 Agent 指标从 `RUNNING` 执行记录计算负载，从持久化执行结果计算成功率；权威事件游标推进时，React 应用会重新加载该投影。
+- React 管理应用在桌面、平板与移动布局中提供项目控制、Agent 状态、React Flow DAG、调度证据、验证截图、Self-Loop Diff、实时事件与交付预览。
+- 生成的 Vite 构建使用相对资源基址，使同一生产产物既可用于独立验证器，也可在 `/preview/:projectId/` 下预览。
+
 ## 考虑过的替代方案
 
 **立即用 PostgreSQL 替换 SQLite。** 不予采纳，因为 M2/M3 的确定性测试依赖当前快速内存 SQLite 适配器，迁移应保持语义，而不是重写语义。

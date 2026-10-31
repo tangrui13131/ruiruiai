@@ -14,6 +14,17 @@ import type {
   PlatformProjectSummary,
   ProductEvent,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
+import {
+  publicProjectRun,
+  publicProjectSnapshot,
+  publicVerificationReport,
+  projectRunStartSchema,
+} from './api-contracts.ts'
+import { registerFutureCupArtifacts } from './artifact-server.ts'
+import {
+  ProjectRunConflictError,
+  ProjectRunStartError,
+} from './run-launcher.ts'
 import type {
   FutureCupServer,
   FutureCupServerOptions,
@@ -30,6 +41,10 @@ const taskParamsSchema = projectParamsSchema.extend({
 
 const executionParamsSchema = projectParamsSchema.extend({
   executionId: z.string().min(1).max(160),
+}).strict()
+
+const runParamsSchema = z.object({
+  runId: z.string().min(1).max(160),
 }).strict()
 
 const snapshotQuerySchema = z.object({
@@ -126,7 +141,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       const query = snapshotQuerySchema.parse(request.query)
       const snapshot = await options.store.getProjectSnapshot(projectId, query.afterSeq, query.limit)
       if (snapshot === undefined) throw new ApiError(404, 'PROJECT_NOT_FOUND', `Project "${projectId}" was not found`)
-      return await reply.send(snapshot)
+      return await reply.send(publicProjectSnapshot(snapshot))
     },
   )
 
@@ -181,7 +196,9 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     '/api/v1/projects/:projectId/verification-reports',
     async (request, reply) => {
       const { projectId } = projectParamsSchema.parse(request.params)
-      return await reply.send((await requireSnapshot(projectId)).verificationReports)
+      return await reply.send(
+        (await requireSnapshot(projectId)).verificationReports.map(publicVerificationReport),
+      )
     },
   )
 
@@ -231,9 +248,60 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     available: profile.available,
   })))
 
+  app.get<{ Params: unknown }>(
+    '/api/v1/projects/:projectId/agents',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      const snapshot = await requireSnapshot(projectId)
+      const rates = await options.store.historicalSuccessRates(projectId)
+      const loads = new Map<string, number>()
+      for (const execution of snapshot.executions) {
+        if (execution.status !== 'RUNNING') continue
+        loads.set(execution.agentId, (loads.get(execution.agentId) ?? 0) + 1)
+      }
+      return await reply.send(options.profiles.map((profile) => {
+        const currentLoad = loads.get(profile.id) ?? 0
+        return {
+          id: profile.id,
+          name: profile.name,
+          role: profile.role,
+          capabilities: profile.capabilities,
+          maxConcurrency: profile.maxConcurrency,
+          currentLoad,
+          historicalSuccessRate: rates[profile.id] ?? profile.historicalSuccessRate,
+          available: profile.available && currentLoad < profile.maxConcurrency,
+        }
+      }))
+    },
+  )
+
+  app.get<{ Params: unknown }>('/api/v1/projects/:projectId/runs', async (request, reply) => {
+    const { projectId } = projectParamsSchema.parse(request.params)
+    await requireProject(projectId)
+    return await reply.send((await options.store.listProjectRuns(projectId)).map(publicProjectRun))
+  })
+
+  app.get<{ Params: unknown }>('/api/v1/runs/:runId', async (request, reply) => {
+    const { runId } = runParamsSchema.parse(request.params)
+    const run = await options.store.getProjectRun(runId)
+    if (run === undefined) throw new ApiError(404, 'RUN_NOT_FOUND', `Run "${runId}" was not found`)
+    return await reply.send(publicProjectRun(run))
+  })
+
   app.post<{ Params: unknown }>('/api/v1/projects/:projectId/runs', async (request, reply) => {
     const { projectId } = projectParamsSchema.parse(request.params)
-    return await reply.code(202).send(await requireLauncher().start(await requireProject(projectId)))
+    try {
+      const result = await requireLauncher().start(await requireProject(projectId))
+      return await reply.code(202).send(projectRunStartSchema.parse(result))
+    } catch (error: unknown) {
+      if (error instanceof ProjectRunConflictError) {
+        throw new ApiError(409, error.code, error.message)
+      }
+      if (error instanceof ProjectRunStartError) {
+        throw new ApiError(503, error.code, error.message)
+      }
+      throw error
+    }
   })
 
   app.post<{ Params: unknown }>('/api/v1/projects/:projectId/cancel', async (request, reply) => {
@@ -290,7 +358,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           socket.disconnect(true)
           return
         }
-        socket.emit('sync.snapshot', snapshot)
+        socket.emit('sync.snapshot', publicProjectSnapshot(snapshot))
       } catch (error: unknown) {
         options.onError?.(error)
         socket.emit('sync.error', { code: 'SNAPSHOT_FAILED', message: 'Snapshot load failed' })
@@ -322,6 +390,12 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     }
   }
 
+  registerFutureCupArtifacts(app, {
+    store: options.store,
+    runRoot: options.runRoot,
+    uiRoot: options.uiRoot,
+  })
+
   return {
     async start() {
       if (closed) throw new Error('Future Cup server is closed')
@@ -338,9 +412,26 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       if (closed) return
       closed = true
       if (pollTimer !== undefined) clearInterval(pollTimer)
-      await io.close()
-      await app.close()
-      await options.store.close()
+      const errors: unknown[] = []
+      try {
+        await io.close()
+      } catch (error: unknown) {
+        errors.push(error)
+      }
+      try {
+        await app.close()
+      } catch (error: unknown) {
+        errors.push(error)
+      }
+      try {
+        await options.store.close()
+      } catch (error: unknown) {
+        errors.push(error)
+      }
+      if (errors.length === 1) throw errors[0]
+      if (errors.length > 1) {
+        throw new AggregateError(errors, 'Future Cup server cleanup failed')
+      }
     },
   }
 }
@@ -374,6 +465,10 @@ function assertServerOptions(options: FutureCupServerOptions): void {
     if (!Number.isSafeInteger(value) || value < 0 || (name !== 'port' && value === 0)) {
       throw new Error(`${name} must be a valid positive integer`)
     }
+  }
+  if (options.runRoot.trim() === '') throw new Error('runRoot must not be empty')
+  if (options.uiRoot !== undefined && options.uiRoot.trim() === '') {
+    throw new Error('uiRoot must not be empty')
   }
 }
 

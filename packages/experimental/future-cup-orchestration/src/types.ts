@@ -4,6 +4,7 @@ import type {
   AgentId,
   ExecutionId,
   ProjectId,
+  ProjectRunId,
   RepairRecordId,
   TaskId,
   VerificationReportId,
@@ -69,6 +70,23 @@ export interface ProjectRecord {
   readonly name: string
   readonly requirement: string
   readonly createdAt: string
+}
+
+/** Lifecycle of one concrete project-generation run. */
+export type ProjectRunStatus = 'RUNNING' | 'PASSED' | 'FAILED' | 'CANCELLED' | 'ESCALATED'
+
+/** One durable launch attempt for a project. */
+export interface ProjectRunRecord {
+  readonly id: ProjectRunId
+  readonly projectId: ProjectId
+  readonly status: ProjectRunStatus
+  readonly ownerId: string
+  readonly fencingToken: bigint
+  readonly workspacePath?: string | undefined
+  readonly previewPath?: string | undefined
+  readonly startedAt: string
+  readonly completedAt?: string | undefined
+  readonly error?: TaskFailure | undefined
 }
 
 /** Kinds of task mutations retained in the append-only journal. */

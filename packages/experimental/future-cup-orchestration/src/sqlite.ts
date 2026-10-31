@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 4
+export const ORCHESTRATION_SCHEMA_VERSION = 5
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -32,6 +32,7 @@ export function openOrchestrationDatabase(
       && version !== 1
       && version !== 2
       && version !== 3
+      && version !== 4
       && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
@@ -44,13 +45,19 @@ export function openOrchestrationDatabase(
       migrateVersionOne(database)
       migrateVersionTwo(database)
       migrateVersionThree(database)
+      migrateVersionFour(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 2) {
       migrateVersionTwo(database)
       migrateVersionThree(database)
+      migrateVersionFour(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 3) {
       migrateVersionThree(database)
+      migrateVersionFour(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 4) {
+      migrateVersionFour(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     }
     return database
@@ -171,6 +178,19 @@ function createSchema(database: DatabaseSync): void {
       updated_at         TEXT NOT NULL
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS project_runs (
+      id             TEXT PRIMARY KEY,
+      project_id     TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      status         TEXT NOT NULL,
+      owner_id       TEXT NOT NULL,
+      fencing_token  INTEGER NOT NULL,
+      workspace_path TEXT NOT NULL,
+      preview_path   TEXT,
+      started_at     TEXT NOT NULL,
+      completed_at   TEXT,
+      error_json     TEXT
+    ) STRICT;
+
     CREATE TABLE IF NOT EXISTS product_events (
       id           TEXT PRIMARY KEY,
       project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -215,6 +235,10 @@ function createSchema(database: DatabaseSync): void {
       ON repair_records(project_id, repair_round);
     CREATE INDEX IF NOT EXISTS workflow_runs_project
       ON workflow_runs(project_id);
+    CREATE INDEX IF NOT EXISTS project_runs_project_started
+      ON project_runs(project_id, started_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS project_runs_one_active
+      ON project_runs(project_id) WHERE status = 'RUNNING';
     CREATE INDEX IF NOT EXISTS product_events_project_seq
       ON product_events(project_id, seq);
     CREATE INDEX IF NOT EXISTS outbox_events_unpublished
@@ -359,6 +383,40 @@ function migrateVersionThree(database: DatabaseSync): void {
       database.exec('ROLLBACK')
     } catch (rollbackError: unknown) {
       throw new AggregateError([error, rollbackError], 'v3 migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
+/** Add durable project launch attempts and enforce one active run per project. */
+function migrateVersionFour(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(`
+      CREATE TABLE project_runs (
+        id             TEXT PRIMARY KEY,
+        project_id     TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        status         TEXT NOT NULL,
+        owner_id       TEXT NOT NULL,
+        fencing_token  INTEGER NOT NULL,
+        workspace_path TEXT NOT NULL,
+        preview_path   TEXT,
+        started_at     TEXT NOT NULL,
+        completed_at   TEXT,
+        error_json     TEXT
+      ) STRICT;
+
+      CREATE INDEX project_runs_project_started
+        ON project_runs(project_id, started_at);
+      CREATE UNIQUE INDEX project_runs_one_active
+        ON project_runs(project_id) WHERE status = 'RUNNING';
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v4 migration and rollback both failed')
     }
     throw error
   }

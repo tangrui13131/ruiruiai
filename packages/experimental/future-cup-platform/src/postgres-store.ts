@@ -6,6 +6,7 @@ import {
   AgentId,
   ExecutionId,
   ProjectId,
+  ProjectRunId,
   RepairRecordId,
   TaskId,
   VerificationReportId,
@@ -20,6 +21,8 @@ import type {
   ProductEvent,
   ProductEventDraft,
   ProjectRecord,
+  ProjectRunRecord,
+  ProjectRunStatus,
   ExecutionEventRecord,
   ExecutionRecord,
   ExecutionStatus,
@@ -36,16 +39,22 @@ import type {
   WorkflowRunRecord,
   WorkflowLeaseState,
   WorkflowStatus,
+  WorkflowWriteContext,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import {
   assertPositiveSafeInteger,
+  executionProductEventPayload,
+  executionProductEventType,
   jsonValueSchema,
   productEventSchema,
   schedulerDecisionSchema,
   taskFailureSchema,
   taskJournalEntrySchema,
+  taskProductEventPayload,
+  taskProductEventType,
   taskSnapshotSchema,
   verificationStatusSchema,
+  WorkflowFenceError,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import { Prisma, PrismaClient } from './generated/client/client.ts'
 
@@ -76,9 +85,14 @@ export class PostgresPlatformStore implements OrchestrationStore {
   }
 
   /** {@inheritDoc PlatformStore.createProject} */
-  async createProject(project: ProjectRecord, tasks: readonly TaskSnapshot[]): Promise<void> {
+  async createProject(
+    project: ProjectRecord,
+    tasks: readonly TaskSnapshot[],
+    write?: WorkflowWriteContext,
+  ): Promise<void> {
     await retrySerializable(async () => {
       await this.prisma.$transaction(async (tx) => {
+        await assertWorkflowWriteFence(tx, write)
         const existing = await tx.project.findUnique({ where: { id: project.id } })
         if (existing === null) {
           await tx.project.create({
@@ -139,6 +153,12 @@ export class PostgresPlatformStore implements OrchestrationStore {
               createdAt: new Date(task.createdAt),
             },
           })
+          await appendProductEventInTransaction(tx, {
+            projectId: task.projectId,
+            type: 'task.created',
+            taskId: task.id,
+            payload: taskProductEventPayload(task),
+          })
         }
       }, {
         isolationLevel: 'Serializable',
@@ -157,14 +177,24 @@ export class PostgresPlatformStore implements OrchestrationStore {
   /** {@inheritDoc PlatformStore.listProjects} */
   async listProjects(): Promise<PlatformProjectSummary[]> {
     const rows = await this.prisma.project.findMany({
-      include: { workflow: true },
+      include: {
+        workflow: true,
+        runs: { orderBy: { startedAt: 'desc' }, take: 1 },
+      },
       orderBy: { createdAt: 'asc' },
     })
-    return rows.map(row => ({
-      ...projectRecord(row),
-      lastEventSeq: row.lastEventSeq,
-      workflowStatus: row.workflow?.status as WorkflowStatus | undefined,
-    }))
+    return rows.map((row) => {
+      const latestRun = row.runs[0]
+      return {
+        ...projectRecord(row),
+        lastEventSeq: row.lastEventSeq,
+        workflowStatus: row.workflow?.status as WorkflowStatus | undefined,
+        latestRunId: latestRun === undefined ? undefined : ProjectRunId(latestRun.id),
+        latestRunStatus: latestRun === undefined
+          ? undefined
+          : decodeProjectRunStatus(latestRun.status),
+      }
+    })
   }
 
   /** {@inheritDoc PlatformStore.getProjectSnapshot} */
@@ -178,7 +208,7 @@ export class PostgresPlatformStore implements OrchestrationStore {
       include: { workflow: true },
     })
     if (project === null) return undefined
-    const [tasks, decisions, executions, verificationReports, repairs, events] = await Promise.all([
+    const [tasks, decisions, executions, verificationReports, repairs, runs, events] = await Promise.all([
       this.prisma.task.findMany({
         where: { projectId },
         orderBy: { position: 'asc' },
@@ -187,6 +217,10 @@ export class PostgresPlatformStore implements OrchestrationStore {
       this.prisma.execution.findMany({ where: { projectId }, orderBy: { startedAt: 'asc' } }),
       this.prisma.verificationReport.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
       this.prisma.repairRecord.findMany({ where: { projectId }, orderBy: { repairRound: 'asc' } }),
+      this.prisma.projectRun.findMany({
+        where: { projectId },
+        orderBy: { startedAt: 'asc' },
+      }),
       this.prisma.productEvent.findMany({
         where: { projectId, seq: { gt: afterSeq } },
         orderBy: { seq: 'asc' },
@@ -205,47 +239,28 @@ export class PostgresPlatformStore implements OrchestrationStore {
       verificationReports: verificationReports.map(row => decodeVerificationRow(row)),
       repairs: repairs.map(row => decodeRepairRow(row)),
       workflow: project.workflow === null ? undefined : decodeWorkflowRow(project.workflow),
+      runs: runs.map(row => decodeProjectRunRow(row)),
       events: events.map(decodeProductEventRow),
       lastEventSeq: project.lastEventSeq,
     }
   }
 
   /** {@inheritDoc PlatformStore.appendProductEvent} */
-  async appendProductEvent(draft: ProductEventDraft): Promise<ProductEvent> {
-    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
-      const project = await tx.project.update({
-        where: { id: draft.projectId },
-        data: { lastEventSeq: { increment: 1 } },
-        select: { lastEventSeq: true },
-      })
-      const event = productEventSchema.parse({
-        type: draft.type,
-        projectId: draft.projectId,
-        seq: project.lastEventSeq,
-        occurredAt: draft.occurredAt ?? new Date().toISOString(),
-        ...draft.taskId === undefined ? {} : { taskId: draft.taskId },
-        ...draft.agentId === undefined ? {} : { agentId: draft.agentId },
-        payload: draft.payload,
-      })
-      const row = await tx.productEvent.create({
-        data: {
-          id: `event-${randomUUID()}`,
-          projectId: event.projectId,
-          seq: event.seq,
-          type: event.type,
-          taskId: event.taskId ?? null,
-          agentId: event.agentId ?? null,
-          payloadJson: json(event.payload),
-          occurredAt: new Date(event.occurredAt),
-        },
-      })
-      await tx.outboxEvent.create({ data: { eventId: row.id } })
-      return event
-    }, {
-      isolationLevel: 'Serializable',
-      maxWait: 5_000,
-      timeout: 10_000,
-    }))
+  async appendProductEvent(
+    draft: ProductEventDraft,
+    write?: WorkflowWriteContext,
+  ): Promise<ProductEvent> {
+    return await retrySerializable(async () => await this.prisma.$transaction(
+      async (tx) => {
+        await assertWorkflowWriteFence(tx, write)
+        return await appendProductEventInTransaction(tx, draft)
+      },
+      {
+        isolationLevel: 'Serializable',
+        maxWait: 5_000,
+        timeout: 10_000,
+      },
+    ))
   }
 
   /** {@inheritDoc PlatformStore.listProductEvents} */
@@ -443,42 +458,52 @@ export class PostgresPlatformStore implements OrchestrationStore {
     task: TaskSnapshot,
     eventType: TaskJournalEventType,
     reason?: string,
+    write?: WorkflowWriteContext,
   ): Promise<void> {
-    await retrySerializable(async () => {
-      await this.prisma.$transaction(async (tx) => {
-        const updated = await tx.task.updateMany({
-          where: {
-            projectId: task.projectId,
-            id: task.id,
-            revision: task.revision - 1,
-          },
-          data: {
-            snapshotJson: json(task),
-            revision: task.revision,
-            status: task.status,
-            retryCount: task.retryCount,
-            assignedAgentId: task.assignedAgentId ?? null,
-            updatedAt: new Date(task.updatedAt),
-          },
-        })
-        if (updated.count !== 1) {
-          throw new Error(`cannot update missing or stale task "${task.id}" in project "${task.projectId}"`)
-        }
-        await tx.taskJournal.create({
-          data: {
-            projectId: task.projectId,
-            taskId: task.id,
-            revision: task.revision,
-            eventType,
-            reason: reason ?? null,
-            snapshotJson: json(task),
-            createdAt: new Date(task.updatedAt),
-          },
-        })
-      }, {
-        isolationLevel: 'Serializable',
-        maxWait: 5_000,
-        timeout: 10_000,
+    await this.withWorkflowTransaction(write, async (tx) => {
+      await saveTaskInTransaction(tx, task, eventType, reason)
+    })
+  }
+
+  /** {@inheritDoc OrchestrationStore.saveTaskAndFinishExecution} */
+  async saveTaskAndFinishExecution(
+    task: TaskSnapshot,
+    eventType: TaskJournalEventType,
+    executionId: string,
+    status: Exclude<ExecutionStatus, 'RUNNING'>,
+    sessionId?: string,
+    error?: TaskFailure,
+    write?: WorkflowWriteContext,
+  ): Promise<void> {
+    await this.withWorkflowTransaction(write, async (tx) => {
+      await saveTaskInTransaction(tx, task, eventType)
+      const updatedExecution = await tx.execution.updateMany({
+        where: {
+          id: executionId,
+          projectId: task.projectId,
+          taskId: task.id,
+          agentId: task.assignedAgentId ?? '',
+          status: 'RUNNING',
+        },
+        data: {
+          status,
+          sessionId: sessionId ?? null,
+          completedAt: new Date(),
+          errorJson: error === undefined ? Prisma.DbNull : json(error),
+        },
+      })
+      if (updatedExecution.count !== 1) {
+        throw new Error(`cannot settle missing or mismatched execution "${executionId}"`)
+      }
+      const row = await tx.execution.findUnique({ where: { id: executionId } })
+      if (row === null) throw new Error(`execution "${executionId}" disappeared after update`)
+      const execution = decodeExecutionRow(row)
+      await appendProductEventInTransaction(tx, {
+        projectId: task.projectId,
+        type: executionProductEventType(status),
+        taskId: task.id,
+        agentId: execution.agentId,
+        payload: executionProductEventPayload(execution),
       })
     })
   }
@@ -520,15 +545,27 @@ export class PostgresPlatformStore implements OrchestrationStore {
   }
 
   /** {@inheritDoc OrchestrationStore.saveSchedulerDecision} */
-  async saveSchedulerDecision(decision: SchedulerDecision): Promise<void> {
-    await this.prisma.schedulerDecision.create({
-      data: {
-        id: decision.id,
-        projectId: decision.projectId,
-        taskId: decision.taskId,
-        decisionJson: json(decision),
-        createdAt: new Date(decision.createdAt),
-      },
+  async saveSchedulerDecision(
+    decision: SchedulerDecision,
+    write?: WorkflowWriteContext,
+  ): Promise<void> {
+    await retrySerializable(async () => {
+      await this.prisma.$transaction(async (tx) => {
+        await assertWorkflowWriteFence(tx, write)
+        await tx.schedulerDecision.create({
+          data: {
+            id: decision.id,
+            projectId: decision.projectId,
+            taskId: decision.taskId,
+            decisionJson: json(decision),
+            createdAt: new Date(decision.createdAt),
+          },
+        })
+      }, {
+        isolationLevel: 'Serializable',
+        maxWait: 5_000,
+        timeout: 10_000,
+      })
     })
   }
 
@@ -543,19 +580,53 @@ export class PostgresPlatformStore implements OrchestrationStore {
   }
 
   /** {@inheritDoc OrchestrationStore.startExecution} */
-  async startExecution(projectId: string, taskId: string, agentId: string): Promise<string> {
-    const id = ExecutionId(`execution-${randomUUID()}`)
-    await this.prisma.execution.create({
-      data: {
-        id,
-        projectId,
+  async startExecution(
+    projectId: string,
+    taskId: string,
+    agentId: string,
+    write?: WorkflowWriteContext,
+  ): Promise<ExecutionId> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const id = ExecutionId(`execution-${randomUUID()}`)
+      const startedAt = new Date()
+      await tx.execution.create({
+        data: {
+          id,
+          projectId,
+          taskId,
+          agentId,
+          status: 'RUNNING',
+          startedAt,
+        },
+      })
+      const payload = {
+        executionId: id,
         taskId,
         agentId,
         status: 'RUNNING',
-        startedAt: new Date(),
-      },
-    })
-    return id
+        startedAt: startedAt.toISOString(),
+      }
+      await appendProductEventInTransaction(tx, {
+        projectId,
+        type: 'task.dispatched',
+        taskId,
+        agentId,
+        payload,
+      })
+      await appendProductEventInTransaction(tx, {
+        projectId,
+        type: 'agent.started',
+        taskId,
+        agentId,
+        payload,
+      })
+      return id
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
   }
 
   /** {@inheritDoc OrchestrationStore.finishExecution} */
@@ -564,17 +635,30 @@ export class PostgresPlatformStore implements OrchestrationStore {
     status: Exclude<ExecutionStatus, 'RUNNING'>,
     sessionId?: string,
     error?: TaskFailure,
+    write?: WorkflowWriteContext,
   ): Promise<void> {
-    const updated = await this.prisma.execution.updateMany({
-      where: { id, status: 'RUNNING' },
-      data: {
-        status,
-        sessionId: sessionId ?? null,
-        completedAt: new Date(),
-        errorJson: error === undefined ? Prisma.DbNull : json(error),
-      },
+    await this.withWorkflowTransaction(write, async (tx) => {
+      const updated = await tx.execution.updateMany({
+        where: { id, status: 'RUNNING' },
+        data: {
+          status,
+          sessionId: sessionId ?? null,
+          completedAt: new Date(),
+          errorJson: error === undefined ? Prisma.DbNull : json(error),
+        },
+      })
+      if (updated.count !== 1) throw new Error(`cannot finish missing or settled execution "${id}"`)
+      const row = await tx.execution.findUnique({ where: { id } })
+      if (row === null) throw new Error(`execution "${id}" disappeared after update`)
+      const execution = decodeExecutionRow(row)
+      await appendProductEventInTransaction(tx, {
+        projectId: row.projectId,
+        type: executionProductEventType(status),
+        taskId: row.taskId,
+        agentId: row.agentId,
+        payload: executionProductEventPayload(execution),
+      })
     })
-    if (updated.count !== 1) throw new Error(`cannot finish missing or settled execution "${id}"`)
   }
 
   /** {@inheritDoc OrchestrationStore.appendExecutionEvent} */
@@ -582,14 +666,46 @@ export class PostgresPlatformStore implements OrchestrationStore {
     executionId: string,
     eventType: string,
     payload: JsonValue,
+    write?: WorkflowWriteContext,
   ): Promise<void> {
-    await this.prisma.executionEvent.create({
-      data: {
-        executionId,
-        eventType,
-        payloadJson: json(payload),
-        createdAt: new Date(),
-      },
+    await retrySerializable(async () => {
+      await this.prisma.$transaction(async (tx) => {
+        await assertWorkflowWriteFence(tx, write)
+        await tx.executionEvent.create({
+          data: {
+            executionId,
+            eventType,
+            payloadJson: json(payload),
+            createdAt: new Date(),
+          },
+        })
+        const row = await tx.execution.findUnique({ where: { id: executionId } })
+        if (row === null) throw new Error(`cannot append event for missing execution "${executionId}"`)
+        if (eventType === 'repair/started') {
+          await appendProductEventInTransaction(tx, {
+            projectId: row.projectId,
+            type: 'repair.started',
+            taskId: row.taskId,
+            agentId: row.agentId,
+            payload,
+          })
+        } else if (eventType === 'agent/session-events') {
+          const eventTypes = jsonValueSchema.parse(payload)
+          if (Array.isArray(eventTypes) && eventTypes.includes('tool/call')) {
+            await appendProductEventInTransaction(tx, {
+              projectId: row.projectId,
+              type: 'agent.tool.called',
+              taskId: row.taskId,
+              agentId: row.agentId,
+              payload,
+            })
+          }
+        }
+      }, {
+        isolationLevel: 'Serializable',
+        maxWait: 5_000,
+        timeout: 10_000,
+      })
     })
   }
 
@@ -615,6 +731,97 @@ export class PostgresPlatformStore implements OrchestrationStore {
       payload: jsonValueSchema.parse(row.payloadJson),
       createdAt: row.createdAt.toISOString(),
     }))
+  }
+
+  /** {@inheritDoc PlatformStore.createProjectRun} */
+  async createProjectRun(
+    projectId: string,
+    ownerId: string,
+    fencingToken: bigint,
+    workspacePath: string,
+    write?: WorkflowWriteContext,
+  ): Promise<ProjectRunRecord> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const row = await tx.projectRun.create({
+        data: {
+          id: ProjectRunId(`run-${randomUUID()}`),
+          projectId,
+          status: 'RUNNING',
+          ownerId,
+          fencingToken,
+          workspacePath,
+          startedAt: new Date(),
+        },
+      })
+      await appendProductEventInTransaction(tx, {
+        projectId,
+        type: 'run.started',
+        payload: { runId: row.id, status: row.status },
+      })
+      return decodeProjectRunRow(row)
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.finishProjectRun} */
+  async finishProjectRun(
+    runId: string,
+    status: Exclude<ProjectRunStatus, 'RUNNING'>,
+    previewPath?: string,
+    error?: TaskFailure,
+    write?: WorkflowWriteContext,
+  ): Promise<ProjectRunRecord> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const updated = await tx.projectRun.updateMany({
+        where: { id: runId, status: 'RUNNING' },
+        data: {
+          status,
+          ...previewPath === undefined ? {} : { previewPath },
+          completedAt: new Date(),
+          errorJson: error === undefined ? Prisma.DbNull : json(error),
+        },
+      })
+      if (updated.count !== 1) {
+        throw new Error(`cannot finish missing or settled project run "${runId}"`)
+      }
+      const row = await tx.projectRun.findUnique({ where: { id: runId } })
+      if (row === null) throw new Error(`project run "${runId}" disappeared after update`)
+      const type = status === 'CANCELLED'
+        ? 'run.cancelled'
+        : status === 'FAILED'
+          ? 'run.failed'
+          : 'run.completed'
+      await appendProductEventInTransaction(tx, {
+        projectId: row.projectId,
+        type,
+        payload: { runId: row.id, status: row.status },
+      })
+      return decodeProjectRunRow(row)
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.getProjectRun} */
+  async getProjectRun(runId: string): Promise<ProjectRunRecord | undefined> {
+    const row = await this.prisma.projectRun.findUnique({ where: { id: runId } })
+    return row === null ? undefined : decodeProjectRunRow(row)
+  }
+
+  /** {@inheritDoc PlatformStore.listProjectRuns} */
+  async listProjectRuns(projectId: string): Promise<ProjectRunRecord[]> {
+    const rows = await this.prisma.projectRun.findMany({
+      where: { projectId },
+      orderBy: { startedAt: 'asc' },
+    })
+    return rows.map(row => decodeProjectRunRow(row))
   }
 
   /** {@inheritDoc OrchestrationStore.historicalSuccessRates} */
@@ -643,19 +850,42 @@ export class PostgresPlatformStore implements OrchestrationStore {
     report: JsonValue,
     taskId?: string,
     failureSignature?: string,
+    write?: WorkflowWriteContext,
   ): Promise<VerificationReport> {
-    const row = await this.prisma.verificationReport.create({
-      data: {
-        id: VerificationReportId(`verification-${randomUUID()}`),
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const row = await tx.verificationReport.create({
+        data: {
+          id: VerificationReportId(`verification-${randomUUID()}`),
+          projectId,
+          taskId: taskId ?? null,
+          status,
+          failureSignature: failureSignature ?? null,
+          reportJson: json(report),
+          createdAt: new Date(),
+        },
+      })
+      const type = status === 'PASS'
+        ? 'verification.passed'
+        : status === 'INCOMPLETE'
+          ? 'verification.incomplete'
+          : 'verification.failed'
+      await appendProductEventInTransaction(tx, {
         projectId,
-        taskId: taskId ?? null,
-        status,
-        failureSignature: failureSignature ?? null,
-        reportJson: json(report),
-        createdAt: new Date(),
-      },
-    })
-    return decodeVerificationRow(row)
+        type,
+        ...taskId === undefined ? {} : { taskId },
+        payload: jsonValueSchema.parse(json({
+          verificationReportId: row.id,
+          status,
+          failureSignature,
+        })),
+      })
+      return decodeVerificationRow(row)
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
   }
 
   /** {@inheritDoc OrchestrationStore.listVerificationReports} */
@@ -668,23 +898,33 @@ export class PostgresPlatformStore implements OrchestrationStore {
   }
 
   /** {@inheritDoc OrchestrationStore.startWorkflowRun} */
-  async startWorkflowRun(projectId: string): Promise<WorkflowRunRecord> {
-    const existing = await this.prisma.workflowRun.findUnique({ where: { projectId } })
-    if (existing !== null) {
-      throw new Error(`workflow for project "${projectId}" already exists`)
-    }
-    const now = new Date()
-    const row = await this.prisma.workflowRun.create({
-      data: {
-        id: WorkflowRunId(`workflow-${randomUUID()}`),
-        projectId,
-        status: 'RUNNING',
-        repairRound: 0,
-        createdAt: now,
-        updatedAt: now,
-      },
-    })
-    return decodeWorkflowRow(row)
+  async startWorkflowRun(
+    projectId: string,
+    write?: WorkflowWriteContext,
+  ): Promise<WorkflowRunRecord> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const existing = await tx.workflowRun.findUnique({ where: { projectId } })
+      if (existing !== null) {
+        throw new Error(`workflow for project "${projectId}" already exists`)
+      }
+      const now = new Date()
+      const row = await tx.workflowRun.create({
+        data: {
+          id: WorkflowRunId(`workflow-${randomUUID()}`),
+          projectId,
+          status: 'RUNNING',
+          repairRound: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+      })
+      return decodeWorkflowRow(row)
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
   }
 
   /** {@inheritDoc OrchestrationStore.updateWorkflowRun} */
@@ -694,18 +934,34 @@ export class PostgresPlatformStore implements OrchestrationStore {
     repairRound: number,
     escalationReason?: WorkflowRunRecord['escalationReason'],
     escalationMessage?: string,
+    write?: WorkflowWriteContext,
   ): Promise<WorkflowRunRecord> {
-    const row = await this.prisma.workflowRun.update({
-      where: { projectId },
-      data: {
-        status,
-        repairRound,
-        escalationReason: escalationReason ?? null,
-        escalationMessage: escalationMessage ?? null,
-        updatedAt: new Date(),
-      },
-    })
-    return decodeWorkflowRow(row)
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const row = await tx.workflowRun.update({
+        where: { projectId },
+        data: {
+          status,
+          repairRound,
+          escalationReason: escalationReason ?? null,
+          escalationMessage: escalationMessage ?? null,
+          updatedAt: new Date(),
+        },
+      })
+      const workflow = decodeWorkflowRow(row)
+      if (status === 'ESCALATED') {
+        await appendProductEventInTransaction(tx, {
+          projectId,
+          type: 'workflow.escalated',
+          payload: jsonValueSchema.parse(json(workflow)),
+        })
+      }
+      return workflow
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
   }
 
   /** {@inheritDoc OrchestrationStore.getWorkflowRun} */
@@ -715,25 +971,43 @@ export class PostgresPlatformStore implements OrchestrationStore {
   }
 
   /** {@inheritDoc OrchestrationStore.saveRepairRecord} */
-  async saveRepairRecord(projectId: string, draft: RepairRecordDraft): Promise<RepairRecord> {
-    const row = await this.prisma.repairRecord.create({
-      data: {
-        id: RepairRecordId(`repair-${randomUUID()}`),
+  async saveRepairRecord(
+    projectId: string,
+    draft: RepairRecordDraft,
+    write?: WorkflowWriteContext,
+  ): Promise<RepairRecord> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      const row = await tx.repairRecord.create({
+        data: {
+          id: RepairRecordId(`repair-${randomUUID()}`),
+          projectId,
+          repairRound: draft.repairRound,
+          verificationReportId: draft.verificationReportId,
+          repairAgentId: draft.repairAgentId,
+          failureSignature: draft.failureSignature,
+          errorSummary: draft.errorSummary,
+          changeSummary: draft.changeSummary,
+          diff: draft.diff,
+          beforeStatus: draft.beforeStatus,
+          afterStatus: draft.afterStatus,
+          startedAt: new Date(draft.startedAt),
+          completedAt: new Date(draft.completedAt),
+        },
+      })
+      const repair = decodeRepairRow(row)
+      await appendProductEventInTransaction(tx, {
         projectId,
-        repairRound: draft.repairRound,
-        verificationReportId: draft.verificationReportId,
-        repairAgentId: draft.repairAgentId,
-        failureSignature: draft.failureSignature,
-        errorSummary: draft.errorSummary,
-        changeSummary: draft.changeSummary,
-        diff: draft.diff,
-        beforeStatus: draft.beforeStatus,
-        afterStatus: draft.afterStatus,
-        startedAt: new Date(draft.startedAt),
-        completedAt: new Date(draft.completedAt),
-      },
-    })
-    return decodeRepairRow(row)
+        type: 'repair.completed',
+        agentId: repair.repairAgentId,
+        payload: jsonValueSchema.parse(json(repair)),
+      })
+      return repair
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
   }
 
   /** {@inheritDoc OrchestrationStore.listRepairRecords} */
@@ -745,12 +1019,73 @@ export class PostgresPlatformStore implements OrchestrationStore {
     return rows.map(row => decodeRepairRow(row))
   }
 
+  private async withWorkflowTransaction<T>(
+    write: WorkflowWriteContext | undefined,
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await assertWorkflowWriteFence(tx, write)
+      return await operation(tx)
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: 5_000,
+      timeout: 10_000,
+    }))
+  }
+
   /** {@inheritDoc PlatformStore.close} */
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
     await this.prisma.$disconnect()
   }
+}
+
+/** Persist one task revision, journal entry, and matching product event. */
+async function saveTaskInTransaction(
+  tx: Prisma.TransactionClient,
+  task: TaskSnapshot,
+  eventType: TaskJournalEventType,
+  reason?: string,
+): Promise<void> {
+  const updated = await tx.task.updateMany({
+    where: {
+      projectId: task.projectId,
+      id: task.id,
+      revision: task.revision - 1,
+    },
+    data: {
+      snapshotJson: json(task),
+      revision: task.revision,
+      status: task.status,
+      retryCount: task.retryCount,
+      assignedAgentId: task.assignedAgentId ?? null,
+      updatedAt: new Date(task.updatedAt),
+    },
+  })
+  if (updated.count !== 1) {
+    throw new Error(`cannot update missing or stale task "${task.id}" in project "${task.projectId}"`)
+  }
+  await tx.taskJournal.create({
+    data: {
+      projectId: task.projectId,
+      taskId: task.id,
+      revision: task.revision,
+      eventType,
+      reason: reason ?? null,
+      snapshotJson: json(task),
+      createdAt: new Date(task.updatedAt),
+    },
+  })
+  const productType = taskProductEventType(eventType, task)
+  if (productType === undefined) return
+  await appendProductEventInTransaction(tx, {
+    projectId: task.projectId,
+    type: productType,
+    taskId: task.id,
+    ...task.assignedAgentId === undefined ? {} : { agentId: task.assignedAgentId },
+    payload: taskProductEventPayload(task),
+  })
 }
 
 function projectRecord(row: {
@@ -819,6 +1154,93 @@ function decodeProductEventRow(row: {
     payload: jsonValueSchema.parse(row.payloadJson),
     occurredAt: row.occurredAt.toISOString(),
   })
+}
+
+async function appendProductEventInTransaction(
+  tx: Prisma.TransactionClient,
+  draft: ProductEventDraft,
+): Promise<ProductEvent> {
+  const project = await tx.project.update({
+    where: { id: draft.projectId },
+    data: { lastEventSeq: { increment: 1 } },
+    select: { lastEventSeq: true },
+  })
+  const event = productEventSchema.parse({
+    type: draft.type,
+    projectId: draft.projectId,
+    seq: project.lastEventSeq,
+    occurredAt: draft.occurredAt ?? new Date().toISOString(),
+    ...draft.taskId === undefined ? {} : { taskId: draft.taskId },
+    ...draft.agentId === undefined ? {} : { agentId: draft.agentId },
+    payload: draft.payload,
+  })
+  const row = await tx.productEvent.create({
+    data: {
+      id: `event-${randomUUID()}`,
+      projectId: event.projectId,
+      seq: event.seq,
+      type: event.type,
+      taskId: event.taskId ?? null,
+      agentId: event.agentId ?? null,
+      payloadJson: json(event.payload),
+      occurredAt: new Date(event.occurredAt),
+    },
+  })
+  await tx.outboxEvent.create({ data: { eventId: row.id } })
+  return event
+}
+
+async function assertWorkflowWriteFence(
+  tx: Prisma.TransactionClient,
+  write: WorkflowWriteContext | undefined,
+): Promise<void> {
+  if (write === undefined) return
+  const lease = await tx.workflowLease.findUnique({ where: { resourceId: write.resourceId } })
+  if (lease === null
+    || lease.ownerId !== write.ownerId
+    || lease.fencingToken !== write.fencingToken
+    || lease.expiresAt.getTime() <= Date.now()) {
+    throw new WorkflowFenceError(write.resourceId)
+  }
+}
+
+function decodeProjectRunRow(row: {
+  id: string
+  projectId: string
+  status: string
+  ownerId: string
+  fencingToken: bigint
+  workspacePath: string
+  previewPath: string | null
+  startedAt: Date
+  completedAt: Date | null
+  errorJson: Prisma.JsonValue | null
+}): ProjectRunRecord {
+  return {
+    id: ProjectRunId(row.id),
+    projectId: ProjectId(row.projectId),
+    status: decodeProjectRunStatus(row.status),
+    ownerId: row.ownerId,
+    fencingToken: row.fencingToken,
+    workspacePath: row.workspacePath,
+    previewPath: row.previewPath ?? undefined,
+    startedAt: row.startedAt.toISOString(),
+    completedAt: row.completedAt?.toISOString(),
+    error: row.errorJson === null ? undefined : taskFailureSchema.parse(row.errorJson),
+  }
+}
+
+function decodeProjectRunStatus(value: string): ProjectRunStatus {
+  switch (value) {
+    case 'RUNNING':
+    case 'PASSED':
+    case 'FAILED':
+    case 'CANCELLED':
+    case 'ESCALATED':
+      return value
+    default:
+      throw new Error(`unknown project run status "${value}"`)
+  }
 }
 
 function decodeExecutionRow(row: {

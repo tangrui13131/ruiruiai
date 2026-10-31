@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ProjectId, TaskId } from '../src/brand.ts'
+import { AgentId, ProjectId, TaskId } from '../src/brand.ts'
 import { DagEngine, taskDefinition } from '../src/dag-engine.ts'
 import { OrchestrationRepository } from '../src/repository.ts'
+import { WorkflowFenceError } from '../src/platform-store.ts'
 
 const projectId = ProjectId('project-platform-store')
 
@@ -120,6 +121,164 @@ describe('SQLite platform store', () => {
       })
         .toThrow(/stale task/)
       expect(repository.listTasks(projectId)[0]?.id).toBe(TaskId('design'))
+    } finally {
+      repository.close()
+    }
+  })
+
+  it('persists one active project run, emits run events, and exposes the latest status', () => {
+    const repository = new OrchestrationRepository(':memory:', {
+      now: () => new Date('2026-10-31T08:00:00.000Z'),
+      journalMode: 'delete',
+    })
+    try {
+      repository.createProject({
+        id: projectId,
+        name: 'Run state',
+        requirement: 'Track launch attempts',
+        createdAt: new Date().toISOString(),
+      }, [])
+      const run = repository.createProjectRun(
+        projectId,
+        'worker-a',
+        1n,
+        'D:/runs/run-a/workspace',
+      )
+      expect(repository.listProjects()[0]).toMatchObject({
+        latestRunId: run.id,
+        latestRunStatus: 'RUNNING',
+        lastEventSeq: 1,
+      })
+      expect(() => repository.createProjectRun(
+        projectId,
+        'worker-b',
+        2n,
+        'D:/runs/run-b/workspace',
+      )).toThrow()
+      const finished = repository.finishProjectRun(run.id, 'PASSED', 'D:/runs/run-a/workspace/dist')
+      expect(finished).toMatchObject({
+        status: 'PASSED',
+        previewPath: 'D:/runs/run-a/workspace/dist',
+      })
+      expect(repository.listProjects()[0]?.latestRunStatus).toBe('PASSED')
+      expect(repository.listProductEvents(projectId, 0, 10).map(event => event.type))
+        .toEqual(['run.started', 'run.completed'])
+    } finally {
+      repository.close()
+    }
+  })
+
+  it('settles a task revision and its execution in one event-producing operation', async () => {
+    const repository = new OrchestrationRepository(':memory:', {
+      now: () => new Date('2026-10-31T08:00:00.000Z'),
+      journalMode: 'delete',
+    })
+    try {
+      const dag = await DagEngine.create(repository, {
+        id: projectId,
+        name: 'Atomic settlement',
+        requirement: 'Settle task and execution together',
+      }, [
+        taskDefinition({
+          id: 'design',
+          title: 'Design',
+          description: 'Design',
+          role: 'ui-designer',
+          priority: 50,
+          dependencies: [],
+          requiredCapabilities: { design: 1 },
+          writeScopes: ['src/'],
+        }),
+      ])
+      await dag.startTask(TaskId('design'), AgentId('ui-designer'))
+      const executionId = repository.startExecution(
+        projectId,
+        TaskId('design'),
+        AgentId('ui-designer'),
+      )
+      await dag.completeTask(TaskId('design'), { ok: true }, {
+        executionId,
+        sessionId: 'session-atomic',
+      })
+      expect(repository.listTasks(projectId)[0]?.status).toBe('COMPLETED')
+      expect(repository.listExecutions(projectId)[0]).toMatchObject({
+        id: executionId,
+        status: 'COMPLETED',
+        sessionId: 'session-atomic',
+      })
+      const types = repository.listProductEvents(projectId, 0, 20).map(event => event.type)
+      expect(types.filter(type => type === 'task.dispatched')).toHaveLength(1)
+      expect(types.filter(type => type === 'agent.started')).toHaveLength(1)
+      expect(types.filter(type => type === 'task.completed')).toHaveLength(1)
+      expect(types.filter(type => type === 'agent.completed')).toHaveLength(1)
+    } finally {
+      repository.close()
+    }
+  })
+
+  it('rejects writes from a stale workflow owner after lease takeover', () => {
+    let nowMs = Date.parse('2026-10-31T08:00:00.000Z')
+    const repository = new OrchestrationRepository(':memory:', {
+      now: () => new Date(nowMs),
+      journalMode: 'delete',
+    })
+    try {
+      repository.createProject({
+        id: projectId,
+        name: 'Fencing',
+        requirement: 'Reject stale writers',
+        createdAt: new Date(nowMs).toISOString(),
+      }, [])
+      const resourceId = `workflow:${projectId}`
+      const first = repository.acquireWorkflowLease(resourceId, projectId, 'worker-a', 1_000)
+      const staleWrite = {
+        resourceId,
+        ownerId: 'worker-a',
+        fencingToken: first.fencingToken!,
+      }
+      const run = repository.createProjectRun(
+        projectId,
+        'worker-a',
+        first.fencingToken!,
+        'D:/runs/stale/workspace',
+        staleWrite,
+      )
+      nowMs += 2_000
+      const second = repository.acquireWorkflowLease(resourceId, projectId, 'worker-b', 1_000)
+      expect(second).toMatchObject({
+        acquired: true,
+        ownerId: 'worker-b',
+        fencingToken: 2n,
+      })
+      const eventsBefore = repository.listProductEvents(projectId, 0, 20)
+      expect(() => repository.appendProductEvent({
+        projectId,
+        type: 'agent.progress',
+        taskId: 'task-1',
+        agentId: 'worker-a',
+        payload: { stale: true },
+      }, staleWrite)).toThrow(expect.objectContaining({
+        code: 'WORKFLOW_FENCE_LOST',
+      }))
+      expect(repository.listProductEvents(projectId, 0, 20)).toEqual(eventsBefore)
+      expect(() => repository.finishProjectRun(
+        run.id,
+        'PASSED',
+        undefined,
+        undefined,
+        staleWrite,
+      )).toThrow(WorkflowFenceError)
+      expect(repository.finishProjectRun(
+        run.id,
+        'PASSED',
+        undefined,
+        undefined,
+        {
+          resourceId,
+          ownerId: 'worker-b',
+          fencingToken: 2n,
+        },
+      ).status).toBe('PASSED')
     } finally {
       repository.close()
     }

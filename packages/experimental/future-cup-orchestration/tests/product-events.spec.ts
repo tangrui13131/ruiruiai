@@ -30,6 +30,26 @@ describe('product event contract', () => {
     }).success).toBe(true)
   })
 
+  it('supports durable run lifecycle events and task readiness events', () => {
+    expect(productEventSchema.safeParse({
+      ...base,
+      type: 'run.started',
+      payload: { runId: 'run-1', status: 'RUNNING' },
+    }).success).toBe(true)
+    expect(productEventSchema.safeParse({
+      ...base,
+      type: 'task.ready',
+      taskId: 'task-1',
+    }).success).toBe(true)
+    expect(PRODUCT_EVENT_TYPES).toEqual(expect.arrayContaining([
+      'run.completed',
+      'run.failed',
+      'run.cancelled',
+      'verification.incomplete',
+      'agent.cancelled',
+    ]))
+  })
+
   it('rejects unknown event names and invalid resume cursors', () => {
     expect(productEventSchema.safeParse({ ...base, type: 'task.unknown' }).success).toBe(false)
     expect(projectReplayCursorSchema.safeParse({ projectId: 'project-1', afterSeq: -1 }).success).toBe(false)

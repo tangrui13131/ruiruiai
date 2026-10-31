@@ -85,3 +85,15 @@ export type WorkflowRunId = Branded<'FutureCupWorkflowRunId'>
 export function WorkflowRunId(value: string): WorkflowRunId {
   return brandString<WorkflowRunId>(value)
 }
+
+/** Identifies one durable Future Cup project run. */
+export type ProjectRunId = Branded<'FutureCupProjectRunId'>
+
+/**
+ * Brand a project-run id created by the platform repository.
+ * @param value - generated project-run id.
+ * @returns the branded project-run id.
+ */
+export function ProjectRunId(value: string): ProjectRunId {
+  return brandString<ProjectRunId>(value)
+}

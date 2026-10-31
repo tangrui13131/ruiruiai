@@ -208,6 +208,7 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
     'prisma.config.ts',
     'prisma/schema.prisma',
     'prisma/migrations/**',
+    'lib/web/**',
   ],
   // Owned Worker bundles import this public bootstrap before their business entry.
   '@deepseek-ai/dsh-app-boot': ['lib/worker/profile-resolution-bootstrap.js'],

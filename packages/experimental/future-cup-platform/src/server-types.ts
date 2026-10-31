@@ -31,6 +31,8 @@ export interface FutureCupServerOptions {
   readonly outboxPollMs: number
   readonly outboxBatchSize: number
   readonly outboxClaimMs: number
+  readonly runRoot: string
+  readonly uiRoot?: string | undefined
   readonly getLauncher?: (() => ProjectRunLauncher | undefined) | undefined
   readonly onError?: ((error: unknown) => void) | undefined
 }

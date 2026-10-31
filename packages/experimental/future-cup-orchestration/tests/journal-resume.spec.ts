@@ -104,7 +104,7 @@ describe('DAG journaling and resume', () => {
     }
   })
 
-  it('migrates an M2 schema to v4 without dropping verification evidence', () => {
+  it('migrates an M2 schema to v5 without dropping verification evidence', () => {
     const directory = mkdtempSync(join(tmpdir(), 'future-cup-schema-v1-'))
     const path = join(directory, 'orchestration.sqlite')
     const projectId = ProjectId('project-v1')
@@ -147,7 +147,7 @@ describe('DAG journaling and resume', () => {
 
     const repository = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
     try {
-      expect(repository.schemaVersion).toBe(4)
+      expect(repository.schemaVersion).toBe(5)
       const migrated = repository.listVerificationReports(projectId)
       expect(migrated).toHaveLength(1)
       expect(migrated[0]?.id).toBe('verification-existing')
@@ -156,6 +156,42 @@ describe('DAG journaling and resume', () => {
       expect(workflow.status).toBe('RUNNING')
     } finally {
       repository.close()
+    }
+  })
+
+  it('migrates a v4 database to v5 without dropping projects', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'future-cup-schema-v4-'))
+    const path = join(directory, 'orchestration.sqlite')
+    const projectId = ProjectId('project-v4')
+    try {
+      const repository = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
+      repository.createProject({
+        id: projectId,
+        name: 'V4',
+        requirement: 'Add project runs',
+        createdAt: NOW().toISOString(),
+      }, [])
+      repository.close()
+
+      const raw = new DatabaseSync(path)
+      raw.exec(`
+        DROP INDEX project_runs_one_active;
+        DROP INDEX project_runs_project_started;
+        DROP TABLE project_runs;
+        PRAGMA user_version = 4;
+      `)
+      raw.close()
+
+      const migrated = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
+      try {
+        expect(migrated.schemaVersion).toBe(5)
+        expect(migrated.getProject(projectId)?.name).toBe('V4')
+        expect(migrated.listProjectRuns(projectId)).toEqual([])
+      } finally {
+        migrated.close()
+      }
+    } finally {
+      // The OS temp owner reclaims this unique directory.
     }
   })
 })

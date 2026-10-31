@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, M3, M4.0, and M4.1 are complete and M4.2 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, M4.0, M4.1, and M4.2 are complete and M4.3 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -106,7 +106,7 @@ The project uses five gated milestones instead of building the document chapters
 
 Each milestone delivers its design, implementation, tests, acceptance report, and remaining issues. Work does not advance until the milestone's observable acceptance criteria pass.
 
-### M1, M2, M3, M4.0, and M4.1 results and next work
+### M1, M2, M3, M4.0, M4.1, and M4.2 results and next work
 
 M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness runtime, a real DeepSeek model completed a turn, and a real model generated a React, TypeScript, Vite, and Ant Design project. A later real-model turn installed dependencies and ran the production build; independent Playwright verification passed on desktop and mobile with working counter behavior.
 
@@ -126,7 +126,16 @@ M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness r
 - Task writes require the previous revision; project events and Outbox obligations commit in one Serializable transaction. Outbox dispatchers use expiring owner claims, and PostgreSQL claims with `FOR UPDATE SKIP LOCKED`.
 - Fastify now exposes project, task, execution-event, scheduling, verification, repair, workflow, run, and cancel routes with Zod validation and explicit 400, 404, 409, and 503 failures. Socket.IO replays snapshots and committed increments after `projectId + afterSeq`, while invalid cursors disconnect with `INVALID_CURSOR`.
 - The real PostgreSQL migration and E2E test passed DAG writes, revision Journaling, execution evidence, verification, repair, workflow completion, concurrent event sequencing, Outbox claims, reconnect queries, and cross-process fencing.
-- The Future Cup bundle composes through `dsh`, and the real platform API served health, Agent, project creation, and snapshot routes against PostgreSQL. M4.2 adds the management interface and the concrete run launcher that consumes the finished store contract.
+- The Future Cup bundle composes through `dsh`, and the real platform API served health, Agent, project creation, and snapshot routes against PostgreSQL. M4.2 subsequently added the management interface and concrete launcher that consume the finished store contract.
+- M4.2 added `project_runs`, SQLite schema v5, a PostgreSQL migration, and one active run per project. Run state is separate from the M3 verification workflow.
+- The real `FutureCupRunLauncher` creates an isolated workspace and Agent home root, acquires and heartbeats a workflow lease, runs the real Harness team, reconciles interrupted runs after restart, and records PASSED, FAILED, CANCELLED, or ESCALATED without simulated state.
+- SQLite and PostgreSQL now emit task, execution, verification, repair, workflow, and run product events inside their owning state transactions. Task completion and execution settlement also share one transaction.
+- Every domain write from the real launcher carries its workflow owner and fencing token. Terminal settlement keeps the heartbeat alive while transient database errors retry, recognizes a committed terminal row after an ambiguous response, and reports `PROJECT_RUN_SETTLEMENT_PENDING` or `PROJECT_RUN_SETTLEMENT_TIMEOUT` instead of claiming a false success.
+- The same-origin management SPA uses React, TypeScript, Vite, Ant Design, React Flow, HashRouter, and Socket.IO. It provides project creation and control, Agent status, DAG, scheduler evidence, verification screenshots, repair diffs, event logs, and delivery preview.
+- Project-scoped Agent cards derive current load from `RUNNING` executions and historical success rates from persisted execution outcomes; the UI refreshes that projection whenever the authoritative event cursor advances.
+- Fastify serves the built management SPA, screenshot artifacts, and generated production previews. Public responses replace private workspace paths with relative identifiers and expose screenshot file names only through controlled routes.
+- The final real M4.2 run completed five DAG tasks through eight independent Sessions, passed after two real Repair Sessions, and served the generated production build below the platform preview path. Browser verification passed at desktop, 900 px tablet, and 390 px mobile widths with eleven screenshots and no failed requests or image decode errors.
+- M4.3 now integrates the real platform event stream into the licensed HQ 3D display and removes the remaining standalone simulation path.
 
 The technical gate is recorded in [Future Cup M4 realtime persistence gate](../architecture/2026-10-31-future-cup-m4-realtime-persistence-gate.md).
 

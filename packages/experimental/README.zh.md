@@ -73,7 +73,7 @@ kind: "package-group"
 | [`agent-team`](agent-team/README.zh.md) | 具名 teammate，成员之间直接消息与持久共享任务板 | `ctx.agentTeams` |
 | [`client-ui-agent-team`](client-ui-agent-team/README.zh.md) | Web Team roster、任务板与 teammate 导航 | — |
 | [`future-cup-orchestration`](future-cup-orchestration/README.zh.md) | 面向前端项目的持久 DAG、可解释调度、浏览器验证、有界修复与真实 Harness Agent 团队编排 | 库（没有 ctx key） |
-| [`future-cup-platform`](future-cup-platform/README.zh.md) | Future Cup PostgreSQL 持久化、事务事件、工作流租约、Fastify 快照与 Socket.IO 重放 | 读取可选 `ctx.futureCupRunLauncher` |
+| [`future-cup-platform`](future-cup-platform/README.zh.md) | Future Cup 管理 SPA、真实 Harness 团队启动器、PostgreSQL 持久化、事务事件、Fastify API 与 Socket.IO 重放 | `ctx.futureCupRunLauncher` |
 | [`client-ui-stats`](client-ui-stats/README.zh.md) | Web 端按轮次与步骤展示上下文、耗时、缓存与工具成本 | — |
 | [`auto-review`](auto-review/README.zh.md) | 显式 Web 层，在每个原生或 PTC inner 工具调用前使用同一模型审查 | — |
 | [`subagent-oar`](subagent-oar/README.zh.md) | 通过 OAR 执行外部编程智能体的独立任务 | `ctx.subagents` |

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { io as connectSocket } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
@@ -12,19 +15,33 @@ import {
   taskDefinition,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type { PlatformProjectSummary } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
+import {
+  ProjectRunSettlementPendingError,
+  ProjectRunSettlementTimeoutError,
+} from '../src/run-launcher.ts'
 import { createFutureCupServer } from '../src/server.ts'
 import type { FutureCupServer, ProjectRunLauncher } from '../src/server-types.ts'
 
 const servers: FutureCupServer[] = []
 const sockets: Socket[] = []
+const roots: string[] = []
 const healthSchema = z.object({ status: z.literal('ok'), projects: z.number() })
 const projectSchema = z.looseObject({ id: z.string(), lastEventSeq: z.number() })
 const agentSchema = z.looseObject({ id: z.string(), role: z.string() })
-const snapshotSchema = z.looseObject({ events: z.array(z.looseObject({ seq: z.number() })) })
+const snapshotSchema = z.looseObject({
+  events: z.array(z.looseObject({ seq: z.number() })),
+  runs: z.array(z.looseObject({
+    id: z.string(),
+    fencingToken: z.string(),
+    hasWorkspace: z.boolean(),
+    hasPreview: z.boolean(),
+  })),
+})
 
 afterEach(async () => {
   for (const socket of sockets.splice(0)) socket.disconnect()
   for (const server of servers.splice(0)) await server.close()
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 class FakeLauncher implements ProjectRunLauncher {
@@ -42,7 +59,21 @@ class FakeLauncher implements ProjectRunLauncher {
   }
 }
 
+class RejectingCancelLauncher implements ProjectRunLauncher {
+  constructor(private readonly error: Error) {}
+
+  async start() {
+    return { runId: 'run-rejected-cancel' }
+  }
+
+  async cancel(): Promise<boolean> {
+    throw this.error
+  }
+}
+
 async function startServer(launcher?: ProjectRunLauncher) {
+  const runRoot = mkdtempSync(join(tmpdir(), 'future-cup-server-'))
+  roots.push(runRoot)
   const store = new OrchestrationRepository(':memory:', { journalMode: 'delete' })
   const errors: unknown[] = []
   const server = createFutureCupServer({
@@ -53,12 +84,19 @@ async function startServer(launcher?: ProjectRunLauncher) {
     outboxPollMs: 20,
     outboxBatchSize: 20,
     outboxClaimMs: 1_000,
+    runRoot,
     getLauncher: () => launcher,
     onError: (error) => { errors.push(error) },
   })
   servers.push(server)
   const address = await server.start()
-  return { server, store, errors, baseUrl: `http://127.0.0.1:${String(address.port)}` }
+  return {
+    server,
+    store,
+    errors,
+    runRoot,
+    baseUrl: `http://127.0.0.1:${String(address.port)}`,
+  }
 }
 
 function event<T>(socket: Socket, name: string): Promise<T> {
@@ -81,7 +119,7 @@ async function readJson<T>(response: Response, schema: z.ZodType<T>): Promise<T>
 describe('Future Cup platform server', () => {
   it('serves project, agent, snapshot, run, and cancel APIs', async () => {
     const launcher = new FakeLauncher()
-    const { baseUrl, store, errors } = await startServer(launcher)
+    const { baseUrl, store, errors, runRoot } = await startServer(launcher)
     const createdResponse = await fetch(`${baseUrl}/api/v1/projects`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -112,6 +150,12 @@ describe('Future Cup platform server', () => {
     await dag.startTask(TaskId('design'), AgentId('ui-designer'))
     const executionId = store.startExecution(projectId, TaskId('design'), AgentId('ui-designer'))
     store.appendExecutionEvent(executionId, 'agent/started', { attempt: 1 })
+    const completedExecutionId = store.startExecution(
+      projectId,
+      TaskId('planner'),
+      AgentId('planner'),
+    )
+    store.finishExecution(completedExecutionId, 'COMPLETED', 'session-planner')
     const verification = store.saveVerificationReport(
       projectId,
       'PASS',
@@ -133,6 +177,12 @@ describe('Future Cup platform server', () => {
     })
     store.startWorkflowRun(projectId)
     store.updateWorkflowRun(projectId, 'PASSED', 1)
+    const projectRun = store.createProjectRun(
+      projectId,
+      'test-worker',
+      1n,
+      join(runRoot, 'workspace'),
+    )
     await Promise.resolve(store.appendProductEvent({
       projectId,
       type: 'task.created',
@@ -144,6 +194,7 @@ describe('Future Cup platform server', () => {
       health,
       projects,
       agents,
+      projectAgents,
       snapshot,
       tasks,
       task,
@@ -153,6 +204,9 @@ describe('Future Cup platform server', () => {
       verificationReports,
       repairs,
       workflow,
+      runs,
+      publicRun,
+      delivery,
     ] = await Promise.all([
       fetch(`${baseUrl}/api/v1/health`).then(async response =>
         await readJson(response, healthSchema)),
@@ -160,7 +214,14 @@ describe('Future Cup platform server', () => {
         await readJson(response, z.array(projectSchema))),
       fetch(`${baseUrl}/api/v1/agents`).then(async response =>
         await readJson(response, z.array(agentSchema))),
-      fetch(`${baseUrl}/api/v1/projects/project-api/snapshot?afterSeq=0&limit=10`)
+      fetch(`${baseUrl}/api/v1/projects/project-api/agents`).then(async response =>
+        await readJson(response, z.array(z.looseObject({
+          id: z.string(),
+          currentLoad: z.number(),
+          historicalSuccessRate: z.number(),
+          available: z.boolean(),
+        })))),
+      fetch(`${baseUrl}/api/v1/projects/project-api/snapshot?afterSeq=0&limit=500`)
         .then(async response => await readJson(response, snapshotSchema)),
       fetch(`${baseUrl}/api/v1/projects/project-api/tasks`)
         .then(async response => await readJson(response, z.array(z.looseObject({ id: z.string() })))),
@@ -178,19 +239,65 @@ describe('Future Cup platform server', () => {
         .then(async response => await readJson(response, z.array(z.looseObject({ id: z.string() })))),
       fetch(`${baseUrl}/api/v1/projects/project-api/workflow`)
         .then(async response => await readJson(response, z.looseObject({ status: z.string() }))),
+      fetch(`${baseUrl}/api/v1/projects/project-api/runs`)
+        .then(async response => await readJson(response, z.array(z.looseObject({
+          id: z.string(),
+          fencingToken: z.string(),
+        })))),
+      fetch(`${baseUrl}/api/v1/runs/${projectRun.id}`)
+        .then(async response => await readJson(response, z.looseObject({
+          id: z.string(),
+          fencingToken: z.string(),
+        }))),
+      fetch(`${baseUrl}/api/v1/projects/project-api/delivery`)
+        .then(async response => await readJson(response, z.looseObject({
+          projectId: z.string(),
+          runId: z.string(),
+        }))),
     ])
     expect(health).toMatchObject({ status: 'ok', projects: 1 })
-    expect(projects[0]).toMatchObject({ id: 'project-api', lastEventSeq: 1 })
+    expect(projects[0]).toMatchObject({ id: 'project-api' })
     expect(agents).toHaveLength(7)
-    expect(snapshot.events).toHaveLength(1)
+    expect(projectAgents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'ui-designer',
+        currentLoad: 1,
+        available: false,
+      }),
+      expect.objectContaining({
+        id: 'planner',
+        currentLoad: 0,
+        historicalSuccessRate: 1,
+        available: true,
+      }),
+    ]))
+    expect(snapshot.events).toHaveLength(projects[0]?.lastEventSeq ?? 0)
+    expect(snapshot.runs).toEqual([expect.objectContaining({
+      id: projectRun.id,
+      fencingToken: '1',
+      hasWorkspace: true,
+      hasPreview: false,
+    })])
     expect(tasks).toEqual([expect.objectContaining({ id: 'design', status: 'RUNNING' })])
     expect(task).toMatchObject({ id: 'design', status: 'RUNNING' })
     expect(decisions).toEqual([])
-    expect(executions).toEqual([expect.objectContaining({ id: executionId })])
+    expect(executions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: executionId }),
+      expect.objectContaining({ id: completedExecutionId, status: 'COMPLETED' }),
+    ]))
     expect(executionEvents).toEqual([expect.objectContaining({ seq: 1 })])
     expect(verificationReports).toHaveLength(1)
     expect(repairs).toHaveLength(1)
     expect(workflow).toMatchObject({ status: 'PASSED' })
+    expect(runs).toEqual([expect.objectContaining({
+      id: projectRun.id,
+      fencingToken: '1',
+    })])
+    expect(publicRun).toMatchObject({ id: projectRun.id, fencingToken: '1' })
+    expect(delivery).toMatchObject({
+      projectId: 'project-api',
+      runId: projectRun.id,
+    })
 
     const run = await fetch(`${baseUrl}/api/v1/projects/project-api/runs`, { method: 'POST' })
     expect(run.status).toBe(202)
@@ -236,6 +343,54 @@ describe('Future Cup platform server', () => {
     expect(await unavailable.json()).toMatchObject({ code: 'RUN_LAUNCHER_UNAVAILABLE' })
     expect((await fetch(`${baseUrl}/api/v1/projects/missing/cancel`, { method: 'POST' })).status)
       .toBe(404)
+  })
+
+  it('maps settlement pending and timeout failures to 503 and 504', async () => {
+    const createProject = async (baseUrl: string, projectId: string) => {
+      const response = await fetch(`${baseUrl}/api/v1/projects`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: projectId,
+          name: projectId,
+          requirement: 'Test settlement errors',
+        }),
+      })
+      expect(response.status).toBe(201)
+    }
+
+    const pending = await startServer(new RejectingCancelLauncher(
+      new ProjectRunSettlementPendingError([{
+        projectId: 'project-pending',
+        runId: 'run-pending',
+        code: 'PROJECT_RUN_NOT_FOUND',
+        message: 'settlement pending',
+        retryable: false,
+        occurredAt: new Date().toISOString(),
+      }]),
+    ))
+    await createProject(pending.baseUrl, 'project-pending')
+    const pendingResponse = await fetch(
+      `${pending.baseUrl}/api/v1/projects/project-pending/cancel`,
+      { method: 'POST' },
+    )
+    expect(pendingResponse.status).toBe(503)
+    expect(await pendingResponse.json()).toMatchObject({
+      code: 'PROJECT_RUN_SETTLEMENT_PENDING',
+    })
+
+    const timeout = await startServer(new RejectingCancelLauncher(
+      new ProjectRunSettlementTimeoutError(['project-timeout']),
+    ))
+    await createProject(timeout.baseUrl, 'project-timeout')
+    const timeoutResponse = await fetch(
+      `${timeout.baseUrl}/api/v1/projects/project-timeout/cancel`,
+      { method: 'POST' },
+    )
+    expect(timeoutResponse.status).toBe(504)
+    expect(await timeoutResponse.json()).toMatchObject({
+      code: 'PROJECT_RUN_SETTLEMENT_TIMEOUT',
+    })
   })
 
   it('replays from afterSeq, then sends committed Outbox events live', async () => {
