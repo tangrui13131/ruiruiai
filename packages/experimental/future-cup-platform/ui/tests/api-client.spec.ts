@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../src/api/client.ts'
 import { agent } from './fixtures.ts'
+import { teamProfile, teamRecommendationPlan } from './team-fixtures.ts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -35,5 +36,64 @@ describe('project Agent API', () => {
     })))
 
     await expect(api.getWorkflowControl('project-1')).resolves.toBeUndefined()
+  })
+
+  it('calls every team recommendation route with validated payloads', async () => {
+    const plan = teamRecommendationPlan()
+    const teamVersion = {
+      id: 'team-recommended',
+      name: 'recommended-team',
+      version: '1.0.0',
+      purpose: teamProfile.goal,
+      concurrencyCapacity: 2,
+      memberCount: 1,
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        profile: teamProfile,
+        questions: [],
+        readyForRecommendation: true,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(plan), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(plan), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ teamVersion }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        projectId: 'project-recommended',
+        teamVersion,
+      }), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const request = {
+      requirement: 'Build two pages',
+      profile: teamProfile,
+      answers: [],
+      adjustments: [] as string[],
+    }
+
+    await expect(api.structureTeamRequirement({
+      requirement: request.requirement,
+    })).resolves.toMatchObject({ readyForRecommendation: true })
+    await expect(api.recommendTeam(request)).resolves.toEqual(plan)
+    await expect(api.adjustTeamRecommendation({
+      ...request,
+      adjustments: ['reduce concurrency'],
+    })).resolves.toEqual(plan)
+    await expect(api.saveTeam({
+      ...request,
+      teamName: 'recommended-team',
+    })).resolves.toEqual({ teamVersion })
+    await expect(api.adoptTeam({
+      ...request,
+      projectName: 'recommended-project',
+    })).resolves.toEqual({
+      projectId: 'project-recommended',
+      teamVersion,
+    })
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      '/api/v1/team-recommendations/profile',
+      '/api/v1/team-recommendations',
+      '/api/v1/team-recommendations/adjust',
+      '/api/v1/team-recommendations/save',
+      '/api/v1/team-recommendations/adopt',
+    ])
   })
 })

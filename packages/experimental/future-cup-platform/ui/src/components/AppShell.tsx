@@ -8,6 +8,7 @@ import {
   ProjectOutlined,
   RocketOutlined,
   SafetyCertificateOutlined,
+  TeamOutlined,
   ThunderboltOutlined,
   ToolOutlined,
   TranslationOutlined,
@@ -37,11 +38,18 @@ const { Header, Sider, Content } = Layout
 function useNavigation(projectId?: string): MenuProps['items'] {
   const { dictionary } = useLocale()
   if (projectId === undefined) {
-    return [{
-      key: 'projects',
-      icon: <ProjectOutlined />,
-      label: <Link to="/">{dictionary.nav.projects}</Link>,
-    }]
+    return [
+      {
+        key: 'projects',
+        icon: <ProjectOutlined />,
+        label: <Link to="/">{dictionary.nav.projects}</Link>,
+      },
+      {
+        key: 'team-builder',
+        icon: <TeamOutlined />,
+        label: <Link to="/team-builder">{dictionary.teamBuilder.entry}</Link>,
+      },
+    ]
   }
   const base = `/projects/${encodeURIComponent(projectId)}`
   return [
@@ -140,7 +148,9 @@ export function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const project = projectState?.snapshot?.project
   const items = useNavigation(projectId)
-  const activeKey = projectId === undefined ? 'projects' : selectedKey(location.pathname)
+  const activeKey = projectId === undefined
+    ? location.pathname === '/team-builder' ? 'team-builder' : 'projects'
+    : selectedKey(location.pathname)
   const menu = (
     <Menu
       theme="dark"
@@ -185,7 +195,7 @@ export function AppShell({
           open={drawerOpen}
           onClose={() => { setDrawerOpen(false) }}
           placement="left"
-          width={260}
+          size={260}
           styles={{ body: { padding: 0, background: '#17211d' } }}
           title={null}
         >

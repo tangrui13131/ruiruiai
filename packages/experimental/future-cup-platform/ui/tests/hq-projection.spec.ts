@@ -99,6 +99,7 @@ function realSnapshot(): ProjectSnapshotView {
     executions: [],
     verificationReports: [verification],
     repairs: [],
+    repairStrategies: [],
     workflow: {
       id: 'workflow-hq',
       projectId: 'project-hq',

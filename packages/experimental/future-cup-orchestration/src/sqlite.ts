@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 6
+export const ORCHESTRATION_SCHEMA_VERSION = 7
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -34,6 +34,7 @@ export function openOrchestrationDatabase(
       && version !== 3
       && version !== 4
       && version !== 5
+      && version !== 6
       && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
@@ -48,24 +49,32 @@ export function openOrchestrationDatabase(
       migrateVersionThree(database)
       migrateVersionFour(database)
       migrateVersionFive(database)
+      migrateVersionSix(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 2) {
       migrateVersionTwo(database)
       migrateVersionThree(database)
       migrateVersionFour(database)
       migrateVersionFive(database)
+      migrateVersionSix(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 3) {
       migrateVersionThree(database)
       migrateVersionFour(database)
       migrateVersionFive(database)
+      migrateVersionSix(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 4) {
       migrateVersionFour(database)
       migrateVersionFive(database)
+      migrateVersionSix(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 5) {
       migrateVersionFive(database)
+      migrateVersionSix(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 6) {
+      migrateVersionSix(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     }
     return database
@@ -255,6 +264,7 @@ function createSchema(database: DatabaseSync): void {
       ON outbox_events(published_at, claim_expires_at);
 
     ${agentRegistryWorkflowSchemaSql('fresh')}
+    ${repairStrategySchemaSql('fresh')}
   `)
 }
 
@@ -448,6 +458,22 @@ function migrateVersionFive(database: DatabaseSync): void {
   }
 }
 
+/** Add explainable adaptive repair strategy decisions. */
+function migrateVersionSix(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(repairStrategySchemaSql('migration'))
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v6 migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
 /**
  * Build the v6 table and index DDL for a fresh database or an in-place upgrade.
  * @param mode - whether repeated objects should be ignored or treated as corruption.
@@ -577,5 +603,27 @@ function agentRegistryWorkflowSchemaSql(mode: 'fresh' | 'migration'): string {
       ON workflow_control_runs(status);
     CREATE INDEX ${guard}workflow_control_events_project_seq
       ON workflow_control_events(project_id, seq);
+  `
+}
+
+function repairStrategySchemaSql(mode: 'fresh' | 'migration'): string {
+  const guard = mode === 'fresh' ? 'IF NOT EXISTS ' : ''
+  return `
+    CREATE TABLE ${guard}repair_strategy_decisions (
+      id                 TEXT PRIMARY KEY,
+      project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      repair_round       INTEGER NOT NULL,
+      failure_signature  TEXT NOT NULL,
+      strategy_id        TEXT NOT NULL,
+      decision_json      TEXT NOT NULL,
+      outcome_json       TEXT,
+      repair_record_id   TEXT REFERENCES repair_records(id),
+      created_at         TEXT NOT NULL,
+      updated_at         TEXT NOT NULL,
+      UNIQUE (project_id, repair_round)
+    ) STRICT;
+
+    CREATE INDEX ${guard}repair_strategy_decisions_project_round
+      ON repair_strategy_decisions(project_id, repair_round);
   `
 }

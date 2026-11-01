@@ -266,6 +266,7 @@ export type EscalationReason =
   | 'REPEATED_FAILURE'
   | 'REPAIR_TIMEOUT'
   | 'REPAIR_FAILED'
+  | 'REPAIR_STRATEGY_UNAVAILABLE'
   | 'VERIFIER_INCOMPLETE'
 
 /** Durable project workflow state and visible manual escalation. */

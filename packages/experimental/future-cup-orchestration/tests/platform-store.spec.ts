@@ -2,11 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { AgentId, ProjectId, TaskId } from '../src/brand.ts'
 import { DagEngine, taskDefinition } from '../src/dag-engine.ts'
 import { OrchestrationRepository } from '../src/repository.ts'
-import { WorkflowFenceError } from '../src/platform-store.ts'
+import {
+  parseProjectMemoryKind,
+  parsePublishedStatus,
+  WorkflowFenceError,
+} from '../src/platform-store.ts'
 
 const projectId = ProjectId('project-platform-store')
 
 describe('SQLite platform store', () => {
+  it('parses persisted published statuses and project-memory kinds', () => {
+    expect(parsePublishedStatus('PUBLISHED', 'Agent team')).toBe('PUBLISHED')
+    expect(() => parsePublishedStatus('DRAFT', 'Agent team'))
+      .toThrow(/unknown Agent team status/)
+    expect(parseProjectMemoryKind('failure-signature')).toBe('failure-signature')
+    expect(() => parseProjectMemoryKind('unknown')).toThrow(/unknown project memory kind/)
+  })
+
   it('persists ordered product events, Outbox rows, and reconnect snapshots', () => {
     let nowMs = Date.parse('2026-10-31T08:00:00.000Z')
     const repository = new OrchestrationRepository(':memory:', {
@@ -211,6 +223,59 @@ describe('SQLite platform store', () => {
       expect(types.filter(type => type === 'agent.started')).toHaveLength(1)
       expect(types.filter(type => type === 'task.completed')).toHaveLength(1)
       expect(types.filter(type => type === 'agent.completed')).toHaveLength(1)
+    } finally {
+      repository.close()
+    }
+  })
+
+  it('persists immutable adaptive repair decisions and their outcomes', () => {
+    const repository = new OrchestrationRepository(':memory:', {
+      now: () => new Date('2026-10-31T08:00:00.000Z'),
+      journalMode: 'delete',
+    })
+    try {
+      repository.createProject({
+        id: projectId,
+        name: 'Adaptive repair',
+        requirement: 'Persist explainable strategy decisions',
+        createdAt: '2026-10-31T08:00:00.000Z',
+      }, [])
+      const record = {
+        id: 'repair-strategy-1',
+        projectId,
+        repairRound: 1,
+        failureSignature: 'a'.repeat(64),
+        strategyId: 'typescript-contract',
+        decision: {
+          reason: 'TypeScript diagnostics target a source contract.',
+          candidates: [{ strategyId: 'typescript-contract', score: 90 }],
+        },
+        createdAt: '2026-10-31T08:00:00.000Z',
+        updatedAt: '2026-10-31T08:00:00.000Z',
+      }
+
+      repository.saveRepairStrategyDecision(record)
+      repository.saveRepairStrategyDecision(record)
+      expect(repository.listRepairStrategyDecisions(projectId)).toEqual([record])
+      expect(repository.getProjectSnapshot(projectId, 0, 10)?.repairStrategies).toEqual([record])
+      expect(() => {
+        repository.saveRepairStrategyDecision({
+          ...record,
+          strategyId: 'different-strategy',
+        })
+      }).toThrow(/immutable/)
+
+      repository.finishRepairStrategyDecision(projectId, 1, {
+        status: 'PASS',
+        nextAction: 'COMPLETE',
+      })
+      expect(repository.listRepairStrategyDecisions(projectId)[0]).toMatchObject({
+        strategyId: 'typescript-contract',
+        outcome: {
+          status: 'PASS',
+          nextAction: 'COMPLETE',
+        },
+      })
     } finally {
       repository.close()
     }

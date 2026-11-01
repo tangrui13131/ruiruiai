@@ -55,6 +55,7 @@ export function snapshot(tasks: readonly TaskView[] = []): ProjectSnapshotView {
     executions: [],
     verificationReports: [],
     repairs: [],
+    repairStrategies: [],
     runs: [],
     events: [],
     lastEventSeq: 0,

@@ -68,6 +68,7 @@ function initialSnapshot(projectId: string): ProjectSnapshotView {
     executions: [],
     verificationReports: [],
     repairs: [],
+    repairStrategies: [],
     workflow: {
       id: 'workflow-recorded-run',
       projectId,

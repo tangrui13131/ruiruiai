@@ -8,7 +8,7 @@ import {
   ORCHESTRATION_SCHEMA_VERSION,
 } from '../src/sqlite.ts'
 
-const legacyVersions = [1, 2, 3, 4, 5] as const
+const legacyVersions = [1, 2, 3, 4, 5, 6] as const
 const temporaryRoots: string[] = []
 
 afterEach(() => {
@@ -31,6 +31,7 @@ const expectedTables = [
   'project_team_bindings',
   'projects',
   'repair_records',
+  'repair_strategy_decisions',
   'scheduler_decisions',
   'task_dependencies',
   'task_journal',
@@ -50,6 +51,7 @@ const requiredIndexes = [
   'agent_team_members_definition_version',
   'agent_team_versions_status',
   'project_team_bindings_team_version',
+  'repair_strategy_decisions_project_round',
   'workflow_control_events_project_seq',
   'workflow_control_runs_definition',
   'workflow_control_runs_status',
@@ -170,21 +172,39 @@ function insertSchemaRows(database: DatabaseSync): void {
       '{"node":"verify"}',
       '2026-11-01T08:00:00.000Z'
     );
+
+    INSERT INTO repair_strategy_decisions (
+      id, project_id, repair_round, failure_signature, strategy_id,
+      decision_json, created_at, updated_at
+    ) VALUES (
+      'repair-strategy-1',
+      'project-1',
+      1,
+      'signature',
+      'typescript-context',
+      '{"reason":"type error"}',
+      '2026-11-01T08:00:00.000Z',
+      '2026-11-01T08:00:00.000Z'
+    );
   `)
 }
 
 function downgradeToVersion(database: DatabaseSync, version: number): void {
-  database.exec(`
-    DROP TABLE workflow_control_events;
-    DROP TABLE workflow_control_runs;
-    DROP TABLE project_memory_entries;
-    DROP TABLE project_team_bindings;
-    DROP TABLE agent_team_members;
-    DROP TABLE agent_definition_versions;
-    DROP TABLE agent_team_versions;
-    DROP TABLE workflow_definitions;
-    DROP TABLE agent_definitions;
-  `)
+  database.exec('DROP TABLE repair_strategy_decisions')
+
+  if (version <= 5) {
+    database.exec(`
+      DROP TABLE workflow_control_events;
+      DROP TABLE workflow_control_runs;
+      DROP TABLE project_memory_entries;
+      DROP TABLE project_team_bindings;
+      DROP TABLE agent_team_members;
+      DROP TABLE agent_definition_versions;
+      DROP TABLE agent_team_versions;
+      DROP TABLE workflow_definitions;
+      DROP TABLE agent_definitions;
+    `)
+  }
 
   if (version < 5) {
     database.exec('DROP TABLE project_runs')
@@ -218,12 +238,12 @@ function downgradeToVersion(database: DatabaseSync, version: number): void {
   database.exec(`PRAGMA user_version = ${version}`)
 }
 
-describe('orchestration schema v6', () => {
-  it('creates every fresh table, index, and foreign-key mode at schema version 6', () => {
+describe('orchestration schema v7', () => {
+  it('creates every fresh table, index, and foreign-key mode at schema version 7', () => {
     const database = openOrchestrationDatabase(':memory:', 'delete')
     try {
-      expect(ORCHESTRATION_SCHEMA_VERSION).toBe(6)
-      expect(database.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+      expect(ORCHESTRATION_SCHEMA_VERSION).toBe(7)
+      expect(database.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
       expect(database.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
       expect(schemaNames(database, 'table')).toEqual(expectedTables)
       expect(schemaNames(database, 'index')).toEqual(expect.arrayContaining(requiredIndexes))
@@ -261,6 +281,15 @@ describe('orchestration schema v6', () => {
         INSERT INTO workflow_definitions (
           id, version, graph_json, checksum, status, created_at
         ) VALUES ('workflow-1', 1, '{}', 'copy', 'DRAFT', '2026-11-01T09:00:00.000Z')
+      `)
+      expectConstraintFailure(database, `
+        INSERT INTO repair_strategy_decisions (
+          id, project_id, repair_round, failure_signature, strategy_id,
+          decision_json, created_at, updated_at
+        ) VALUES (
+          'repair-strategy-copy', 'project-1', 1, 'signature', 'copy',
+          '{}', '2026-11-01T09:00:00.000Z', '2026-11-01T09:00:00.000Z'
+        )
       `)
 
       expectConstraintFailure(database, `
@@ -305,6 +334,7 @@ describe('orchestration schema v6', () => {
         'project_team_bindings',
         'project_memory_entries',
         'workflow_control_runs',
+        'repair_strategy_decisions',
         'workflow_control_events',
       ]) {
         expect(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get())
@@ -315,7 +345,7 @@ describe('orchestration schema v6', () => {
     }
   })
 
-  it.each(legacyVersions)('migrates schema v%i to v6 without losing existing evidence', (version) => {
+  it.each(legacyVersions)('migrates schema v%i to v7 without losing existing evidence', (version) => {
     const root = mkdtempSync(join(tmpdir(), `future-cup-schema-v${version}-`))
     temporaryRoots.push(root)
     const path = join(root, 'orchestration.sqlite')
@@ -356,7 +386,7 @@ describe('orchestration schema v6', () => {
 
     const migrated = openOrchestrationDatabase(path, 'delete')
     try {
-      expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+      expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
       expect(migrated.prepare('SELECT name FROM projects WHERE id = ?').get('project-legacy'))
         .toEqual({ name: 'Legacy' })
       expect(migrated.prepare('SELECT status FROM tasks WHERE id = ?').get('task-legacy'))

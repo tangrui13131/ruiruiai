@@ -1,7 +1,13 @@
 /** Bounded verify, repair, and reverify control loop. */
 
+import { setTimeout as delay } from 'node:timers/promises'
 import type { AgentInvoker } from './agent-contracts.ts'
 import { buildStructuredPrompt } from './agent-contracts.ts'
+import {
+  selectRepairContext,
+  selectRepairStrategy,
+  type RepairStrategyDecision,
+} from './adaptive-repair.ts'
 import { TaskId } from './brand.ts'
 import type { ProjectId as ProjectIdType } from './brand.ts'
 import { requireAgentInvoker } from './harness-agents.ts'
@@ -15,6 +21,7 @@ import {
 } from './schemas.ts'
 import type {
   AgentProfile,
+  JsonValue,
   RepairOutput,
   SelfHealingResult,
   SelfLoopConfig,
@@ -58,13 +65,17 @@ interface RepairAttempt {
 
 type RepairOutcome =
   | { readonly ok: true; readonly attempt: RepairAttempt }
-  | { readonly ok: false; readonly reason: 'REPAIR_TIMEOUT' | 'REPAIR_FAILED' }
+  | {
+    readonly ok: false
+    readonly reason: 'REPAIR_TIMEOUT' | 'REPAIR_FAILED'
+    readonly repairRecordId: string
+  }
 
 /** Own the only automatic repair loop for one generated project. */
 export class SelfLoopController {
   private readonly verifier: NonNullable<SelfLoopControllerOptions['verifier']>
   private readonly now: () => Date
-  private control: WorkflowControlCoordinator | undefined
+  private readonly control: WorkflowControlCoordinator
 
   /**
    * @param options - durable repository, real Agent invokers, workspace, and explicit bounds.
@@ -79,6 +90,7 @@ export class SelfLoopController {
     if (options.verifier === undefined) throw new Error('A complete verification function is required')
     this.verifier = options.verifier
     this.now = options.now ?? (() => new Date())
+    this.control = new WorkflowControlCoordinator(options.repository)
   }
 
   /**
@@ -88,13 +100,12 @@ export class SelfLoopController {
    * @returns the final report, all reports, repair diffs, and workflow terminal state.
    */
   async run(projectId: ProjectIdType, spec: TesterOutput): Promise<SelfHealingResult> {
-    this.control = new WorkflowControlCoordinator(this.options.repository)
     let control = await this.control.start(projectId)
     await this.options.repository.startWorkflowRun(projectId)
     let current = await this.verifyAndPersist(projectId, spec)
     control = await this.recordVerification(projectId, control, current)
     if (current.status === 'PASS') {
-      return this.completed(projectId, current, 0)
+      return this.completed(projectId, current, 0, control)
     }
     if (current.status === 'INCOMPLETE') {
       await this.control.escalate(projectId, 'VERIFIER_INCOMPLETE')
@@ -117,10 +128,41 @@ export class SelfLoopController {
       )
     }
 
+    let strategy = await this.planStrategy(projectId, current, 1)
+    if (strategy.selectedStrategy === undefined) {
+      await this.recordStrategyDecision(projectId, 1, strategy)
+      await this.finishStrategyDecision(projectId, 1, {
+        status: 'ESCALATED',
+        nextAction: 'NO_ELIGIBLE_STRATEGY',
+        reason: strategy.selectedReason,
+      })
+      await this.control.escalate(projectId, 'REPAIR_STRATEGY_UNAVAILABLE')
+      return this.escalate(
+        projectId,
+        current,
+        0,
+        'REPAIR_STRATEGY_UNAVAILABLE',
+        strategy.selectedReason,
+      )
+    }
+    let selectedStrategy = strategy.selectedStrategy
+
     const seenSignatures = new Set<string>([requiredSignature(current)])
-    for (let round = 1; round <= this.options.config.maxRepairRounds; round += 1) {
-      const outcome = await this.runRepair(projectId, spec, current, round)
+    for (let round = 1; ; round += 1) {
+      await this.recordStrategyDecision(projectId, round, strategy)
+      const outcome = await this.runRepair(
+        projectId,
+        spec,
+        current,
+        round,
+        strategy,
+        selectedStrategy,
+      )
       if (!outcome.ok) {
+        await this.finishStrategyDecision(projectId, round, {
+          status: outcome.reason,
+          nextAction: 'ESCALATE',
+        }, outcome.repairRecordId)
         await this.control.escalate(projectId, outcome.reason)
         return this.escalate(
           projectId,
@@ -143,6 +185,18 @@ export class SelfLoopController {
       try {
         next = await this.verifyAndPersist(projectId, spec)
       } catch (error: unknown) {
+        const repairRecord = await this.saveRepairAttempt(
+          projectId,
+          current,
+          attempt,
+          round,
+          'INCOMPLETE',
+        )
+        await this.finishStrategyDecision(projectId, round, {
+          status: 'VERIFIER_INCOMPLETE',
+          nextAction: 'ESCALATE',
+          reason: error instanceof Error ? error.message : String(error),
+        }, repairRecord.id)
         await this.control.escalate(projectId, 'VERIFIER_INCOMPLETE')
         return this.escalate(
           projectId,
@@ -152,21 +206,48 @@ export class SelfLoopController {
           error instanceof Error ? error.message : String(error),
         )
       }
-      control = await this.recordVerification(projectId, control, next)
+      const nextStrategy = next.status === 'PASS'
+        || next.status === 'INCOMPLETE'
+        || round >= this.options.config.maxRepairRounds
+        ? undefined
+        : await this.planStrategy(projectId, next, round + 1)
+      control = await this.recordVerification(
+        projectId,
+        control,
+        next,
+        nextStrategy?.nextRoundExpectation === 'SWITCHED_STRATEGY',
+      )
 
-      await this.options.repository.saveRepairRecord(projectId, {
-        repairRound: round,
-        verificationReportId: current.id,
-        repairAgentId: repairProfile(this.options.profiles).id,
-        failureSignature: requiredSignature(current),
-        errorSummary: summarizeFindings(current),
-        changeSummary: attempt.output.summary,
-        diff: attempt.diff,
-        beforeStatus: current.status,
-        afterStatus: next.status,
-        startedAt: attempt.startedAt,
-        completedAt: this.timestamp(),
-      })
+      const repairRecord = await this.saveRepairAttempt(
+        projectId,
+        current,
+        attempt,
+        round,
+        next.status,
+      )
+      const signature = next.status === 'PASS' || next.status === 'INCOMPLETE'
+        ? undefined
+        : requiredSignature(next)
+      const repeated = signature !== undefined && seenSignatures.has(signature)
+      const maxExhausted = round >= this.options.config.maxRepairRounds
+      await this.finishStrategyDecision(projectId, round, {
+        status: next.status,
+        nextAction: next.status === 'PASS'
+          ? 'COMPLETE'
+          : next.status === 'INCOMPLETE'
+            ? 'ESCALATE_VERIFIER_INCOMPLETE'
+            : maxExhausted
+              ? 'ESCALATE_MAX_REPAIR_ROUNDS'
+              : repeated && nextStrategy?.selectedStrategy !== undefined
+                ? 'SWITCH_STRATEGY'
+                : repeated
+                  ? 'ESCALATE_REPEATED_FAILURE'
+                  : nextStrategy?.selectedStrategy === undefined
+                    ? 'ESCALATE_STRATEGY_UNAVAILABLE'
+                    : 'CONTINUE_REPAIR',
+        failureSignature: signature ?? null,
+        nextStrategyId: nextStrategy?.selectedStrategy?.id ?? null,
+      }, repairRecord.id)
       await this.options.repository.saveProjectMemoryEntry({
         id: `memory-${projectId}-repair-${String(round)}`,
         projectId,
@@ -184,7 +265,7 @@ export class SelfLoopController {
       })
 
       if (next.status === 'PASS') {
-        return this.completed(projectId, next, round)
+        return this.completed(projectId, next, round, control)
       }
       if (next.status === 'INCOMPLETE') {
         if (control.status !== 'ESCALATED') {
@@ -199,11 +280,16 @@ export class SelfLoopController {
         )
       }
 
-      const signature = requiredSignature(next)
-      if (seenSignatures.has(signature)) {
-        if (control.status !== 'ESCALATED') {
-          await this.control.escalate(projectId, 'REPEATED_FAILURE')
-        }
+      if (maxExhausted) {
+        return this.escalate(
+          projectId,
+          next,
+          round,
+          'MAX_REPAIR_ROUNDS',
+          `Automatic repair exhausted ${this.options.config.maxRepairRounds} rounds.`,
+        )
+      }
+      if (repeated && nextStrategy?.selectedStrategy === undefined) {
         return this.escalate(
           projectId,
           next,
@@ -212,17 +298,23 @@ export class SelfLoopController {
           `Repair produced the equivalent failure signature ${signature}.`,
         )
       }
-      seenSignatures.add(signature)
+      const followingStrategy = requireStrategyDecision(nextStrategy)
+      const followingSelection = followingStrategy.selectedStrategy
+      if (followingSelection === undefined) {
+        await this.control.escalate(projectId, 'REPAIR_STRATEGY_UNAVAILABLE')
+        return this.escalate(
+          projectId,
+          next,
+          round,
+          'REPAIR_STRATEGY_UNAVAILABLE',
+          followingStrategy.selectedReason,
+        )
+      }
+      if (!repeated) seenSignatures.add(requiredSignature(next))
       current = next
+      strategy = followingStrategy
+      selectedStrategy = followingSelection
     }
-
-    return this.escalate(
-      projectId,
-      current,
-      this.options.config.maxRepairRounds,
-      'MAX_REPAIR_ROUNDS',
-      `Automatic repair exhausted ${this.options.config.maxRepairRounds} rounds.`,
-    )
   }
 
   /** Run one Repair Agent Session and apply its bounded file plan. */
@@ -231,6 +323,8 @@ export class SelfLoopController {
     spec: TesterOutput,
     report: VerificationReport,
     round: number,
+    strategy: RepairStrategyDecision,
+    selectedStrategy: NonNullable<RepairStrategyDecision['selectedStrategy']>,
   ): Promise<RepairOutcome> {
     const profile = repairProfile(this.options.profiles)
     const invoker = requireAgentInvoker(this.options.invokers, profile.id)
@@ -244,17 +338,29 @@ export class SelfLoopController {
     await this.options.repository.appendExecutionEvent(
       executionId,
       'repair/started',
-      jsonValueSchema.parse({ round, failureSignature: requiredSignature(report) }),
+      jsonValueSchema.parse({
+        round,
+        failureSignature: requiredSignature(report),
+        strategyId: selectedStrategy.id,
+        strategyReason: strategy.selectedReason,
+      }),
     )
 
     try {
       const prompt = buildStructuredPrompt(
         'repair',
-        profile.instructions ?? REPAIR_INSTRUCTIONS,
+        [
+          profile.instructions ?? REPAIR_INSTRUCTIONS,
+          selectedStrategy.promptFragment,
+        ].join('\n\n'),
         {
           verification: report.report,
           verificationSpec: spec,
-          sources: selectRepairSources(before, report),
+          repairStrategy: strategy,
+          sources: selectRepairContext(strategy, [...before].map(([path, content]) => ({
+            path,
+            content,
+          }))),
           priorRepairs: (await this.options.repository.listRepairRecords(projectId)).map(record => ({
             round: record.repairRound,
             failureSignature: record.failureSignature,
@@ -299,7 +405,7 @@ export class SelfLoopController {
           message: error instanceof Error ? error.message : String(error),
         }),
       )
-      await this.options.repository.saveRepairRecord(projectId, {
+      const repairRecord = await this.options.repository.saveRepairRecord(projectId, {
         repairRound: round,
         verificationReportId: report.id,
         repairAgentId: profile.id,
@@ -314,8 +420,92 @@ export class SelfLoopController {
         startedAt,
         completedAt: this.timestamp(),
       })
-      return { ok: false, reason: timeout ? 'REPAIR_TIMEOUT' : 'REPAIR_FAILED' }
+      return {
+        ok: false,
+        reason: timeout ? 'REPAIR_TIMEOUT' : 'REPAIR_FAILED',
+        repairRecordId: repairRecord.id,
+      }
     }
+  }
+
+  /** Select a strategy from the current report and durable strategy history. */
+  private async planStrategy(
+    projectId: ProjectIdType,
+    report: VerificationReport,
+    repairRound: number,
+  ): Promise<RepairStrategyDecision> {
+    const profile = repairProfile(this.options.profiles)
+    const priorStrategies = (await this.options.repository.listRepairStrategyDecisions(projectId))
+      .filter(record => record.strategyId !== 'none')
+      .map(record => ({
+        repairRound: record.repairRound,
+        failureSignature: record.failureSignature,
+        strategyId: record.strategyId,
+      }))
+    return selectRepairStrategy({
+      report: verificationReportDataSchema.parse(report.report),
+      repairRound,
+      maxRepairRounds: this.options.config.maxRepairRounds,
+      availableTools: profile.toolAllowlist === undefined ? ['fs-read'] : [...profile.toolAllowlist],
+      priorStrategies,
+    })
+  }
+
+  /** Persist one Repair Agent attempt with its before/after verification state. */
+  private async saveRepairAttempt(
+    projectId: ProjectIdType,
+    report: VerificationReport,
+    attempt: RepairAttempt,
+    round: number,
+    afterStatus: VerificationReport['status'],
+  ) {
+    return await this.options.repository.saveRepairRecord(projectId, {
+      repairRound: round,
+      verificationReportId: report.id,
+      repairAgentId: repairProfile(this.options.profiles).id,
+      failureSignature: requiredSignature(report),
+      errorSummary: summarizeFindings(report),
+      changeSummary: attempt.output.summary,
+      diff: attempt.diff,
+      beforeStatus: report.status,
+      afterStatus,
+      startedAt: attempt.startedAt,
+      completedAt: this.timestamp(),
+    })
+  }
+
+  /** Persist strategy selection before the Repair Agent can modify source. */
+  private async recordStrategyDecision(
+    projectId: ProjectIdType,
+    repairRound: number,
+    decision: RepairStrategyDecision,
+  ): Promise<void> {
+    const timestamp = this.timestamp()
+    await this.options.repository.saveRepairStrategyDecision({
+      id: `repair-strategy-${projectId}-${String(repairRound)}`,
+      projectId,
+      repairRound,
+      failureSignature: decision.failureSignature,
+      strategyId: decision.selectedStrategy?.id ?? 'none',
+      decision: jsonValueSchema.parse(decision),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  }
+
+  /** Attach a durable outcome to one strategy decision. */
+  private async finishStrategyDecision(
+    projectId: ProjectIdType,
+    repairRound: number,
+    outcome: JsonValue,
+    repairRecordId?: string,
+  ): Promise<void> {
+    await this.options.repository.finishRepairStrategyDecision(
+      projectId,
+      repairRound,
+      jsonValueSchema.parse(outcome),
+      repairRecordId,
+    )
   }
 
   /** Execute one full verification stage and commit its report. */
@@ -338,9 +528,14 @@ export class SelfLoopController {
     projectId: ProjectIdType,
     verification: VerificationReport,
     repairRound: number,
+    control: WorkflowControlSnapshot,
   ): Promise<SelfHealingResult> {
     const workflow = await this.options.repository.updateWorkflowRun(projectId, 'PASSED', repairRound)
-    await this.completeControl(projectId)
+    await this.control.advance(projectId, {
+      type: 'TASK_COMPLETED',
+      instanceId: activeControlTask(control, 'delivery'),
+      summary: 'Delivery accepted after independent verification.',
+    })
     return {
       verification,
       verificationReports: await this.options.repository.listVerificationReports(projectId),
@@ -357,12 +552,6 @@ export class SelfLoopController {
     reason: NonNullable<Awaited<ReturnType<OrchestrationStore['getWorkflowRun']>>>['escalationReason'],
     message: string,
   ): Promise<SelfHealingResult> {
-    if (this.control !== undefined) {
-      const current = await this.control.get(projectId)
-      if (current !== undefined && current.snapshot.status === 'RUNNING') {
-        await this.control.escalate(projectId, reason ?? 'MAX_REPAIR_ROUNDS')
-      }
-    }
     const workflow = await this.options.repository.updateWorkflowRun(
       projectId,
       'ESCALATED',
@@ -382,31 +571,17 @@ export class SelfLoopController {
     projectId: ProjectIdType,
     snapshot: WorkflowControlSnapshot,
     report: VerificationReport,
+    strategySwitchAvailable = false,
   ): Promise<WorkflowControlSnapshot> {
-    return await this.requireControl().advance(projectId, {
+    return await this.control.advance(projectId, {
       type: 'VERIFICATION_COMPLETED',
       instanceId: activeControlTask(snapshot, 'verification'),
       status: report.status === 'WARNING' ? 'FAIL' : report.status,
       ...report.failureSignature === undefined
         ? {}
         : { failureSignature: report.failureSignature },
+      ...strategySwitchAvailable ? { strategySwitchAvailable: true } : {},
     })
-  }
-
-  private async completeControl(projectId: ProjectIdType): Promise<void> {
-    const control = this.requireControl()
-    const state = await control.get(projectId)
-    if (state === undefined || state.snapshot.status !== 'RUNNING') return
-    await control.advance(projectId, {
-      type: 'TASK_COMPLETED',
-      instanceId: activeControlTask(state.snapshot, 'delivery'),
-      summary: 'Delivery accepted after independent verification.',
-    })
-  }
-
-  private requireControl(): WorkflowControlCoordinator {
-    if (this.control === undefined) throw new Error('workflow control has not started')
-    return this.control
   }
 
   private timestamp(): string {
@@ -414,7 +589,14 @@ export class SelfLoopController {
   }
 }
 
-function activeControlTask(
+/**
+ * Resolve the active workflow-control instance for one task reference.
+ * @param snapshot - current quiescent control snapshot.
+ * @param taskRef - required active task reference.
+ * @returns the active instance identity.
+ * @throws Error when the snapshot does not contain the required active task.
+ */
+export function activeControlTask(
   snapshot: WorkflowControlSnapshot,
   taskRef: string,
 ): string {
@@ -425,36 +607,24 @@ function activeControlTask(
   return active.instanceId
 }
 
-/** Resolve the configured Repair role and fail loudly when incomplete. */
-function repairProfile(profiles: readonly AgentProfile[]): AgentProfile {
+/**
+ * Resolve the configured Repair role and fail loudly when incomplete.
+ * @param profiles - complete project Agent roster.
+ * @returns the Repair Agent profile.
+ * @throws Error when no Repair Agent is configured.
+ */
+export function repairProfile(profiles: readonly AgentProfile[]): AgentProfile {
   const profile = profiles.find(value => value.role === 'repair')
   if (profile === undefined) throw new Error('Repair Agent profile is not configured')
   return profile
 }
 
-/** Select affected files first, then bounded surrounding source context. */
-function selectRepairSources(
-  sources: ReadonlyMap<string, string>,
-  report: VerificationReport,
-): { path: string; content: string }[] {
-  const parsed = verificationReportDataSchema.parse(report.report)
-  const targets = new Set<string>()
-  for (const finding of parsed.findings) {
-    const target = finding.target
-    if (target !== undefined && target.startsWith('src/')) targets.add(target)
-  }
-  return [...sources]
-    .sort(([left], [right]) => {
-      const leftAffected = targets.has(left) ? 0 : 1
-      const rightAffected = targets.has(right) ? 0 : 1
-      return leftAffected - rightAffected || left.localeCompare(right)
-    })
-    .slice(0, 24)
-    .map(([path, content]) => ({ path, content }))
-}
-
-/** Keep one bounded error summary for durable repair history. */
-function summarizeFindings(report: VerificationReport): string {
+/**
+ * Keep one bounded error summary for durable repair history.
+ * @param report - verification report entering repair.
+ * @returns a bounded line-oriented finding summary.
+ */
+export function summarizeFindings(report: VerificationReport): string {
   const parsed = verificationReportDataSchema.parse(report.report)
   if (parsed.findings.length === 0) return `Verification ${report.status}`
   return parsed.findings.slice(0, 12).map((finding) => {
@@ -462,27 +632,40 @@ function summarizeFindings(report: VerificationReport): string {
   }).join('\n').slice(0, 8_000)
 }
 
-/** Require a stable signature for every non-pass verification entering repair. */
-function requiredSignature(report: VerificationReport): string {
+/**
+ * Require a stable signature for every non-pass verification entering repair.
+ * @param report - durable verification report.
+ * @returns the stable SHA-256 failure signature.
+ * @throws Error when the report has no retained signature.
+ */
+export function requiredSignature(report: VerificationReport): string {
   if (report.failureSignature === undefined || report.failureSignature === '') {
     throw new Error(`verification "${report.id}" did not retain a failure signature`)
   }
   return report.failureSignature
 }
 
+/**
+ * Require a following strategy decision after a continuing failure.
+ * @param decision - strategy plan produced for the next repair round.
+ * @returns the present strategy plan.
+ * @throws Error when control flow supplied no plan for a continuing repair.
+ */
+export function requireStrategyDecision(
+  decision: RepairStrategyDecision | undefined,
+): RepairStrategyDecision {
+  if (decision === undefined) {
+    throw new Error('continuing repair round has no strategy decision')
+  }
+  return decision
+}
+
 /** Bound one Agent invocation and reject with a typed timeout. */
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer: NodeJS.Timeout | undefined
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          reject(new RepairTimeoutError(timeoutMs))
-        }, timeoutMs)
-      }),
-    ])
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-  }
+  return await Promise.race([
+    promise,
+    delay(timeoutMs, undefined, { ref: false }).then(() => {
+      throw new RepairTimeoutError(timeoutMs)
+    }),
+  ])
 }

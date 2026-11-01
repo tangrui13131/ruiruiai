@@ -40,11 +40,14 @@ import {
 } from './product-events.ts'
 import {
   assertPositiveSafeInteger,
+  parseProjectMemoryKind,
+  parsePublishedStatus,
   WorkflowFenceError,
 } from './platform-store.ts'
 import { openOrchestrationDatabase, ORCHESTRATION_SCHEMA_VERSION } from './sqlite.ts'
 import type {
   ProjectMemoryEntry,
+  RepairStrategyDecisionRecord,
   StoredAgentDefinition,
   StoredAgentTeamVersion,
   StoredAgentVersion,
@@ -61,6 +64,7 @@ import type {
   WorkflowWriteContext,
 } from './platform-store.ts'
 import {
+  parseWorkflowEscalationReason,
   parseWorkflowControlDefinition,
   parseWorkflowControlSnapshot,
   workflowControlJournalEntrySchema,
@@ -171,6 +175,19 @@ const repairRowSchema = z.object({
   after_status: z.string(),
   started_at: z.string(),
   completed_at: z.string(),
+}).strict()
+
+const repairStrategyDecisionRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  repair_round: z.number(),
+  failure_signature: z.string(),
+  strategy_id: z.string(),
+  decision_json: z.string(),
+  outcome_json: z.string().nullable(),
+  repair_record_id: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
 }).strict()
 
 const workflowRowSchema = z.object({
@@ -510,6 +527,7 @@ export class OrchestrationRepository implements OrchestrationStore {
       executions: this.listExecutions(id),
       verificationReports: this.listVerificationReports(id),
       repairs: this.listRepairRecords(id),
+      repairStrategies: this.listRepairStrategyDecisions(projectId),
       workflow: this.getWorkflowRun(id),
       runs: this.listProjectRuns(id),
       events: this.listProductEvents(projectId, afterSeq, limit),
@@ -1435,6 +1453,104 @@ export class OrchestrationRepository implements OrchestrationStore {
     }))
   }
 
+  /** {@inheritDoc OrchestrationStore.saveRepairStrategyDecision} */
+  saveRepairStrategyDecision(
+    record: RepairStrategyDecisionRecord,
+    write?: WorkflowWriteContext,
+  ): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const existing = this.database.prepare(`
+        SELECT id, project_id, repair_round, failure_signature, strategy_id,
+          decision_json, outcome_json, repair_record_id, created_at, updated_at
+        FROM repair_strategy_decisions
+        WHERE project_id = ? AND repair_round = ?
+      `).get(record.projectId, record.repairRound)
+      if (existing !== undefined) {
+        const row = repairStrategyDecisionRowSchema.parse(existing)
+        if (row.strategy_id !== record.strategyId
+          || row.failure_signature !== record.failureSignature
+          || row.decision_json !== JSON.stringify(record.decision)) {
+          throw new Error(
+            `repair strategy decision for project "${record.projectId}" round ${String(record.repairRound)} is immutable`,
+          )
+        }
+        return
+      }
+      this.database.prepare(`
+        INSERT INTO repair_strategy_decisions (
+          id, project_id, repair_round, failure_signature, strategy_id,
+          decision_json, outcome_json, repair_record_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.id,
+        record.projectId,
+        record.repairRound,
+        record.failureSignature,
+        record.strategyId,
+        JSON.stringify(record.decision),
+        record.outcome === undefined ? null : JSON.stringify(record.outcome),
+        record.repairRecordId ?? null,
+        record.createdAt,
+        record.updatedAt,
+      )
+    })
+  }
+
+  /** {@inheritDoc OrchestrationStore.finishRepairStrategyDecision} */
+  finishRepairStrategyDecision(
+    projectId: string,
+    repairRound: number,
+    outcome: JsonValue,
+    repairRecordId?: string,
+    write?: WorkflowWriteContext,
+  ): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const result = this.database.prepare(`
+        UPDATE repair_strategy_decisions
+        SET outcome_json = ?, repair_record_id = ?, updated_at = ?
+        WHERE project_id = ? AND repair_round = ?
+      `).run(
+        JSON.stringify(outcome),
+        repairRecordId ?? null,
+        this.timestamp(),
+        projectId,
+        repairRound,
+      )
+      if (result.changes !== 1) {
+        throw new Error(
+          `cannot finish missing repair strategy decision for "${projectId}" round ${String(repairRound)}`,
+        )
+      }
+    })
+  }
+
+  /** {@inheritDoc OrchestrationStore.listRepairStrategyDecisions} */
+  listRepairStrategyDecisions(projectId: string): RepairStrategyDecisionRecord[] {
+    const rows = repairStrategyDecisionRowSchema.array().parse(this.database.prepare(`
+      SELECT id, project_id, repair_round, failure_signature, strategy_id,
+        decision_json, outcome_json, repair_record_id, created_at, updated_at
+      FROM repair_strategy_decisions
+      WHERE project_id = ?
+      ORDER BY repair_round
+    `).all(projectId))
+    return rows.map(row => ({
+      id: row.id,
+      projectId: row.project_id,
+      repairRound: row.repair_round,
+      failureSignature: row.failure_signature,
+      strategyId: row.strategy_id,
+      decision: jsonValueSchema.parse(JSON.parse(row.decision_json)),
+      outcome: row.outcome_json === null
+        ? undefined
+        : jsonValueSchema.parse(JSON.parse(row.outcome_json)),
+      repairRecordId: row.repair_record_id ?? undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
   /** {@inheritDoc PlatformStore.listAgentDefinitions} */
   listAgentDefinitions(): StoredAgentDefinition[] {
     const rows = agentDefinitionRowSchema.array().parse(this.database.prepare(`
@@ -2098,25 +2214,15 @@ function decodeAgentLifecycleStatus(value: string): AgentLifecycleStatus {
 }
 
 function decodeTeamStatus(value: string): 'PUBLISHED' {
-  if (value === 'PUBLISHED') return value
-  throw new Error(`unknown Agent team status "${value}"`)
+  return parsePublishedStatus(value, 'Agent team')
 }
 
 function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {
-  if (value === 'PUBLISHED') return value
-  throw new Error(`unknown workflow definition status "${value}"`)
+  return parsePublishedStatus(value, 'workflow definition')
 }
 
 function decodeProjectMemoryKind(value: string): ProjectMemoryEntry['kind'] {
-  switch (value) {
-    case 'requirement':
-    case 'design-decision':
-    case 'failure-signature':
-    case 'accepted-artifact-summary':
-      return value
-    default:
-      throw new Error(`unknown project memory kind "${value}"`)
-  }
+  return parseProjectMemoryKind(value)
 }
 
 function parseWorkflowControlJournalEntry(value: unknown): WorkflowControlJournalEntry {
@@ -2220,14 +2326,5 @@ function decodeWorkflowStatus(value: string): WorkflowStatus {
 
 /** Decode one durable escalation reason. */
 function decodeEscalationReason(value: string): NonNullable<WorkflowRunRecord['escalationReason']> {
-  switch (value) {
-    case 'MAX_REPAIR_ROUNDS':
-    case 'REPEATED_FAILURE':
-    case 'REPAIR_TIMEOUT':
-    case 'REPAIR_FAILED':
-    case 'VERIFIER_INCOMPLETE':
-      return value
-    default:
-      throw new Error(`unknown escalation reason "${value}"`)
-  }
+  return parseWorkflowEscalationReason(value)
 }

@@ -47,7 +47,7 @@ describe('WorkflowControlCoordinator', () => {
     }
   })
 
-  it('enters repair, returns to verification, and escalates repeated failure', async () => {
+  it('permits one strategy switch before escalating a repeated failure', async () => {
     const projectId = ProjectId('project-control-repeat')
     const repository = setupProject(projectId)
     try {
@@ -65,6 +65,21 @@ describe('WorkflowControlCoordinator', () => {
         type: 'TASK_COMPLETED',
         instanceId: state.activeNodes[0]!.instanceId,
         summary: 'Repair attempted',
+      })
+      expect(state.activeNodes[0]?.taskRef).toBe('verification')
+      state = await coordinator.advance(projectId, {
+        type: 'VERIFICATION_COMPLETED',
+        instanceId: state.activeNodes[0]!.instanceId,
+        status: 'FAIL',
+        failureSignature: 'same-failure',
+        strategySwitchAvailable: true,
+      })
+      expect(state.activeNodes[0]?.taskRef).toBe('repair')
+      expect(state.repairRound).toBe(2)
+      state = await coordinator.advance(projectId, {
+        type: 'TASK_COMPLETED',
+        instanceId: state.activeNodes[0]!.instanceId,
+        summary: 'Alternative repair attempted',
       })
       expect(state.activeNodes[0]?.taskRef).toBe('verification')
       state = await coordinator.advance(projectId, {

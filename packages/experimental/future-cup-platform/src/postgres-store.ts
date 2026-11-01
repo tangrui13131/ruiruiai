@@ -40,6 +40,7 @@ import type {
   JsonValue,
   RepairRecordDraft,
   RepairRecord,
+  RepairStrategyDecisionRecord,
   SchedulerDecision,
   TaskFailure,
   TaskJournalEntry,
@@ -58,8 +59,11 @@ import {
   executionProductEventPayload,
   executionProductEventType,
   jsonValueSchema,
+  parseProjectMemoryKind,
   productEventSchema,
   parseProjectTeamBinding,
+  parsePublishedStatus,
+  parseWorkflowEscalationReason,
   parseStoredAgentDefinition,
   parseStoredAgentTeamVersion,
   parseStoredAgentVersion,
@@ -262,7 +266,7 @@ export class PostgresPlatformStore implements OrchestrationStore {
       include: { workflow: true },
     })
     if (project === null) return undefined
-    const [tasks, decisions, executions, verificationReports, repairs, runs, events] = await Promise.all([
+    const [tasks, decisions, executions, verificationReports, repairs, repairStrategies, runs, events] = await Promise.all([
       this.prisma.task.findMany({
         where: { projectId },
         orderBy: { position: 'asc' },
@@ -271,6 +275,10 @@ export class PostgresPlatformStore implements OrchestrationStore {
       this.prisma.execution.findMany({ where: { projectId }, orderBy: { startedAt: 'asc' } }),
       this.prisma.verificationReport.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
       this.prisma.repairRecord.findMany({ where: { projectId }, orderBy: { repairRound: 'asc' } }),
+      this.prisma.repairStrategyDecision.findMany({
+        where: { projectId },
+        orderBy: { repairRound: 'asc' },
+      }),
       this.prisma.projectRun.findMany({
         where: { projectId },
         orderBy: { startedAt: 'asc' },
@@ -292,6 +300,7 @@ export class PostgresPlatformStore implements OrchestrationStore {
       executions: executions.map(row => decodeExecutionRow(row)),
       verificationReports: verificationReports.map(row => decodeVerificationRow(row)),
       repairs: repairs.map(row => decodeRepairRow(row)),
+      repairStrategies: repairStrategies.map(decodeRepairStrategyDecisionRow),
       workflow: project.workflow === null ? undefined : decodeWorkflowRow(project.workflow),
       runs: runs.map(row => decodeProjectRunRow(row)),
       events: events.map(decodeProductEventRow),
@@ -1454,6 +1463,82 @@ export class PostgresPlatformStore implements OrchestrationStore {
     return rows.map(row => decodeRepairRow(row))
   }
 
+  /** {@inheritDoc OrchestrationStore.saveRepairStrategyDecision} */
+  async saveRepairStrategyDecision(
+    record: RepairStrategyDecisionRecord,
+    write?: WorkflowWriteContext,
+  ): Promise<void> {
+    await this.withWorkflowTransaction(write, async (tx) => {
+      const existing = await tx.repairStrategyDecision.findUnique({
+        where: {
+          projectId_repairRound: {
+            projectId: record.projectId,
+            repairRound: record.repairRound,
+          },
+        },
+      })
+      if (existing !== null) {
+        if (existing.strategyId !== record.strategyId
+          || existing.failureSignature !== record.failureSignature
+          || checksumJson(jsonValueSchema.parse(existing.decisionJson))
+            !== checksumJson(record.decision)) {
+          throw new Error(
+            `repair strategy decision for project "${record.projectId}" round ${String(record.repairRound)} is immutable`,
+          )
+        }
+        return
+      }
+      await tx.repairStrategyDecision.create({
+        data: {
+          id: record.id,
+          projectId: record.projectId,
+          repairRound: record.repairRound,
+          failureSignature: record.failureSignature,
+          strategyId: record.strategyId,
+          decisionJson: json(record.decision),
+          outcomeJson: record.outcome === undefined ? Prisma.DbNull : json(record.outcome),
+          repairRecordId: record.repairRecordId ?? null,
+          createdAt: new Date(record.createdAt),
+          updatedAt: new Date(record.updatedAt),
+        },
+      })
+    })
+  }
+
+  /** {@inheritDoc OrchestrationStore.finishRepairStrategyDecision} */
+  async finishRepairStrategyDecision(
+    projectId: string,
+    repairRound: number,
+    outcome: JsonValue,
+    repairRecordId?: string,
+    write?: WorkflowWriteContext,
+  ): Promise<void> {
+    await this.withWorkflowTransaction(write, async (tx) => {
+      const updated = await tx.repairStrategyDecision.updateMany({
+        where: { projectId, repairRound },
+        data: {
+          outcomeJson: json(outcome),
+          repairRecordId: repairRecordId ?? null,
+          updatedAt: new Date(),
+        },
+      })
+      if (updated.count !== 1) {
+        throw new Error(
+          `cannot finish missing repair strategy decision for "${projectId}" round ${String(repairRound)}`,
+        )
+      }
+    })
+  }
+
+  /** {@inheritDoc OrchestrationStore.listRepairStrategyDecisions} */
+  async listRepairStrategyDecisions(projectId: string): Promise<RepairStrategyDecisionRecord[]> {
+    const rows = await this.prisma.repairStrategyDecision.findMany({
+      where: { projectId },
+      orderBy: { repairRound: 'asc' },
+    })
+    return rows.map(decodeRepairStrategyDecisionRow)
+  }
+
   private async withWorkflowTransaction<T>(
     write: WorkflowWriteContext | undefined,
     operation: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -1544,25 +1629,15 @@ function decodeAgentLifecycleStatus(value: string): AgentLifecycleStatus {
 }
 
 function decodeAgentTeamStatus(value: string): 'PUBLISHED' {
-  if (value === 'PUBLISHED') return value
-  throw new Error(`unknown Agent team status "${value}"`)
+  return parsePublishedStatus(value, 'Agent team')
 }
 
 function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {
-  if (value === 'PUBLISHED') return value
-  throw new Error(`unknown workflow definition status "${value}"`)
+  return parsePublishedStatus(value, 'workflow definition')
 }
 
 function decodeProjectMemoryKind(value: string): ProjectMemoryEntry['kind'] {
-  switch (value) {
-    case 'requirement':
-    case 'design-decision':
-    case 'failure-signature':
-    case 'accepted-artifact-summary':
-      return value
-    default:
-      throw new Error(`unknown project memory kind "${value}"`)
-  }
+  return parseProjectMemoryKind(value)
 }
 
 function projectRecord(row: {
@@ -1796,6 +1871,32 @@ function decodeRepairRow(row: {
   }
 }
 
+function decodeRepairStrategyDecisionRow(row: {
+  id: string
+  projectId: string
+  repairRound: number
+  failureSignature: string
+  strategyId: string
+  decisionJson: Prisma.JsonValue
+  outcomeJson: Prisma.JsonValue | null
+  repairRecordId: string | null
+  createdAt: Date
+  updatedAt: Date
+}): RepairStrategyDecisionRecord {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    repairRound: row.repairRound,
+    failureSignature: row.failureSignature,
+    strategyId: row.strategyId,
+    decision: jsonValueSchema.parse(row.decisionJson),
+    outcome: row.outcomeJson === null ? undefined : jsonValueSchema.parse(row.outcomeJson),
+    repairRecordId: row.repairRecordId ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
 function decodeWorkflowRow(row: {
   id: string
   projectId: string
@@ -1847,14 +1948,8 @@ function decodeEscalationReason(
   switch (value) {
     case null:
       return undefined
-    case 'MAX_REPAIR_ROUNDS':
-    case 'REPEATED_FAILURE':
-    case 'REPAIR_TIMEOUT':
-    case 'REPAIR_FAILED':
-    case 'VERIFIER_INCOMPLETE':
-      return value
     default:
-      throw new Error(`unknown escalation reason "${value}"`)
+      return parseWorkflowEscalationReason(value)
   }
 }
 

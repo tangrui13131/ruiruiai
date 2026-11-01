@@ -9,8 +9,8 @@
   en: 5789bdb212192e16
   zh: de1b10448659aab3
 /deepseek-ai-dsh-experimental-future-cup-orchestration/summary:
-  en: e2fa119eb226692e
-  zh: 4aa81ce2ba8893a6
+  en: 0190e0067805e9a2
+  zh: 01e32859fbc1e33e
 /deepseek-ai-dsh-experimental-future-cup-orchestration/table-of-contents:
   en: 76368b6b1da79c80
   zh: ac1bb7362e9b6e01
@@ -21,14 +21,17 @@
   en: 8acb2e41a5208a32
   zh: 99d14fc6df0cbc8f
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/agent-registry-and-workflow-control:
-  en: 6b65f7df8c481949
-  zh: bcba5d07cc5ec22c
+  en: 04553e565466bb3b
+  zh: 4a55ae35bdf6efe2
+/deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/adaptive-repair-and-team-recommendation:
+  en: 2706870836c1f3e8
+  zh: 90be4dd252de8fb3
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/dag-state:
   en: 98aa5d5ffa658e93
   zh: 48ceefa8df5fccce
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/durable-records:
-  en: 9a9c0bf47a6f320e
-  zh: 02b60d2b4d2c8eb8
+  en: 8e6858ca348d6a76
+  zh: 39b80372417907c4
 /deepseek-ai-dsh-experimental-future-cup-orchestration/use-this-package/scheduling:
   en: 3beabdb05bcb7f4a
   zh: 87393c101324cd64
@@ -42,8 +45,8 @@
   en: d3560c0dc037f458
   zh: 44ddeb113d64f24c
 /deepseek-ai-dsh-experimental-future-cup-orchestration/understand-the-implementation:
-  en: 1b51b24da56f5f77
-  zh: 1e3be676a58f1979
+  en: 01a565b66dc2c479
+  zh: 406b176201b7fd27
 /deepseek-ai-dsh-experimental-future-cup-orchestration/model-experience:
   en: 215e7ba838619b7b
   zh: 215e7ba838619b7b
@@ -60,8 +63,8 @@
   en: 89585ed1642adb94
   zh: ae945c86f993f361
 /deepseek-ai-dsh-experimental-future-cup-orchestration/known-limitations-and-deferred-work:
-  en: 660fae53d9a14f66
-  zh: ac039929af98bd17
+  en: 966082977afada4a
+  zh: 1bfced3d95bb921f
 /deepseek-ai-dsh-experimental-future-cup-orchestration/known-limitations-and-deferred-work/dev-note:
-  en: 2931bb6c49d4507c
-  zh: 1a0e3eaba5f68a81
+  en: c2cfffb8852f4791
+  zh: 3fc4ef9e74c47fd2

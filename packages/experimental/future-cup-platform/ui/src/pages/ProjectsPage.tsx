@@ -4,6 +4,7 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import {
   App,
@@ -162,6 +163,12 @@ export function ProjectsPage() {
                 onClick={() => { void load() }}
               />
             </Tooltip>
+            <Button
+              icon={<TeamOutlined />}
+              onClick={() => { navigate('/team-builder') }}
+            >
+              {dictionary.teamBuilder.entry}
+            </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { setCreateOpen(true) }}>
               {dictionary.projects.create}
             </Button>

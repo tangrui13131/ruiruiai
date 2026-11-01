@@ -6,6 +6,7 @@ import {
   WorkflowControlError,
   WorkflowControlExecutor,
   parseWorkflowControlDefinition,
+  parseWorkflowEscalationReason,
   type ActiveWorkflowControlNode,
   type WorkflowControlErrorCode,
   type WorkflowControlSnapshot,
@@ -42,6 +43,7 @@ function completeVerification(
   executor: WorkflowControlExecutor,
   status: WorkflowVerificationStatus,
   failureSignature?: string,
+  strategySwitchAvailable?: boolean,
 ): WorkflowControlSnapshot {
   const active = activeNode(executor.snapshot())
   return executor.advance({
@@ -49,6 +51,7 @@ function completeVerification(
     instanceId: active.instanceId,
     status,
     ...(failureSignature === undefined ? {} : { failureSignature }),
+    ...(strategySwitchAvailable === undefined ? {} : { strategySwitchAvailable }),
   })
 }
 
@@ -194,21 +197,30 @@ describe('WorkflowControlExecutor', () => {
     }))
   })
 
-  it('escalates immediately when a failure signature repeats', () => {
+  it('switches repair strategy before escalating a repeated failure signature', () => {
     const executor = startFutureCup()
     completeVerification(executor, 'FAIL', 'same-signature')
     completeActiveTask(executor)
-    const escalated = completeVerification(executor, 'FAIL', 'same-signature')
+    const switched = completeVerification(executor, 'FAIL', 'same-signature', true)
 
+    expect(switched.status).toBe('RUNNING')
+    expect(activeNodeIds(switched)).toEqual(['repair-task'])
+    expect(switched.repairRound).toBe(2)
+    expect(switched.lastVerification).toMatchObject({
+      repeated: true,
+      strategySwitchAvailable: true,
+    })
+    expect(switched.journal).toContainEqual(expect.objectContaining({
+      type: 'loop/evaluated',
+      result: 'CONTINUE',
+    }))
+
+    completeActiveTask(executor)
+    const escalated = completeVerification(executor, 'FAIL', 'same-signature')
     expect(escalated.status).toBe('ESCALATED')
     expect(escalated.escalationReason).toBe('REPEATED_FAILURE')
-    expect(escalated.repairRound).toBe(1)
+    expect(escalated.repairRound).toBe(2)
     expect(escalated.activeNodes).toEqual([])
-    expect(escalated.journal).toContainEqual(expect.objectContaining({
-      type: 'loop/evaluated',
-      result: 'EXHAUSTED',
-      escalationReason: 'REPEATED_FAILURE',
-    }))
   })
 
   it('escalates after exactly three distinct repair rounds', () => {
@@ -248,6 +260,11 @@ describe('WorkflowControlExecutor', () => {
       summary: 'repair completed',
     }
     expect(restored.advance(event)).toEqual(executor.advance(event))
+  })
+
+  it('parses known escalation reasons and rejects unknown values', () => {
+    expect(parseWorkflowEscalationReason('REPEATED_FAILURE')).toBe('REPEATED_FAILURE')
+    expect(() => parseWorkflowEscalationReason('UNKNOWN')).toThrow(/unknown escalation reason/)
   })
 
   it('reports invalid events and transitions explicitly', () => {

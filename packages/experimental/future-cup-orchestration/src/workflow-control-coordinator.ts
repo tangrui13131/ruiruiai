@@ -60,17 +60,10 @@ export class WorkflowControlCoordinator {
     projectId: string,
     event: WorkflowControlEvent,
   ): Promise<WorkflowControlSnapshot> {
-    const state = await this.store.getWorkflowControlState(projectId)
-    if (state === undefined) throw new Error(`workflow control for "${projectId}" has not started`)
-    const executor = WorkflowControlExecutor.resume(state.snapshot)
-    const previousJournalLength = state.snapshot.journal.length
-    const next = executor.advance(event)
-    await this.store.saveWorkflowControlState(
+    return await this.transition(
       projectId,
-      next,
-      next.journal.slice(previousJournalLength),
+      executor => executor.advance(event),
     )
-    return next
   }
 
   /**
@@ -83,11 +76,21 @@ export class WorkflowControlCoordinator {
     projectId: string,
     reason: WorkflowEscalationReason,
   ): Promise<WorkflowControlSnapshot> {
+    return await this.transition(
+      projectId,
+      executor => executor.escalate(reason),
+    )
+  }
+
+  private async transition(
+    projectId: string,
+    operation: (executor: WorkflowControlExecutor) => WorkflowControlSnapshot,
+  ): Promise<WorkflowControlSnapshot> {
     const state = await this.store.getWorkflowControlState(projectId)
     if (state === undefined) throw new Error(`workflow control for "${projectId}" has not started`)
     const executor = WorkflowControlExecutor.resume(state.snapshot)
     const previousJournalLength = state.snapshot.journal.length
-    const next = executor.escalate(reason)
+    const next = operation(executor)
     await this.store.saveWorkflowControlState(
       projectId,
       next,

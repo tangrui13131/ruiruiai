@@ -13,17 +13,35 @@ import {
   createAgentTeamVersionInputSchema,
   registerAgentDefinitionInputSchema,
   registerAgentVersionInputSchema,
+  TeamRecommenderError,
+  applyTeamAdjustment,
+  createAgentTeamVersionInputFromRecommendation,
+  recommendAgentTeam,
+  structureProjectProfile,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type {
+  AgentTeamRecommendation,
+  AgentTeamVersion,
   PlatformProjectSnapshot,
   PlatformProjectSummary,
   ProductEvent,
+  StructureProjectProfileInput,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import {
   publicProjectRun,
   publicProjectSnapshot,
   publicVerificationReport,
   projectRunStartSchema,
+  savedAgentTeamVersionSchema,
+  structuredProjectProfileSchema,
+  teamAdjustmentRequestSchema,
+  teamRecommendationAdoptionResponseSchema,
+  teamRecommendationAdoptRequestSchema,
+  teamRecommendationPlanSchema,
+  teamRecommendationRequestSchema,
+  teamRecommendationSaveRequestSchema,
+  teamRecommendationSaveResponseSchema,
+  teamProfileRequestSchema,
 } from './api-contracts.ts'
 import { registerFutureCupArtifacts } from './artifact-server.ts'
 import {
@@ -130,45 +148,12 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
 
   app.post<{ Body: unknown }>('/api/v1/projects', async (request, reply) => {
     const body = createProjectSchema.parse(request.body)
-    const projectId = ProjectId(body.id ?? `project-${randomUUID()}`)
-    if ((await options.store.listProjects()).some(project => project.id === projectId)) {
-      throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
-    }
-    const teamVersionId = body.teamVersionId ?? options.defaultTeamVersionId
-    try {
-      const binding = teamVersionId === undefined
-        ? undefined
-        : await requireAgentRegistry().freezeProject(projectId, teamVersionId)
-      const createdAt = new Date().toISOString()
-      await options.store.createProject({
-        id: projectId,
-        name: body.name,
-        requirement: body.requirement,
-        createdAt,
-      }, [], undefined, binding, [{
-        id: `memory-${randomUUID()}`,
-        projectId,
-        kind: 'requirement',
-        key: 'initial-requirement',
-        value: { requirement: body.requirement },
-        source: 'platform.project.create',
-        createdAt,
-      }])
-    } catch (error: unknown) {
-      if (error instanceof AgentRegistryError) {
-        throw new ApiError(
-          error.code === 'TEAM_VERSION_NOT_FOUND' ? 404 : 400,
-          error.code,
-          error.message,
-        )
-      }
-      if (error instanceof Error && error.message.includes('already exists')) {
-        throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
-      }
-      throw error
-    }
-    const created = (await options.store.listProjects()).find(project => project.id === projectId)
-    if (created === undefined) throw new Error(`created project "${projectId}" disappeared`)
+    const created = await createProjectWithTeam({
+      ...(body.id === undefined ? {} : { id: body.id }),
+      name: body.name,
+      requirement: body.requirement,
+      teamVersionId: body.teamVersionId ?? options.defaultTeamVersionId,
+    })
     return await reply.code(201).send(created)
   })
 
@@ -245,6 +230,14 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     async (request, reply) => {
       const { projectId } = projectParamsSchema.parse(request.params)
       return await reply.send((await requireSnapshot(projectId)).repairs)
+    },
+  )
+
+  app.get<{ Params: unknown }>(
+    '/api/v1/projects/:projectId/repair-strategies',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      return await reply.send((await requireSnapshot(projectId)).repairStrategies)
     },
   )
 
@@ -374,6 +367,67 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     return await reply.send(team.teamVersion)
   })
 
+  app.post<{ Body: unknown }>(
+    '/api/v1/team-recommendations/profile',
+    async (request, reply) => {
+      const body = teamProfileRequestSchema.parse(request.body)
+      const structured = await recommendationCall(() => structureProjectProfile({
+        requirement: body.requirement,
+        ...(body.candidate === undefined ? {} : { candidate: body.candidate }),
+        answers: body.answers,
+      }))
+      return await reply.send(structuredProjectProfileSchema.parse(structured))
+    },
+  )
+
+  app.post<{ Body: unknown }>(
+    '/api/v1/team-recommendations',
+    async (request, reply) => {
+      const body = teamRecommendationRequestSchema.parse(request.body)
+      const built = await recommendationCall(() => buildRecommendation(body))
+      return await reply.send(built.plan)
+    },
+  )
+
+  app.post<{ Body: unknown }>(
+    '/api/v1/team-recommendations/adjust',
+    async (request, reply) => {
+      const body = teamAdjustmentRequestSchema.parse(request.body)
+      const built = await recommendationCall(() => buildRecommendation(body))
+      return await reply.send(built.plan)
+    },
+  )
+
+  app.post<{ Body: unknown }>(
+    '/api/v1/team-recommendations/save',
+    async (request, reply) => {
+      const body = teamRecommendationSaveRequestSchema.parse(request.body)
+      const built = await recommendationCall(() => buildRecommendation(body))
+      const teamVersion = await saveRecommendedTeam(body.teamName, built)
+      return await reply.code(201).send(teamRecommendationSaveResponseSchema.parse({
+        teamVersion: publicSavedTeamVersion(teamVersion),
+      }))
+    },
+  )
+
+  app.post<{ Body: unknown }>(
+    '/api/v1/team-recommendations/adopt',
+    async (request, reply) => {
+      const body = teamRecommendationAdoptRequestSchema.parse(request.body)
+      const built = await recommendationCall(() => buildRecommendation(body))
+      const teamVersion = await saveRecommendedTeam(body.projectName, built)
+      const project = await createProjectWithTeam({
+        name: body.projectName,
+        requirement: body.requirement,
+        teamVersionId: teamVersion.id,
+      })
+      return await reply.code(201).send(teamRecommendationAdoptionResponseSchema.parse({
+        projectId: project.id,
+        teamVersion: publicSavedTeamVersion(teamVersion),
+      }))
+    },
+  )
+
   app.get<{ Params: unknown }>(
     '/api/v1/projects/:projectId/agents',
     async (request, reply) => {
@@ -490,6 +544,158 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     await requireProject(projectId)
     return await reply.send({ cancelled: await requireLauncher().cancel(projectId) })
   })
+
+  async function createProjectWithTeam(input: {
+    readonly id?: string | undefined
+    readonly name: string
+    readonly requirement: string
+    readonly teamVersionId?: string | undefined
+  }): Promise<PlatformProjectSummary> {
+    const projectId = ProjectId(input.id ?? `project-${randomUUID()}`)
+    if ((await options.store.listProjects()).some(project => project.id === projectId)) {
+      throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
+    }
+    const teamVersionId = input.teamVersionId
+    const binding = teamVersionId === undefined
+      ? undefined
+      : await registryCall(
+        () => requireAgentRegistry().freezeProject(projectId, teamVersionId),
+      )
+    const createdAt = new Date().toISOString()
+    try {
+      await options.store.createProject({
+        id: projectId,
+        name: input.name,
+        requirement: input.requirement,
+        createdAt,
+      }, [], undefined, binding, [{
+        id: `memory-${randomUUID()}`,
+        projectId,
+        kind: 'requirement',
+        key: 'initial-requirement',
+        value: { requirement: input.requirement },
+        source: 'platform.project.create',
+        createdAt,
+      }])
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('already exists')) {
+        throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
+      }
+      throw error
+    }
+    const created = (await options.store.listProjects()).find(project => project.id === projectId)
+    if (created === undefined) throw new Error(`created project "${projectId}" disappeared`)
+    return created
+  }
+
+  async function buildRecommendation(
+    input: z.infer<typeof teamRecommendationRequestSchema>,
+  ): Promise<{
+    readonly plan: z.infer<typeof teamRecommendationPlanSchema>
+    readonly recommendation?: AgentTeamRecommendation | undefined
+  }> {
+    const profileInput: StructureProjectProfileInput = {
+      requirement: input.requirement,
+      ...(input.profile === undefined ? {} : { candidate: input.profile }),
+      answers: input.answers,
+    }
+    const structured = structureProjectProfile(profileInput)
+    if (!structured.readyForRecommendation) {
+      return {
+        plan: teamRecommendationPlanSchema.parse({
+          ...structured,
+          adjustments: [],
+        }),
+      }
+    }
+
+    const registry = requireAgentRegistry()
+    const [publishedAgents, storedTemplates] = await Promise.all([
+      registry.discoverPublished(),
+      options.store.listAgentTeamVersions(),
+    ])
+    let recommendation: AgentTeamRecommendation = recommendAgentTeam({
+      profile: structured.profile,
+      publishedAgents,
+      teamTemplates: storedTemplates.map(record => record.teamVersion),
+      ...(input.maximumParallelism === undefined
+        ? {}
+        : { maximumParallelism: input.maximumParallelism }),
+    })
+    const adjustments: z.infer<typeof teamRecommendationPlanSchema>['adjustments'][number][] = []
+    for (const instruction of input.adjustments) {
+      const adjustment = applyTeamAdjustment(recommendation, instruction)
+      recommendation = adjustment.recommendation
+      adjustments.push({
+        intent: adjustment.intent,
+        changes: [...adjustment.changes],
+        explanation: adjustment.explanation,
+      })
+    }
+    return {
+      plan: teamRecommendationPlanSchema.parse({
+        profile: recommendation.profile,
+        questions: [],
+        readyForRecommendation: true,
+        recommendation,
+        adjustments,
+      }),
+      recommendation,
+    }
+  }
+
+  async function saveRecommendedTeam(
+    teamName: string,
+    built: {
+      readonly plan: z.infer<typeof teamRecommendationPlanSchema>
+      readonly recommendation?: AgentTeamRecommendation | undefined
+    },
+  ): Promise<AgentTeamVersion> {
+    if (!built.plan.readyForRecommendation || built.recommendation === undefined) {
+      throw new ApiError(
+        409,
+        'TEAM_RECOMMENDATION_INCOMPLETE',
+        'Team clarification must be complete before the team can be saved',
+      )
+    }
+    const recommendation = built.recommendation
+    const input = await recommendationCall(() => createAgentTeamVersionInputFromRecommendation(
+      recommendation,
+      {
+        id: `team:recommended:${randomUUID()}`,
+        name: teamName,
+        version: '1.0.0',
+        purpose: recommendation.profile.goal,
+      },
+    ))
+    const registry = requireAgentRegistry()
+    return await registryCall(() => registry.createTeamVersion(input))
+  }
+
+  function publicSavedTeamVersion(team: AgentTeamVersion) {
+    return savedAgentTeamVersionSchema.parse({
+      id: team.id,
+      name: team.name,
+      version: team.version,
+      purpose: team.purpose,
+      concurrencyCapacity: team.concurrencyCapacity,
+      memberCount: team.members.length,
+    })
+  }
+
+  async function recommendationCall<T>(
+    operation: () => Promise<T> | T,
+  ): Promise<T> {
+    try {
+      return await operation()
+    } catch (error: unknown) {
+      if (!(error instanceof TeamRecommenderError)) throw error
+      const status = error.code === 'INCOMPLETE_TEAM' || error.code === 'INSTANCE_LIMIT'
+        ? 409
+        : 400
+      throw new ApiError(status, error.code, error.message)
+    }
+  }
 
   async function requireSnapshot(projectId: string): Promise<PlatformProjectSnapshot> {
     const snapshot = await options.store.getProjectSnapshot(projectId, 0, 1)

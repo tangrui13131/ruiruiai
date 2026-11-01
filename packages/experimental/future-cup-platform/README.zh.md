@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、版本化 Agent Registry、项目团队冻结、可恢复工作流控制、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
+以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、版本化 Agent Registry、项目团队冻结、可恢复工作流控制、可解释自适应修复策略、小白智能配队、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
 
 ## 目录
 
@@ -90,6 +90,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/projects/:projectId/executions/:executionId/events` | 有序执行事件 |
 | `GET` | `/api/v1/projects/:projectId/verification-reports` | 独立验证报告 |
 | `GET` | `/api/v1/projects/:projectId/repairs` | 修复轮次与 unified diff |
+| `GET` | `/api/v1/projects/:projectId/repair-strategies` | 自适应修复候选、选择理由与结果 |
 | `GET` | `/api/v1/projects/:projectId/workflow` | 当前工作流处置 |
 | `GET` | `/api/v1/projects/:projectId/workflow-control` | 条件、循环与子工作流控制快照 |
 | `GET` | `/api/v1/projects/:projectId/workflow-control/events` | 工作流控制 Journal |
@@ -101,6 +102,11 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/projects/:projectId/screenshots/:fileName` | 单张已记录验证截图 |
 | `GET` | `/preview/:projectId/*` | 生成工程生产构建预览 |
 | `GET` | `/hq/index.html?projectId=:projectId` | 从 REST 与 Socket.IO 投影的只读 HQ 大屏 |
+| `POST` | `/api/v1/team-recommendations/profile` | 从小白需求生成结构化项目画像与最多三个澄清问题 |
+| `POST` | `/api/v1/team-recommendations` | 从已发布 Agent 与团队模板推荐完整团队 |
+| `POST` | `/api/v1/team-recommendations/adjust` | 重放受控自然语言团队调整 |
+| `POST` | `/api/v1/team-recommendations/save` | 保存不可变推荐团队版本 |
+| `POST` | `/api/v1/team-recommendations/adopt` | 保存团队并创建已冻结项目 |
 
 已挂载 profile 在 `/` 提供管理 SPA。REST 与 Socket.IO 继续在同一来源的专用路径提供。
 
@@ -120,10 +126,13 @@ HQ 大屏使用共享判别联合校验事件，只应用已提交事件，检�
 | `src/index.ts` | Cordis 插件、显式配置、存储选择与生命周期 |
 | `src/server.ts` | Fastify 路由、Socket.IO 重放、Outbox 轮询与关闭 |
 | `src/run-launcher.ts` | 真实 Harness 团队启动、租约心跳、取消与运行结算 |
+| `src/adaptive-repair.ts` | 根据验证 finding 选择受控修复策略并保留候选评分 |
+| `src/team-recommender.ts` | 项目画像、澄清、完整团队推荐与受控调整 |
 | `src/artifact-server.ts` | 管理资源、截图、交付与生成工程预览 |
 | `src/postgres-store.ts` | 共享编排仓储的 Prisma PostgreSQL 适配器 |
 | `ui/src/hq/` | HQ 状态投影与 REST/Socket.IO 桥接 |
 | `ui/src/hq/animation.ts` | 产品事件到真实场景动作的纯映射 |
+| `ui/src/pages/TeamBuilderPage.tsx` | 自然语言需求、澄清、推荐、调整与采用团队入口 |
 | `ui/public/hq/` | PolyForm 许可的 3D 场景、许可证与上游说明 |
 | `prisma/schema.prisma` | PostgreSQL 表、索引、外键与 JSONB 字段 |
 | `prisma/migrations/` | 仓库内 PostgreSQL 迁移 |
@@ -133,6 +142,10 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 平台启动时从持久 Registry 重放定义、版本、团队和项目绑定，并恢复固定默认团队。新项目必须在同一事务中写入完整团队快照和初始需求记忆；后续 Registry 发布新版本不会改变已启动项目。项目运行从冻结团队派生 scheduler profiles，模型、提示词、能力、工具白名单、记忆策略与输出契约均来自该项目版本。
 
 `workflow_control_runs` 保存完整控制快照，`workflow_control_events` 追加节点、边选择、循环与子工作流事件。每个快照带 revision，持久化层拒绝旧 revision 覆盖；Self-loop 的 PASS、Repair 返回验证、重复失败和基础设施升级都会更新该控制状态。
+
+`repair_strategy_decisions` 在 Repair Agent 修改源码前保存候选策略、评分项、选择理由、上下文范围与复验范围。策略只能改变提示词和读取上下文，复验固定为完整结构、构建和浏览器流水线。相同失败签名再次出现时先选择未使用过的策略；没有替代策略或达到三轮上限时升级。
+
+智能配队入口只从已发布 Agent 版本和已发布团队模板推荐完整编制，并确定性校验能力覆盖、并发、工具、记忆和输出约定。用户最多回答三个澄清问题，可以用受控自然语言调整，再保存不可变团队版本并冻结到新项目。
 
 工作流租约保存 owner、heartbeat、expiry 与单调 fencing token。租约接管会递增 token，只有当前 owner 与 token 能续期或释放。领域写会在自身事务内校验该 fence。新启动在接管过期租约后会回收遗留 `RUNNING` 行。
 
@@ -158,7 +171,7 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 
 - **没有 mid-turn cancel：** Harness TypeScript SDK 没有 prompt-cancel 请求。取消会关闭运行拥有的 runtime、等待结算并记录 `CANCELLED`。
 - **每个项目一次生成：** 当前 MVP 为每个项目保留一组任务。终态运行后如需重新生成，请新建项目。
-- **Registry 管理界面延后：** M5.1/M5.2 已提供持久 API 与控制图查看；完整的 Agent/Team 创建编辑器属于 M5.4/M5.5。
+- **高级 Registry 编辑器延后：** 小白配队入口已覆盖推荐、调整、保存与采用；任意角色、任意工具和自由团队编辑器仍属于 M5.5 之后的工作。
 - **Loopback 传输：** 服务器拒绝非 loopback 主机。带认证的公网部署与 TLS 终止仍属于部署工作。
 - **单一存储生命周期：** 关闭服务器会关闭其拥有的存储。消费者不得在关闭后继续共享该实例。
 - **Outbox 至少一次投递：** Dispatcher 崩溃后，claim 过期会触发重放。客户端必须按 `projectId + seq` 去重。
@@ -169,4 +182,4 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 <a id="dev-note"></a>
 ### 开发备注
 
-PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。M5 的 `20261101160000` 与 `20261101173000` 迁移共同建立 Registry、团队、项目记忆和工作流控制表。
+PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。M5 的 `20261101160000`、`20261101173000` 与 `20261101200000` 迁移共同建立 Registry、团队、项目记忆、工作流控制与自适应修复策略表。

@@ -33,6 +33,7 @@ import type {
   ProductEventDraft,
   RepairRecord,
   RepairRecordDraft,
+  RepairStrategyDecisionRecord,
   SchedulerDecision,
   SelfLoopConfig,
   StoredAgentDefinition,
@@ -402,6 +403,31 @@ class FencedOrchestrationStore implements OrchestrationStore {
 
   async listRepairRecords(projectId: string) {
     return await this.base.listRepairRecords(projectId)
+  }
+
+  async saveRepairStrategyDecision(
+    record: RepairStrategyDecisionRecord,
+  ): Promise<void> {
+    await this.base.saveRepairStrategyDecision(record, this.write)
+  }
+
+  async finishRepairStrategyDecision(
+    projectId: string,
+    repairRound: number,
+    outcome: JsonValue,
+    repairRecordId?: string,
+  ): Promise<void> {
+    await this.base.finishRepairStrategyDecision(
+      projectId,
+      repairRound,
+      outcome,
+      repairRecordId,
+      this.write,
+    )
+  }
+
+  async listRepairStrategyDecisions(projectId: string) {
+    return await this.base.listRepairStrategyDecisions(projectId)
   }
 
   async close(): Promise<void> {

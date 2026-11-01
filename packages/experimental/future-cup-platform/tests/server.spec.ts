@@ -23,6 +23,12 @@ import {
 } from '../src/run-launcher.ts'
 import { createFutureCupServer } from '../src/server.ts'
 import type { FutureCupServer, ProjectRunLauncher } from '../src/server-types.ts'
+import {
+  structuredProjectProfileSchema,
+  teamRecommendationAdoptionResponseSchema,
+  teamRecommendationPlanSchema,
+  teamRecommendationSaveResponseSchema,
+} from '../src/api-contracts.ts'
 
 const servers: FutureCupServer[] = []
 const sockets: Socket[] = []
@@ -175,7 +181,7 @@ describe('Future Cup platform server', () => {
       { status: 'PASS' },
       TaskId('design'),
     )
-    store.saveRepairRecord(projectId, {
+    const repairRecord = store.saveRepairRecord(projectId, {
       repairRound: 1,
       verificationReportId: verification.id,
       repairAgentId: AgentId('repair'),
@@ -187,6 +193,18 @@ describe('Future Cup platform server', () => {
       afterStatus: 'PASS',
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
+    })
+    store.saveRepairStrategyDecision({
+      id: 'repair-strategy-api',
+      projectId,
+      repairRound: 1,
+      failureSignature: 'a'.repeat(64),
+      strategyId: 'typescript-contract',
+      decision: { selectedReason: 'TypeScript contract mismatch.' },
+      outcome: { status: 'PASS', nextAction: 'COMPLETE' },
+      repairRecordId: repairRecord.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     })
     store.startWorkflowRun(projectId)
     store.updateWorkflowRun(projectId, 'PASSED', 1)
@@ -216,6 +234,7 @@ describe('Future Cup platform server', () => {
       executionEvents,
       verificationReports,
       repairs,
+      repairStrategies,
       workflow,
       runs,
       publicRun,
@@ -250,6 +269,11 @@ describe('Future Cup platform server', () => {
         .then(async response => await readJson(response, z.array(z.looseObject({ id: z.string() })))),
       fetch(`${baseUrl}/api/v1/projects/project-api/repairs`)
         .then(async response => await readJson(response, z.array(z.looseObject({ id: z.string() })))),
+      fetch(`${baseUrl}/api/v1/projects/project-api/repair-strategies`)
+        .then(async response => await readJson(response, z.array(z.looseObject({
+          id: z.string(),
+          strategyId: z.string(),
+        })))),
       fetch(`${baseUrl}/api/v1/projects/project-api/workflow`)
         .then(async response => await readJson(response, z.looseObject({ status: z.string() }))),
       fetch(`${baseUrl}/api/v1/projects/project-api/runs`)
@@ -301,6 +325,12 @@ describe('Future Cup platform server', () => {
     expect(executionEvents).toEqual([expect.objectContaining({ seq: 1 })])
     expect(verificationReports).toHaveLength(1)
     expect(repairs).toHaveLength(1)
+    expect(repairStrategies).toEqual([
+      expect.objectContaining({
+        id: 'repair-strategy-api',
+        strategyId: 'typescript-contract',
+      }),
+    ])
     expect(workflow).toMatchObject({ status: 'PASSED' })
     expect(runs).toEqual([expect.objectContaining({
       id: projectRun.id,
@@ -409,6 +439,99 @@ describe('Future Cup platform server', () => {
       'frontend-1',
       'frontend-2',
     ]))
+  })
+
+  it('recommends, adjusts, saves, and adopts a published Agent team', async () => {
+    const { baseUrl, defaultTeamVersionId } = await startServer(undefined, true)
+    const requirement = [
+      '构建一个包含 2 个页面和 2 个独立模块的运营管理后台。',
+      '使用 React、TypeScript、Vite 和 Ant Design，需要端到端测试。',
+      '采用高质量验证、均衡预算，允许页面并行开发。',
+    ].join('')
+    const profileResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ requirement }),
+    })
+    expect(profileResponse.status).toBe(200)
+    const structured = await readJson(profileResponse, structuredProjectProfileSchema)
+    expect(structured.questions.length).toBeLessThanOrEqual(3)
+    expect(structured.readyForRecommendation).toBe(true)
+
+    const recommendationResponse = await fetch(`${baseUrl}/api/v1/team-recommendations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requirement,
+        profile: structured.profile,
+        answers: [],
+        adjustments: [],
+      }),
+    })
+    expect(recommendationResponse.status).toBe(200)
+    const recommendation = await readJson(recommendationResponse, teamRecommendationPlanSchema)
+    expect(recommendation.readyForRecommendation).toBe(true)
+    expect(recommendation.recommendation?.missingCapabilities).toEqual([])
+    expect(recommendation.recommendation?.members).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'planner', instanceCount: 1 }),
+      expect.objectContaining({ role: 'frontend', instanceCount: 2 }),
+      expect.objectContaining({ role: 'integration', instanceCount: 1 }),
+    ]))
+
+    const adjustmentResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/adjust`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requirement,
+        profile: structured.profile,
+        answers: [],
+        adjustments: ['降低并发到 2'],
+      }),
+    })
+    expect(adjustmentResponse.status).toBe(200)
+    const adjusted = await readJson(adjustmentResponse, teamRecommendationPlanSchema)
+    expect(adjusted.adjustments).toHaveLength(1)
+    expect(adjusted.adjustments[0]?.intent.type).toBe('reduce-concurrency')
+
+    const saveResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/save`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requirement,
+        profile: structured.profile,
+        answers: [],
+        adjustments: ['降低并发到 2'],
+        teamName: 'operations-team',
+      }),
+    })
+    expect(saveResponse.status).toBe(201)
+    const saved = await readJson(saveResponse, teamRecommendationSaveResponseSchema)
+    expect(saved.teamVersion).toMatchObject({
+      name: 'operations-team',
+      version: '1.0.0',
+    })
+    expect(saved.teamVersion.id).not.toBe(defaultTeamVersionId)
+
+    const adoptResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/adopt`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requirement,
+        profile: structured.profile,
+        answers: [],
+        adjustments: ['降低并发到 2'],
+        projectName: 'recommended-operations-project',
+      }),
+    })
+    expect(adoptResponse.status).toBe(201)
+    const adopted = await readJson(adoptResponse, teamRecommendationAdoptionResponseSchema)
+    expect(adopted.teamVersion.name).toBe('recommended-operations-project')
+    const binding = await fetch(
+      `${baseUrl}/api/v1/projects/${encodeURIComponent(adopted.projectId)}/team`,
+    ).then(async response => await readJson(response, z.looseObject({
+      teamVersion: z.looseObject({ id: z.string() }),
+    })))
+    expect(binding.teamVersion.id).toBe(adopted.teamVersion.id)
   })
 
   it('returns explicit validation, duplicate, missing-resource, and unavailable-run errors', async () => {

@@ -137,6 +137,7 @@ model Project {
   executions   Execution[]
   verifications VerificationReport[]
   repairs      RepairRecord[]
+  repairStrategies RepairStrategyDecision[]
   workflow     WorkflowRun?
   runs         ProjectRun[]
   events       ProductEvent[]
@@ -279,10 +280,30 @@ model RepairRecord {
   completedAt          DateTime @map("completed_at")
   project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   verification         VerificationReport @relation(fields: [verificationReportId], references: [id])
+  strategyDecision     RepairStrategyDecision?
 
   @@unique([projectId, repairRound])
   @@index([projectId, repairRound])
   @@map("repair_records")
+}
+
+model RepairStrategyDecision {
+  id               String   @id
+  projectId        String   @map("project_id")
+  repairRound      Int      @map("repair_round")
+  failureSignature String   @map("failure_signature")
+  strategyId       String   @map("strategy_id")
+  decisionJson     Json     @map("decision_json") @db.JsonB
+  outcomeJson      Json?    @map("outcome_json") @db.JsonB
+  repairRecordId   String?  @unique @map("repair_record_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  repairRecord     RepairRecord? @relation(fields: [repairRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, repairRound])
+  @@index([projectId, repairRound])
+  @@map("repair_strategy_decisions")
 }
 
 model WorkflowRun {

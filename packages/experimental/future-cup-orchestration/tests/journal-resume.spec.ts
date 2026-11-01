@@ -147,7 +147,7 @@ describe('DAG journaling and resume', () => {
 
     const repository = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
     try {
-      expect(repository.schemaVersion).toBe(6)
+      expect(repository.schemaVersion).toBe(7)
       const migrated = repository.listVerificationReports(projectId)
       expect(migrated).toHaveLength(1)
       expect(migrated[0]?.id).toBe('verification-existing')
@@ -159,7 +159,7 @@ describe('DAG journaling and resume', () => {
     }
   })
 
-  it('migrates a v4 database to v6 without dropping projects', () => {
+  it('migrates a v4 database to v7 without dropping projects', () => {
     const directory = mkdtempSync(join(tmpdir(), 'future-cup-schema-v4-'))
     const path = join(directory, 'orchestration.sqlite')
     const projectId = ProjectId('project-v4')
@@ -187,13 +187,14 @@ describe('DAG journaling and resume', () => {
         DROP TABLE agent_team_versions;
         DROP TABLE agent_definition_versions;
         DROP TABLE agent_definitions;
+        DROP TABLE repair_strategy_decisions;
         PRAGMA user_version = 4;
       `)
       raw.close()
 
       const migrated = new OrchestrationRepository(path, { now: NOW, journalMode: 'delete' })
       try {
-        expect(migrated.schemaVersion).toBe(6)
+        expect(migrated.schemaVersion).toBe(7)
         expect(migrated.getProject(projectId)?.name).toBe('V4')
         expect(migrated.listProjectRuns(projectId)).toEqual([])
         expect(migrated.listAgentDefinitions()).toEqual([])

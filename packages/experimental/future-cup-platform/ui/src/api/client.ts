@@ -5,6 +5,10 @@ import {
   projectRunSchema,
   projectSchema,
   projectSnapshotSchema,
+  structuredProjectProfileSchema,
+  teamRecommendationAdoptionResponseSchema,
+  teamRecommendationPlanSchema,
+  teamRecommendationSaveResponseSchema,
   workflowControlEventSchema,
   workflowControlStateSchema,
   cancelRunResponseSchema,
@@ -16,6 +20,13 @@ import type {
   ProjectRunView,
   ProjectSnapshotView,
   ProjectView,
+  StructuredProjectProfileView,
+  TeamRecommendationAdoptionResponseView,
+  TeamRecommendationAdoptRequestView,
+  TeamRecommendationPlanView,
+  TeamRecommendationRequestView,
+  TeamRecommendationSaveRequestView,
+  TeamRecommendationSaveResponseView,
   WorkflowControlEventView,
   WorkflowControlStateView,
 } from './contracts.ts'
@@ -130,6 +141,50 @@ export const api = {
   async listWorkflowControlEvents(projectId: string): Promise<WorkflowControlEventView[]> {
     return workflowControlEventSchema.array().parse(await request(
       `/api/v1/projects/${encodeURIComponent(projectId)}/workflow-control/events`,
+    ))
+  },
+
+  async structureTeamRequirement(input: {
+    readonly requirement: string
+    readonly candidate?: unknown
+  }): Promise<StructuredProjectProfileView> {
+    return structuredProjectProfileSchema.parse(await request(
+      '/api/v1/team-recommendations/profile',
+      { method: 'POST', body: JSON.stringify(input) },
+    ))
+  },
+
+  async recommendTeam(input: TeamRecommendationRequestView): Promise<TeamRecommendationPlanView> {
+    return teamRecommendationPlanSchema.parse(await request(
+      '/api/v1/team-recommendations',
+      { method: 'POST', body: JSON.stringify(input) },
+    ))
+  },
+
+  async adjustTeamRecommendation(
+    input: TeamRecommendationRequestView,
+  ): Promise<TeamRecommendationPlanView> {
+    return teamRecommendationPlanSchema.parse(await request(
+      '/api/v1/team-recommendations/adjust',
+      { method: 'POST', body: JSON.stringify(input) },
+    ))
+  },
+
+  async saveTeam(
+    input: TeamRecommendationSaveRequestView,
+  ): Promise<TeamRecommendationSaveResponseView> {
+    return teamRecommendationSaveResponseSchema.parse(await request(
+      '/api/v1/team-recommendations/save',
+      { method: 'POST', body: JSON.stringify(input) },
+    ))
+  },
+
+  async adoptTeam(
+    input: TeamRecommendationAdoptRequestView,
+  ): Promise<TeamRecommendationAdoptionResponseView> {
+    return teamRecommendationAdoptionResponseSchema.parse(await request(
+      '/api/v1/team-recommendations/adopt',
+      { method: 'POST', body: JSON.stringify(input) },
     ))
   },
 }

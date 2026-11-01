@@ -4,10 +4,29 @@ import {
   projectRunCancelSchema,
   projectRunStartSchema,
   publicProjectRunSchema,
+  structuredProjectProfileSchema,
+  teamRecommendationAdoptionResponseSchema,
+  teamRecommendationAdoptRequestSchema,
+  teamRecommendationPlanSchema,
+  teamRecommendationRequestSchema,
+  teamRecommendationSaveRequestSchema,
+  teamRecommendationSaveResponseSchema,
 } from '../../../src/api-contracts.ts'
 import { productEventSchema } from '@deepseek-ai/dsh-experimental-future-cup-orchestration/src/product-events.ts'
+import {
+  repairStrategyDecisionSchema as adaptiveRepairStrategyDecisionSchema,
+} from '@deepseek-ai/dsh-experimental-future-cup-orchestration/src/adaptive-repair.ts'
 
 export { productEventSchema }
+export {
+  structuredProjectProfileSchema,
+  teamRecommendationAdoptionResponseSchema,
+  teamRecommendationAdoptRequestSchema,
+  teamRecommendationPlanSchema,
+  teamRecommendationRequestSchema,
+  teamRecommendationSaveRequestSchema,
+  teamRecommendationSaveResponseSchema,
+}
 
 const identifierSchema = z.string().min(1)
 const isoDateSchema = z.string().min(1)
@@ -179,6 +198,25 @@ export const repairSchema = z.looseObject({
   completedAt: isoDateSchema,
 })
 
+export const repairStrategyDecisionSchema = z.looseObject({
+  id: identifierSchema,
+  projectId: identifierSchema,
+  repairRound: z.number(),
+  failureSignature: z.string(),
+  strategyId: identifierSchema,
+  decision: adaptiveRepairStrategyDecisionSchema,
+  outcome: z.looseObject({
+    status: z.string(),
+    nextAction: z.string(),
+    failureSignature: z.string().nullable().optional(),
+    nextStrategyId: z.string().nullable().optional(),
+    reason: z.string().optional(),
+  }).optional(),
+  repairRecordId: z.string().optional(),
+  createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+})
+
 export const workflowSchema = z.looseObject({
   id: identifierSchema,
   projectId: identifierSchema,
@@ -302,6 +340,7 @@ export const projectSnapshotSchema = z.looseObject({
   executions: z.array(executionSchema),
   verificationReports: z.array(verificationReportSchema),
   repairs: z.array(repairSchema),
+  repairStrategies: z.array(repairStrategyDecisionSchema).default([]),
   workflow: workflowSchema.optional(),
   runs: z.array(projectRunSchema),
   delivery: deliverySchema.optional(),
@@ -327,6 +366,7 @@ export type ExecutionView = z.infer<typeof executionSchema>
 export type VerificationStatus = z.infer<typeof verificationStatusSchema>
 export type VerificationReportView = z.infer<typeof verificationReportSchema>
 export type RepairView = z.infer<typeof repairSchema>
+export type RepairStrategyDecisionView = z.infer<typeof repairStrategyDecisionSchema>
 export type WorkflowView = z.infer<typeof workflowSchema>
 export type WorkflowControlStateView = z.infer<typeof workflowControlStateSchema>
 export type WorkflowControlEventView = z.infer<typeof workflowControlEventSchema>
@@ -354,6 +394,7 @@ export interface ProjectSnapshotView {
   executions: ExecutionView[]
   verificationReports: VerificationReportView[]
   repairs: RepairView[]
+  repairStrategies: RepairStrategyDecisionView[]
   workflow?: WorkflowView
   runs: ProjectRunView[]
   delivery?: DeliveryView
@@ -362,3 +403,12 @@ export interface ProjectSnapshotView {
 }
 export type ProjectRunStatus = z.infer<typeof projectRunStatusSchema>
 export type WorkflowStatus = z.infer<typeof workflowStatusSchema>
+export type StructuredProjectProfileView = z.infer<typeof structuredProjectProfileSchema>
+export type TeamRecommendationPlanView = z.infer<typeof teamRecommendationPlanSchema>
+export type TeamRecommendationRequestView = z.input<typeof teamRecommendationRequestSchema>
+export type TeamRecommendationSaveRequestView = z.input<typeof teamRecommendationSaveRequestSchema>
+export type TeamRecommendationAdoptRequestView = z.input<typeof teamRecommendationAdoptRequestSchema>
+export type TeamRecommendationSaveResponseView =
+  z.infer<typeof teamRecommendationSaveResponseSchema>
+export type TeamRecommendationAdoptionResponseView =
+  z.infer<typeof teamRecommendationAdoptionResponseSchema>

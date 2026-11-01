@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, and M5.2 are complete and M5.3 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, and M5.4 are complete and M5.5 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -151,7 +151,17 @@ MCP, A2A, external API plugins, RAG, vector databases, arbitrary tool installati
 - The self-loop now drives the control graph: PASS advances to delivery, FAIL or INCOMPLETE enters the Repair subworkflow, and Repair returns to verification. Repeated failure, three-round exhaustion, Repair failure, or incomplete verification produces a visible escalation. The management UI renders the control graph and recent control events below the task DAG.
 - Focused results pass 88/88 orchestration tests, 25/25 platform tests, and 50/50 UI tests. The real PostgreSQL E2E passes 2/2 and covers Registry recovery, team freezing, project memory, workflow control, and the existing transaction and lease paths.
 
-### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, and M5.2 results and M5.3 next work
+### M5.3 and M5.4 results
+
+- SQLite schema v7 and PostgreSQL migration `20261101200000` persist each repair strategy decision, candidate scores, selection reason, input summary, outcome, and linked Repair record.
+- The adaptive strategy catalog classifies TypeScript, dependency and build, browser, accessibility and responsive, console and network, server, project-structure, and bounded-regression failures. Strategies change prompts and bounded source context only; reverification remains the complete pipeline.
+- Workflow-control snapshots add `strategySwitchAvailable`. A repeated signature first selects an unused strategy and continues Repair; escalation occurs only when no alternative remains or the three-round bound is exhausted. Repair timeout, failure, and reverification exceptions retain strategy and Repair evidence.
+- Intelligent team composition derives a project profile from a natural-language requirement, asks at most three structured questions, and recommends a complete team only from published Agent versions and team templates. Deterministic checks cover capability, concurrency, tools, memory, and output contracts, with missing capabilities and risks shown to the user.
+- Users can apply controlled natural-language adjustments, save an immutable team version, or adopt a team and create a frozen project. The management frontend adds a `Build a team` entry, project profile, members and capability coverage, risks, adjustment history, and adoption flow.
+- New modules reach per-file 100% coverage: `adaptive-repair.ts`, `self-healer.ts`, `team-recommender.ts`, `TeamBuilderPage.tsx`, `TeamRecommendationDetails.tsx`, `recommendation-labels.ts`, and `RepairsPage.tsx`.
+- Current aggregate results pass 169/169 orchestration tests, 26/26 platform tests, and 73/73 UI tests. Package TypeScript, Prisma schema validation, targeted Oxlint, and `git diff --check` pass.
+
+### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, and M5.4 results
 
 M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness runtime, a real DeepSeek model completed a turn, and a real model generated a React, TypeScript, Vite, and Ant Design project. A later real-model turn installed dependencies and ran the production build; independent Playwright verification passed on desktop and mobile with working counter behavior.
 

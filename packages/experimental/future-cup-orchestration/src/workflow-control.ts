@@ -43,8 +43,21 @@ export const workflowEscalationReasonSchema = z.enum([
   'MAX_REPAIR_ROUNDS',
   'REPAIR_TIMEOUT',
   'REPAIR_FAILED',
+  'REPAIR_STRATEGY_UNAVAILABLE',
   'VERIFIER_INCOMPLETE',
 ])
+
+/**
+ * Parse one durable workflow escalation reason.
+ * @param value - persisted reason text.
+ * @returns the validated escalation reason.
+ * @throws Error when the stored value is unknown.
+ */
+export function parseWorkflowEscalationReason(value: string): WorkflowEscalationReason {
+  const parsed = workflowEscalationReasonSchema.safeParse(value)
+  if (!parsed.success) throw new Error(`unknown escalation reason "${value}"`)
+  return parsed.data
+}
 
 /** One task node awaiting an external completion event. */
 export const workflowTaskNodeSchema = z.object({
@@ -212,6 +225,7 @@ export const workflowVerificationCompletedEventSchema = z.object({
   instanceId: instanceIdSchema,
   status: workflowVerificationStatusSchema,
   failureSignature: z.string().min(1).max(1_000).optional(),
+  strategySwitchAvailable: z.boolean().optional(),
 }).strict()
 
 /** Every external event that advances a running control graph. */
@@ -374,6 +388,7 @@ export const workflowVerificationStateSchema = z.object({
   status: workflowVerificationStatusSchema,
   failureSignature: z.string().min(1).max(1_000).optional(),
   repeated: z.boolean(),
+  strategySwitchAvailable: z.boolean().optional(),
 }).strict()
 
 /** A complete snapshot that can restore the executor without replaying control decisions. */
@@ -818,6 +833,9 @@ export class WorkflowControlExecutor {
       status: event.status,
       repeated,
       ...(signature === undefined ? {} : { failureSignature: signature }),
+      ...(event.strategySwitchAvailable === undefined
+        ? {}
+        : { strategySwitchAvailable: event.strategySwitchAvailable }),
     }
   }
 
@@ -961,13 +979,13 @@ export class WorkflowControlExecutor {
 
     let result: WorkflowLoopResult
     let reason: WorkflowEscalationReason | undefined
-    if (verification.repeated) {
-      result = 'EXHAUSTED'
-      reason = 'REPEATED_FAILURE'
-      this.escalationReason = reason
-    } else if (state.iterations >= node.maxIterations) {
+    if (state.iterations >= node.maxIterations) {
       result = 'EXHAUSTED'
       reason = 'MAX_REPAIR_ROUNDS'
+      this.escalationReason = reason
+    } else if (verification.repeated && verification.strategySwitchAvailable !== true) {
+      result = 'EXHAUSTED'
+      reason = 'REPEATED_FAILURE'
       this.escalationReason = reason
     } else {
       state.iterations += 1

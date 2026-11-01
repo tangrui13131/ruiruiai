@@ -671,6 +671,162 @@ textarea {
   display: inline-flex;
 }
 
+.team-builder-page {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.team-builder-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.team-builder-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.team-builder-clarification h3,
+.team-builder-adopt h3,
+.section-panel > h3 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.team-builder-adjustment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.team-adjustment-history {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 14px;
+  color: #5c6b64;
+  font-size: 12px;
+}
+
+.team-builder-adopt-controls {
+  width: 100%;
+}
+
+.team-builder-adopt-controls .ant-input {
+  min-width: 0;
+}
+
+.team-member-list,
+.team-coverage-list,
+.team-risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.team-member-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #e4eae7;
+}
+
+.team-member-row:last-child {
+  border-bottom: 0;
+}
+
+.team-member-heading,
+.team-member-title,
+.team-coverage-heading,
+.team-policy-strip,
+.team-tag-line {
+  display: flex;
+  align-items: center;
+}
+
+.team-member-heading,
+.team-coverage-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.team-member-title,
+.team-tag-line {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.team-member-role {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.team-member-name,
+.team-member-version {
+  color: #5c6b64;
+  font-size: 12px;
+}
+
+.team-member-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.team-member-value,
+.team-coverage-value {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.team-coverage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.team-coverage-heading span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-status-good {
+  color: #0f766e;
+}
+
+.team-status-bad {
+  color: #dc2626;
+}
+
+.team-empty-line {
+  color: #6c7b74;
+  font-size: 12px;
+}
+
+.team-policy-strip {
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+  color: #5c6b64;
+  font-size: 12px;
+}
+
+.team-policy-strip > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.team-metric-suffix {
+  margin-left: 4px;
+  color: #6c7b74;
+  font-size: 11px;
+}
+
 @media (max-width: 1024px) {
   .scheduler-layout {
     grid-template-columns: 1fr;
@@ -745,6 +901,23 @@ textarea {
 
   .dag-frame {
     height: 560px;
+  }
+
+  .team-builder-adjustment {
+    grid-template-columns: 1fr;
+  }
+
+  .team-member-heading {
+    align-items: flex-start;
+  }
+
+  .team-member-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .team-builder-adopt-controls {
+    display: flex;
+    flex-direction: column;
   }
 }
 

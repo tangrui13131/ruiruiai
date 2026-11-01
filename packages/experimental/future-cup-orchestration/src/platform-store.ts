@@ -95,10 +95,25 @@ export interface PlatformProjectSnapshot {
   readonly executions: readonly ExecutionRecord[]
   readonly verificationReports: readonly VerificationReport[]
   readonly repairs: readonly RepairRecord[]
+  readonly repairStrategies: readonly RepairStrategyDecisionRecord[]
   readonly workflow?: WorkflowRunRecord | undefined
   readonly runs: readonly ProjectRunRecord[]
   readonly events: readonly ProductEvent[]
   readonly lastEventSeq: number
+}
+
+/** One explainable strategy selection and its eventual repair outcome. */
+export interface RepairStrategyDecisionRecord {
+  readonly id: string
+  readonly projectId: string
+  readonly repairRound: number
+  readonly failureSignature: string
+  readonly strategyId: string
+  readonly decision: JsonValue
+  readonly outcome?: JsonValue | undefined
+  readonly repairRecordId?: string | undefined
+  readonly createdAt: string
+  readonly updatedAt: string
 }
 
 /** One unpublished Outbox row and its validated event value. */
@@ -167,6 +182,36 @@ export interface ProjectMemoryEntry {
   readonly value: JsonValue
   readonly source: string
   readonly createdAt: string
+}
+
+/**
+ * Parse one required published definition status.
+ * @param value - persisted status text.
+ * @param subject - durable object named in failures.
+ * @returns the published status.
+ * @throws Error for a non-published value.
+ */
+export function parsePublishedStatus(value: string, subject: string): 'PUBLISHED' {
+  if (value === 'PUBLISHED') return value
+  throw new Error(`unknown ${subject} status "${value}"`)
+}
+
+/**
+ * Parse one project-memory kind.
+ * @param value - persisted memory kind.
+ * @returns the validated kind.
+ * @throws Error for an unknown kind.
+ */
+export function parseProjectMemoryKind(value: string): ProjectMemoryKind {
+  switch (value) {
+    case 'requirement':
+    case 'design-decision':
+    case 'failure-signature':
+    case 'accepted-artifact-summary':
+      return value
+    default:
+      throw new Error(`unknown project memory kind "${value}"`)
+  }
 }
 
 /** One immutable versioned workflow definition. */
@@ -621,6 +666,35 @@ export interface OrchestrationStore extends PlatformStore {
     draft: RepairRecordDraft,
     write?: WorkflowWriteContext,
   ): Awaitable<RepairRecord>
+  /**
+   * Persist one strategy selection before invoking the Repair Agent.
+   * @param record - complete strategy decision.
+   * @param write - optional live workflow lease that authorizes the write.
+   */
+  saveRepairStrategyDecision(
+    record: RepairStrategyDecisionRecord,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
+  /**
+   * Attach the repair outcome and durable repair record to a strategy decision.
+   * @param projectId - owning project.
+   * @param repairRound - one-based repair round.
+   * @param outcome - structured outcome JSON.
+   * @param repairRecordId - completed repair record when one exists.
+   * @param write - optional live workflow lease that authorizes the write.
+   */
+  finishRepairStrategyDecision(
+    projectId: string,
+    repairRound: number,
+    outcome: JsonValue,
+    repairRecordId?: string,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
+  /**
+   * List strategy decisions in repair-round order.
+   * @param projectId - owning project.
+   */
+  listRepairStrategyDecisions(projectId: string): Awaitable<RepairStrategyDecisionRecord[]>
   /**
    * List repair attempts in round order.
    * @param projectId - owning project.

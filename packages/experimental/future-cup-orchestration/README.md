@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run a durable frontend-engineering DAG through explainable scheduling and a real DeepSeek Harness Agent team. The package owns task revisions, Journal replay, a versioned Agent Registry, frozen project teams, structured project memory, explicit workflow control, scheduling decisions, execution evidence, structured Agent outputs, scoped file application, independent static/build/browser verification, and bounded Repair Agent retries. Its `OrchestrationStore` contract accepts the SQLite adapter in this package or the PostgreSQL adapter in `future-cup-platform`.
+Run a durable frontend-engineering DAG through explainable scheduling and a real DeepSeek Harness Agent team. The package owns task revisions, Journal replay, a versioned Agent Registry, frozen project teams, structured project memory, explicit workflow control, adaptive repair strategies, intelligent team composition, scheduling decisions, execution evidence, structured Agent outputs, scoped file application, independent static/build/browser verification, and bounded Repair Agent retries. Its `OrchestrationStore` contract accepts the SQLite adapter in this package or the PostgreSQL adapter in `future-cup-platform`.
 
 ## Table of Contents
 
@@ -68,7 +68,13 @@ repository.close()
 
 `PersistentAgentRegistry` persists Agent definitions, immutable versions, publication state, team compositions, project memory, and frozen project bindings through the shared store. `createDefaultAgentTeam()` creates seven controlled definitions, with the Frontend version instantiated twice. Project creation stores a complete member snapshot, so later Registry changes cannot modify a started project.
 
-`WorkflowControlCoordinator` persists a versioned control graph and execution snapshot. The fixed graph starts with independent verification, routes `PASS` to delivery and `FAIL` or `INCOMPLETE` into the Repair subworkflow, then returns Repair to verification. The loop permits three rounds and escalates immediately on a repeated failure signature. Node entry, edge selection, loop rounds, and subworkflow entry and exit all have durable Journal entries and can resume deterministically from one snapshot.
+`WorkflowControlCoordinator` persists a versioned control graph and execution snapshot. The fixed graph starts with independent verification, routes `PASS` to delivery and `FAIL` or `INCOMPLETE` into the Repair subworkflow, then returns Repair to verification. The loop permits three rounds and a repeated failure signature first switches to an unused strategy before escalation. Node entry, edge selection, loop rounds, and subworkflow entry and exit all have durable Journal entries and can resume deterministically from one snapshot.
+
+### Adaptive repair and team recommendation
+
+`selectRepairStrategy()` scores findings by category, target path, round, and prior strategy use. Each strategy declares only a prompt fragment, bounded context, existing tool requirements, and a `src/` write scope; reverification remains the complete pipeline. The self-loop persists the strategy before source mutation and links its outcome to the real Repair record and next-round action.
+
+`recommendAgentTeam()` uses only published Agent versions and published team templates. It derives a project profile from natural-language requirements, emits at most three structured questions, and validates capability coverage, concurrency, tools, memory, and input/output contracts. `applyTeamAdjustment()` accepts controlled natural-language changes; `createAgentTeamVersionInputFromRecommendation()` creates an immutable team version ready for saving.
 
 ### DAG state
 
@@ -76,7 +82,7 @@ Tasks use `PENDING`, `READY`, `RUNNING`, `COMPLETED`, `FAILED`, `BLOCKED`, and `
 
 ### Durable records
 
-The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, workflow, product-event, Outbox, workflow-lease, Agent Registry, team-binding, project-memory, and workflow-control records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1-v5 databases migrate in place to v6 without deleting existing verification evidence.
+The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, strategy-decision, workflow, product-event, Outbox, workflow-lease, Agent Registry, team-binding, project-memory, and workflow-control records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1-v6 databases migrate in place to v7 without deleting existing verification evidence.
 
 ### Scheduling
 
@@ -128,12 +134,14 @@ The M4.0 gate verified this envelope against real PostgreSQL sequencing and the 
 | `src/browser-verifier.ts` | Playwright route, interaction, console, page error, and network verification |
 | `src/preview-server.ts` | Owned loopback preview server with atomic port allocation and quiescent close |
 | `src/failure-signature.ts` | Diagnostic normalization and stable repeated-failure hashing |
-| `src/self-healer.ts` | Bounded repair loop, timeout handling, repeated-failure circuit breaker, and escalation |
+| `src/adaptive-repair.ts` | Failure classification, strategy catalog, candidate scoring, repeated-signature switching, and bounded-context selection |
+| `src/self-healer.ts` | Bounded repair loop, strategy persistence, timeout handling, and escalation |
 | `src/workspace-diff.ts` | Source snapshot and real unified repair diff generation |
 | `src/product-events.ts` | Zod product event contract and reconnect cursor |
 | `src/agent-registry.ts` | Agent definitions, immutable versions, team validation, and project freezing |
 | `src/agent-registry-service.ts` | Durable Registry replay and project-profile projection |
 | `src/default-agent-team.ts` | Seven controlled default Agent definitions and team seed |
+| `src/team-recommender.ts` | Project profiles, clarification, complete-team recommendation, controlled adjustment, and Registry conversion |
 | `src/workflow-control.ts` | Versioned control graph, conditions, loops, subworkflows, and recovery |
 | `src/workflow-control-coordinator.ts` | Durable snapshot and Journal coordination |
 
@@ -157,7 +165,7 @@ Role prompts are stable for a given role, generated schema, and task input. Diff
 
 - **Experimental package:** the public API can change while M3 incubates.
 - **Two storage adapters:** SQLite remains the deterministic test adapter; `future-cup-platform` provides PostgreSQL through Prisma.
-- **Controlled Registry team:** the default team reloads from durable Registry state and freezes per project, but the initial round still does not allow an arbitrary Agent or tool marketplace.
+- **Controlled Registry team:** the default team reloads from durable Registry state and the novice recommender composes complete teams, but the initial round still does not allow arbitrary Agents, arbitrary tools, or a free-form team editor.
 - **Lease acquisition is launcher-owned:** the store exposes workflow leases and revision guards; `future-cup-platform` acquires, renews, and fences them for each project run.
 - **Playwright runtime:** browser verification requires a matching installed Chromium build; an unavailable browser produces `INCOMPLETE`, never `PASS`.
 - **No requirement-generation repair:** Repair can change only generated `src/` files; failures in platform-owned scaffold files escalate instead of silently rewriting the generator.
@@ -166,4 +174,4 @@ Role prompts are stable for a given role, generated schema, and task input. Diff
 <a id="dev-note"></a>
 ### Dev Note
 
-M3 uses a 32,000-token structured-output budget with reasoning disabled by default for task Agents. M4 completes PostgreSQL, realtime events, and management/HQ integration. M5.1 and M5.2 add a durable Agent Registry, project-team freezing, project memory, and recoverable workflow control. Repair execution remains owned by the same `SelfLoopController`.
+M3 uses a 32,000-token structured-output budget with reasoning disabled by default for task Agents. M4 completes PostgreSQL, realtime events, and management/HQ integration. M5.1 and M5.2 add a durable Agent Registry, project-team freezing, project memory, and recoverable workflow control; M5.3 adds adaptive repair strategies and M5.4 adds intelligent team composition. Repair execution remains owned by the same `SelfLoopController`.

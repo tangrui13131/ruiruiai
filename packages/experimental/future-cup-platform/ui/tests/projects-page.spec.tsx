@@ -1,7 +1,7 @@
 import { App as AntApp, ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { api } from '../src/api/client.ts'
 import { LocaleProvider } from '../src/locale/LocaleProvider.tsx'
@@ -22,7 +22,10 @@ describe('ProjectsPage', () => {
         <ConfigProvider locale={zhCN}>
           <AntApp>
             <MemoryRouter>
-              <ProjectsPage />
+              <Routes>
+                <Route path="/" element={<ProjectsPage />} />
+                <Route path="/team-builder" element={<div>智能配队工作区</div>} />
+              </Routes>
             </MemoryRouter>
           </AntApp>
         </ConfigProvider>
@@ -30,5 +33,7 @@ describe('ProjectsPage', () => {
     )
     expect(await screen.findByText('运营数据后台')).toBeTruthy()
     expect(screen.getByText('构建仪表盘与用户管理页')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /智能配队/ }))
+    expect(await screen.findByText('智能配队工作区')).toBeTruthy()
   })
 })

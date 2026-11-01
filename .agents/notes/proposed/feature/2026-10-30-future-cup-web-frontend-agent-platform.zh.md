@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1 与 M5.2 已经完成，M5.3 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4/M5.1/M5.2 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3 与 M5.4 已经完成，M5.5 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -151,7 +151,17 @@ M5 以初赛可验收为边界，按依赖顺序完成以下阶段，不并行�
 - Self-loop 已接入控制图：PASS 进入交付，FAIL 或 INCOMPLETE 进入 Repair 子工作流，Repair 返回验证；重复失败、三轮耗尽、Repair 失败或验证不完整进入可见升级。管理界面在任务 DAG 下展示控制图与最近控制事件。
 - 聚焦结果为编排包 88/88、平台包 25/25、UI 50/50 测试通过；真实 PostgreSQL E2E 2/2 通过，覆盖 Registry 恢复、团队冻结、项目记忆、工作流控制以及原有事务/租约路径。
 
-### M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1 与 M5.2 结果和 M5.3 后续工作
+### M5.3 and M5.4 results
+
+- SQLite schema v7 与 PostgreSQL migration `20261101200000` 保存每轮修复策略决策、候选评分、选择理由、输入摘要、结果和关联 Repair 记录。
+- 自适应策略目录按 TypeScript、依赖与构建、浏览器、可访问性与响应式、控制台与网络、服务器、项目结构和有界回归分类；策略只改变提示词与有界源码上下文，复验范围固定为完整验证流水线。
+- 工作流控制快照新增 `strategySwitchAvailable`。同一失败签名再次出现时，系统先选择未使用过的策略并继续 Repair；没有替代策略或达到三轮上限时升级。修复 Agent 超时、失败和复验异常都保留策略结果与 Repair 记录。
+- 智能配队从自然语言需求生成项目画像，最多提出三个结构化问题，只从已发布 Agent 定义版本和团队模板推荐完整编制。推荐确定性校验能力、并发、工具、记忆和输出契约，并显示缺失能力与风险。
+- 用户可应用受控自然语言调整、保存不可变团队版本，或采用团队并创建已冻结项目。管理前端增加“智能配队”入口、项目画像、成员与能力覆盖、风险、调整历史和采用流程。
+- 新增模块达到 per-file 100% 覆盖：`adaptive-repair.ts`、`self-healer.ts`、`team-recommender.ts`、`TeamBuilderPage.tsx`、`TeamRecommendationDetails.tsx`、`recommendation-labels.ts` 与 `RepairsPage.tsx`。
+- 当前聚合结果为编排包 169/169、平台包 26/26、UI 73/73 测试通过；包级 TypeScript、Prisma schema、目标文件 Oxlint 与 `git diff --check` 通过。
+
+### M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3 与 M5.4 结果
 
 M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runtime，真实 DeepSeek 模型完成了轮次，真实模型生成了 React、TypeScript、Vite 与 Ant Design 工程。后续真实模型轮次安装依赖并运行生产构建；独立 Playwright 验证在桌面与移动视口通过，计数器交互正常。
 

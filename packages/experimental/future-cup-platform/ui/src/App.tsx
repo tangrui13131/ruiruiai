@@ -12,6 +12,10 @@ const ProjectsPage = lazy(async () => {
   const module = await import('./pages/ProjectsPage.tsx')
   return { default: module.ProjectsPage }
 })
+const TeamBuilderPage = lazy(async () => {
+  const module = await import('./pages/TeamBuilderPage.tsx')
+  return { default: module.TeamBuilderPage }
+})
 const ProjectOverviewPage = lazy(async () => {
   const module = await import('./pages/ProjectOverviewPage.tsx')
   return { default: module.ProjectOverviewPage }
@@ -62,6 +66,7 @@ function RoutedApplication() {
           <Suspense fallback={<RouteLoading />}>
             <Routes>
               <Route path="/" element={<AppShell><ProjectsPage /></AppShell>} />
+              <Route path="/team-builder" element={<AppShell><TeamBuilderPage /></AppShell>} />
               <Route path="/projects/:projectId" element={<ProjectRoute />}>
                 <Route index element={<ProjectOverviewPage />} />
                 <Route path="dag" element={<DagPage />} />
