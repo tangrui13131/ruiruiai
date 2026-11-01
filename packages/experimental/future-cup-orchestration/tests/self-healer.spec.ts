@@ -502,6 +502,42 @@ describe('SelfLoopController', () => {
     expect(outcome.workflow.escalationReason).toBe('MAX_REPAIR_ROUNDS')
   })
 
+  it.each([1, 2, 4])(
+    'keeps the workflow control terminal at maxRepairRounds=%i',
+    async (maxRepairRounds) => {
+      const contents = Array.from(
+        { length: maxRepairRounds },
+        (_, index) => `export const app = 'fixed-${String(index + 1)}'\n`,
+      )
+      const { workspace, repository, invokers } = setup(contents)
+      let verificationIndex = 0
+      const controller = new SelfLoopController({
+        repository,
+        invokers,
+        profiles: [repairProfile],
+        workspace,
+        config: { maxRepairRounds, repairTimeoutMs: 1_000 },
+        verifier: async () => {
+          verificationIndex += 1
+          return result('FAIL', String(verificationIndex))
+        },
+        now: NOW,
+      })
+
+      const outcome = await controller.run(projectId, spec)
+
+      expect(outcome.repairs).toHaveLength(maxRepairRounds)
+      expect(outcome.workflow).toMatchObject({
+        status: 'ESCALATED',
+        escalationReason: 'MAX_REPAIR_ROUNDS',
+      })
+      expect(repository.getWorkflowControlState(projectId)?.snapshot).toMatchObject({
+        status: 'ESCALATED',
+        escalationReason: 'MAX_REPAIR_ROUNDS',
+      })
+    },
+  )
+
   it('switches strategy once, then escalates a still-repeated failure signature', async () => {
     const { workspace, repository, invokers } = setup(["export const app = 'still-broken'\n"])
     const verifications = [result('FAIL', 'a'), result('FAIL', 'a'), result('FAIL', 'a')]

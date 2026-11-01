@@ -35,6 +35,10 @@ import {
 import type {
   WorkflowControlSnapshot,
 } from './workflow-control.ts'
+import {
+  createFutureCupWorkflowControlDefinition,
+  WORKFLOW_CONTROL_MAX_LOOP_ITERATIONS,
+} from './workflow-control.ts'
 import { createWorkspaceDiff, readWorkspaceSourceSnapshot } from './workspace-diff.ts'
 
 /** Explicit self-loop dependencies and bounds. */
@@ -84,13 +88,24 @@ export class SelfLoopController {
     if (!Number.isSafeInteger(options.config.maxRepairRounds) || options.config.maxRepairRounds < 0) {
       throw new Error('maxRepairRounds must be a non-negative safe integer')
     }
+    if (options.config.maxRepairRounds > WORKFLOW_CONTROL_MAX_LOOP_ITERATIONS) {
+      throw new Error(
+        `maxRepairRounds must not exceed ${String(WORKFLOW_CONTROL_MAX_LOOP_ITERATIONS)}`,
+      )
+    }
     if (!Number.isSafeInteger(options.config.repairTimeoutMs) || options.config.repairTimeoutMs <= 0) {
       throw new Error('repairTimeoutMs must be a positive safe integer')
     }
     if (options.verifier === undefined) throw new Error('A complete verification function is required')
     this.verifier = options.verifier
     this.now = options.now ?? (() => new Date())
-    this.control = new WorkflowControlCoordinator(options.repository)
+    this.control = new WorkflowControlCoordinator(
+      options.repository,
+      createFutureCupWorkflowControlDefinition(
+        Math.max(1, options.config.maxRepairRounds),
+      ),
+      this.now,
+    )
   }
 
   /**

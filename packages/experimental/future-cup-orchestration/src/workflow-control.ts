@@ -12,6 +12,8 @@ export const WORKFLOW_CONTROL_SNAPSHOT_VERSION = 1
 export const FUTURE_CUP_MAX_REPAIR_ROUNDS = 3
 
 const automaticTransitionLimit = 10_000
+/** Inclusive upper bound accepted by one bounded repair loop. */
+export const WORKFLOW_CONTROL_MAX_LOOP_ITERATIONS = 100
 const identifierSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
 const instanceIdSchema = z.string().min(1).max(200).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*@[1-9][0-9]*$/)
 const labelSchema = z.string().min(1).max(200)
@@ -97,7 +99,7 @@ export const workflowLoopNodeSchema = z.object({
   label: labelSchema,
   type: z.literal('LOOP'),
   subject: z.literal('VERIFICATION_REPAIR'),
-  maxIterations: z.number().int().positive().max(100),
+  maxIterations: z.number().int().positive().max(WORKFLOW_CONTROL_MAX_LOOP_ITERATIONS),
 }).strict()
 
 /** A node that enters another graph and resumes after its successful termination. */
@@ -465,13 +467,21 @@ export function parseWorkflowControlDefinition(input: unknown): WorkflowDefiniti
 }
 
 /**
- * Create a fresh copy of the fixed Future Cup M5.2 control definition.
+ * Create a fresh copy of the Future Cup M5.2 control definition.
+ * @param maxRepairRounds - configured positive automatic repair limit.
  * @returns the versioned verification, repair subworkflow, and escalation graph.
  */
-export function createFutureCupWorkflowControlDefinition(): WorkflowDefinition {
+export function createFutureCupWorkflowControlDefinition(
+  maxRepairRounds: number = FUTURE_CUP_MAX_REPAIR_ROUNDS,
+): WorkflowDefinition {
+  const parsedMaxRepairRounds = z.number()
+    .int()
+    .positive()
+    .max(WORKFLOW_CONTROL_MAX_LOOP_ITERATIONS)
+    .parse(maxRepairRounds)
   return parseWorkflowControlDefinition({
     version: WORKFLOW_CONTROL_DEFINITION_VERSION,
-    id: 'future-cup.m5.2.verification-repair',
+    id: `future-cup.m5.2.verification-repair.r${String(parsedMaxRepairRounds)}`,
     label: 'Verification and bounded repair',
     entryGraphId: 'main',
     graphs: [
@@ -503,7 +513,7 @@ export function createFutureCupWorkflowControlDefinition(): WorkflowDefinition {
             label: 'Bound automatic repair',
             type: 'LOOP',
             subject: 'VERIFICATION_REPAIR',
-            maxIterations: FUTURE_CUP_MAX_REPAIR_ROUNDS,
+            maxIterations: parsedMaxRepairRounds,
           },
           {
             id: 'repair-subworkflow',
