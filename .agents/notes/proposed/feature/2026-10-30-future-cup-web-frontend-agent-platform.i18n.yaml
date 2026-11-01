@@ -6,23 +6,23 @@
   en: 541785f8a5584c74
   zh: 89c80b392a4687db
 /agent-note-future-cup-web-frontend-engineering-agent-platform/problem:
-  en: ea9b9457ea7271b6
-  zh: 7ef5b24ad12529c9
+  en: f860198b1f5fcf2f
+  zh: 3d7171a018664865
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal:
   en: 31792c1780edcf5b
   zh: 96610002680c8126
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/product-boundary:
-  en: b123fc9e8cf0f598
-  zh: 7bf8551cfdeb9bf7
+  en: e9ec6892081c2dab
+  zh: 9c15d0b5b29051bf
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/system-architecture:
   en: 223844fc03b47275
   zh: f6a4a60bb9347e60
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/platform-data:
-  en: e79a76550bb83e49
-  zh: 83db614e78a8848f
+  en: e3dca70597d11e0c
+  zh: ce078769ab64a119
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/agent-team:
-  en: e317049343fbed0b
-  zh: fe76e48775202ed7
+  en: 581122810cf66723
+  zh: f5545cd4935f07ff
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/task-dag-and-scheduling:
   en: 94186318dcd2d48d
   zh: e6c7ed4b712f23c0
@@ -33,17 +33,20 @@
   en: e564bd110c37a9b8
   zh: 2d8daf06bee2947d
 /agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/delivery-order:
-  en: 914daabbe1b8556b
-  zh: e3fa18090688e1e3
-/agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/m1-m2-m3-m4-0-m4-1-and-m4-2-results-and-next-work:
-  en: 2136c6b3d1d82c8f
-  zh: d8b1be75519e33cc
+  en: dda431019c5a1b42
+  zh: e92b5a5c14441a00
+/agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/m5-initial-round-plan:
+  en: 05efcbc5ba48be7a
+  zh: 8b77985146bfc22f
+/agent-note-future-cup-web-frontend-engineering-agent-platform/proposal/m1-m2-m3-m4-0-m4-1-m4-2-m4-3-and-m4-4-results-and-m5-next-work:
+  en: cf6e7d8476b59248
+  zh: 82b226d3f2b17637
 /agent-note-future-cup-web-frontend-engineering-agent-platform/alternatives-considered:
-  en: 1bd8594f7fea3589
-  zh: 82eccb88ac28fcfb
+  en: 120bb237bad6bba1
+  zh: e251e213368dc1a8
 /agent-note-future-cup-web-frontend-engineering-agent-platform/acceptance-criteria:
-  en: 0659d442e6f0780f
-  zh: de89422ddd7e5318
+  en: 6fc9e0e883a1fac8
+  zh: 42181520c648a78d
 /agent-note-future-cup-web-frontend-engineering-agent-platform/risks:
-  en: abef8c671b6ee567
-  zh: fb31f4391d08fc0a
+  en: 59a05987d78db10f
+  zh: 3ecc8ebaf896ff3a

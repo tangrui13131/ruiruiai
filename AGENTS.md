@@ -2,7 +2,7 @@
 
 DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 
-**Project context.** Read [Future Cup web frontend platform](.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md) before planning or changing code; it records the competition constraints, architecture, Agent team, milestones, verified M1-M4 decisions, and M4.3 next work.
+**Project context.** Read [Future Cup web frontend platform](.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md) before planning or changing code; it records the competition constraints, architecture, Agent team, milestones, verified M1-M4 decisions, and M5 initial-round scope.
 
 ## Pre-stable APIs and released Session data
 
