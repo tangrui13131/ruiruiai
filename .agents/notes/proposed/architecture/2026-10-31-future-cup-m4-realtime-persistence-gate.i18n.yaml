@@ -20,6 +20,12 @@
 /agent-note-future-cup-m4-realtime-persistence-gate/proposal/m4-2-implementation-results:
   en: 809a886f927bd642
   zh: 6f2cfa7769381339
+/agent-note-future-cup-m4-realtime-persistence-gate/proposal/m4-3-implementation-results:
+  en: 9af64c954956049a
+  zh: be3adcc3644b52c9
+/agent-note-future-cup-m4-realtime-persistence-gate/proposal/m4-4-replay-acceptance-results:
+  en: d93c1e298a83d68e
+  zh: 7bae5ff6d98cfdd9
 /agent-note-future-cup-m4-realtime-persistence-gate/alternatives-considered:
   en: 980039ee1d01f2b2
   zh: 15a52730c549122a
@@ -27,5 +33,5 @@
   en: 399c394dcac7aec8
   zh: 61edf473ccb930e5
 /agent-note-future-cup-m4-realtime-persistence-gate/risks:
-  en: d4006ac39718bd2d
-  zh: d72f288f595ebe5f
+  en: dff86341c31c11d5
+  zh: 33b4bba0311af6c1

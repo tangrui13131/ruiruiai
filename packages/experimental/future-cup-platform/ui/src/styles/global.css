@@ -101,9 +101,18 @@ textarea {
   background: rgb(255 255 255 / 4%);
 }
 
-.app-sider-project-label {
-  color: #8fa39a;
+.app-sider-project-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #9bb9ad;
   font-size: 11px;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.app-sider-project-back:hover {
+  color: #f0faf6;
 }
 
 .app-sider-project-name {
@@ -114,6 +123,10 @@ textarea {
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.app-sider-menu-link {
+  color: inherit;
 }
 
 .app-main {

@@ -53,6 +53,23 @@ HQ 源码继续采用 PolyForm Noncommercial License 1.0.0，保留许可证与 
 - React 管理应用在桌面、平板与移动布局中提供项目控制、Agent 状态、React Flow DAG、调度证据、验证截图、Self-Loop Diff、实时事件与交付预览。
 - 生成的 Vite 构建使用相对资源基址，使同一生产产物既可用于独立验证器，也可在 `/preview/:projectId/` 下预览。
 
+### M4.3 实现结果
+
+- HQ 静态资源与 PolyForm Noncommercial License 1.0.0、Required Notice 一同构建到 `lib/web/hq/`，管理应用通过 `/hq/index.html?projectId=...` 打开只读实时大屏。
+- `ui/src/hq/projection.ts` 从 REST Snapshot 建立项目、任务、七个 Agent、部门、验证与修复投影；`ui/src/hq/bridge.ts` 消费 Socket.IO 快照与事件，并按 `projectId + seq` 去重。
+- `ui/src/hq/animation.ts` 将已提交事件映射为 `flow`、`agent`、`department` 与 `terminal` 动作；`bridge.ts` 只在投影发生变化时调用动画适配器，因此重复事件和历史重放不会产生动画。
+- 项目事件在浏览器边界再次通过共享判别联合校验。实时流发现序号缺口或同步错误时断开连接、重新读取 REST Snapshot，再从最新游标恢复。
+- HQ 不再预置本地项目或提供新增任务、人员管理入口，也不加载远程字体；没有 `projectId` 时只显示只读错误态。
+- 聚焦 UI 测试、类型检查、HQ 构建、产物服务测试与桌面/移动浏览器检查通过。浏览器检查实际触发了序号缺口并确认自动重新同步，也确认实时事件会调用 3D 动作适配器并生成飞行对象。
+
+### M4.4 回放验收结果
+
+- M4.2 真实 DeepSeek 多 Agent 运行的 53 条已提交项目事件被固化为带来源哈希的确定性夹具；事件类型、项目级序号与 payload 均通过共享判别联合校验。
+- 事件逐条重放后形成 5/5 完成任务、2 轮修复、验证 `PASS`、工作流与运行 `PASSED` 的最终投影，并产生 57 个 HQ 场景动作。
+- 重复终态事件保持投影对象与动画动作不变。1920×1080 与 390×844 浏览器回放显示 `PASSED · 53`、100% 进度和零控制台错误。
+- 随后通过真实 DeepSeek 密钥与远程 PostgreSQL 17.11 完成全新 E2E：9 个独立 Session、5/5 任务、`FAIL → FAIL → FAIL → PASS`、3 轮 Repair，最终运行与工作流 `PASSED`，事件游标 `59`。
+- 全新运行中 HQ 观察到 53 个实时动作，并在桌面与移动 WebGL2 验收中保持零控制台错误。确定性回放证据在 `.artifacts/future-cup-m44/`，新鲜运行证据在 `.artifacts/future-cup-m44-live/`。
+
 ## 考虑过的替代方案
 
 **立即用 PostgreSQL 替换 SQLite。** 不予采纳，因为 M2/M3 的确定性测试依赖当前快速内存 SQLite 适配器，迁移应保持语义，而不是重写语义。
@@ -85,4 +102,4 @@ HQ 源码继续采用 PolyForm Noncommercial License 1.0.0，保留许可证与 
 - Prisma 7 使用 Driver Adapter 与生成客户端；M4.1 必须固定兼容版本，避免跨包混用生成客户端。
 - SDK 通知方法是 wire method，不是最终产品事件名。M4.1 需要显式投影、稳定映射与忽略事件策略。
 - 长时间 Socket.IO 投递需要 Outbox 轮询、确认、保留与积压监控，不能假设一次进程内广播永远成功。
-- HQ 使用远程 Google Fonts 与本地模拟数据；离线打包和真实事件替换属于 M4.3。
+- HQ 已完成离线字体栈、真实事件替换与只读化。分发时仍必须保留 PolyForm 许可证和 Required Notice。

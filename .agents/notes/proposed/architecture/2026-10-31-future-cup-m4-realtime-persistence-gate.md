@@ -53,6 +53,23 @@ Keep the HQ source under PolyForm Noncommercial License 1.0.0, preserve its lice
 - The React management application provides project control, Agent status, React Flow DAG, scheduler evidence, verification screenshots, Self-Loop diffs, live events, and delivery preview across desktop, tablet, and mobile layouts.
 - Generated Vite builds use a relative asset base so the same production output works both in the independent verifier and below `/preview/:projectId/`.
 
+### M4.3 implementation results
+
+- HQ static assets, PolyForm Noncommercial License 1.0.0, and the Required Notice build into `lib/web/hq/`; the management application opens the read-only display at `/hq/index.html?projectId=...`.
+- `ui/src/hq/projection.ts` builds project, task, seven-Agent, department, verification, and repair projections from the REST snapshot. `ui/src/hq/bridge.ts` consumes Socket.IO snapshots and events and deduplicates by `projectId + seq`.
+- `ui/src/hq/animation.ts` maps committed events to `flow`, `agent`, `department`, and `terminal` actions. `bridge.ts` invokes the animation adapter only when the projection changes, so duplicate events and historical replay produce no animation.
+- Project events are validated again against the shared discriminated union at the browser boundary. A sequence gap or synchronization error disconnects, reloads the REST snapshot, and resumes from its latest cursor.
+- HQ no longer includes local project presets, task or personnel management controls, or remote fonts. Without `projectId`, it shows only the read-only error state.
+- Focused UI tests, type checking, the HQ build, artifact serving tests, and desktop/mobile browser checks passed. The browser check forced a sequence gap and confirmed automatic resynchronization; it also confirmed that live events invoke the 3D action adapter and create visual flight objects.
+
+### M4.4 replay acceptance results
+
+- The 53 committed project events from the real M4.2 DeepSeek multi-Agent run are frozen into a deterministic fixture with a source hash; event types, project sequence values, and payloads all pass the shared discriminated union.
+- Replaying the events produces five completed tasks, two repair rounds, `PASS` verification, and `PASSED` workflow and run state, plus 57 HQ scene actions.
+- Reapplying the terminal event changes neither the projection object nor the animation action list. Replay at 1920 x 1080 and 390 x 844 shows `PASSED · 53`, 100% progress, and no console errors.
+- A fresh E2E then completed with a real DeepSeek key and remote PostgreSQL 17.11: nine independent Sessions, 5/5 tasks, `FAIL → FAIL → FAIL → PASS`, three repairs, and final `PASSED` run and workflow state at event cursor `59`.
+- HQ observed 53 realtime actions during the fresh run and passed desktop/mobile WebGL2 checks with zero console errors. Deterministic replay evidence lives under `.artifacts/future-cup-m44/`; fresh-run evidence lives under `.artifacts/future-cup-m44-live/`.
+
 ## Alternatives considered
 
 **Replace SQLite immediately with PostgreSQL.** Rejected because M2/M3 deterministic tests depend on the current fast in-memory SQLite adapter, and a migration should preserve those semantics rather than rewrite them.
@@ -85,4 +102,4 @@ Keep the HQ source under PolyForm Noncommercial License 1.0.0, preserve its lice
 - Prisma 7 uses driver adapters and generated clients; M4.1 must pin compatible versions and avoid mixing generated clients across packages.
 - SDK notification methods are wire names, not yet the product event names. M4.1 needs an explicit projector with stable mapping and ignored-event policy.
 - Long-lived Socket.IO delivery needs Outbox polling, acknowledgements, retention, and lag monitoring rather than assuming one in-process broadcast always succeeds.
-- HQ uses remote Google Fonts and local simulated data; offline packaging and realtime replacement remain M4.3 work.
+- HQ now uses an offline font stack, real events, and a read-only surface. Every distribution must still retain the PolyForm license and Required Notice.

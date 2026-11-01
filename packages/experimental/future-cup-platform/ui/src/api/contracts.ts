@@ -5,6 +5,9 @@ import {
   projectRunStartSchema,
   publicProjectRunSchema,
 } from '../../../src/api-contracts.ts'
+import { productEventSchema } from '@deepseek-ai/dsh-experimental-future-cup-orchestration/src/product-events.ts'
+
+export { productEventSchema }
 
 const identifierSchema = z.string().min(1)
 const isoDateSchema = z.string().min(1)
@@ -184,16 +187,6 @@ export const workflowSchema = z.looseObject({
   updatedAt: isoDateSchema,
 })
 
-export const productEventSchema = z.looseObject({
-  type: z.string(),
-  projectId: identifierSchema,
-  seq: z.number().int().positive(),
-  occurredAt: isoDateSchema,
-  taskId: z.string().optional(),
-  agentId: z.string().optional(),
-  payload: z.unknown(),
-})
-
 export const projectRunSchema = publicProjectRunSchema
 
 export const deliverySchema = projectDeliverySchema
@@ -231,9 +224,33 @@ export type VerificationStatus = z.infer<typeof verificationStatusSchema>
 export type VerificationReportView = z.infer<typeof verificationReportSchema>
 export type RepairView = z.infer<typeof repairSchema>
 export type WorkflowView = z.infer<typeof workflowSchema>
-export type ProductEventView = z.infer<typeof productEventSchema>
+type ProductEventInput = z.input<typeof productEventSchema>
+type OptionalUndefined<T> = T extends unknown
+  ? {
+    [K in keyof T as undefined extends T[K] ? never : K]: T[K]
+  } & {
+    [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>
+  }
+  : never
+type RelaxProductEvent<T> = T extends unknown
+  ? OptionalUndefined<Omit<T, 'payload'> & { payload: unknown }>
+  : never
+
+export type ProductEventView = RelaxProductEvent<ProductEventInput>
 export type ProjectRunView = z.infer<typeof projectRunSchema>
 export type DeliveryView = z.infer<typeof deliverySchema>
-export type ProjectSnapshotView = z.infer<typeof projectSnapshotSchema>
+export interface ProjectSnapshotView {
+  project: ProjectView
+  tasks: TaskView[]
+  decisions: SchedulerDecisionView[]
+  executions: ExecutionView[]
+  verificationReports: VerificationReportView[]
+  repairs: RepairView[]
+  workflow?: WorkflowView
+  runs: ProjectRunView[]
+  delivery?: DeliveryView
+  events: ProductEventView[]
+  lastEventSeq: number
+}
 export type ProjectRunStatus = z.infer<typeof projectRunStatusSchema>
 export type WorkflowStatus = z.infer<typeof workflowStatusSchema>

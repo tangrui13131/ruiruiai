@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run the Future Cup management platform as a `dsh` plugin: a shared orchestration repository for SQLite and PostgreSQL, a real Harness team launcher, transactional project events with an Outbox, Fastify REST snapshots, Socket.IO replay, and a same-origin React management application.
+Run the Future Cup management platform as a `dsh` plugin: a shared orchestration repository for SQLite and PostgreSQL, a real Harness team launcher, transactional project events with an Outbox, Fastify REST snapshots, Socket.IO replay, a same-origin React management application, and a read-only HQ 3D display.
 
 ## Table of Contents
 
@@ -87,6 +87,7 @@ The server binds only to a loopback host. Its current routes are:
 | `GET` | `/api/v1/projects/:projectId/delivery` | public delivery summary and screenshot addresses |
 | `GET` | `/api/v1/projects/:projectId/screenshots/:fileName` | one recorded verification screenshot |
 | `GET` | `/preview/:projectId/*` | generated production build preview |
+| `GET` | `/hq/index.html?projectId=:projectId` | read-only HQ display projected from REST and Socket.IO |
 
 The mounted profile starts the management SPA at `/`. REST and Socket.IO remain under their dedicated paths on the same origin.
 
@@ -95,6 +96,8 @@ The mounted profile starts the management SPA at `/`. REST and Socket.IO remain 
 Connect Socket.IO with path `/future-cup/socket.io` and authentication `{ projectId, afterSeq }`. The server joins the project room, loads `sync.snapshot`, and then emits committed `project.event` values only from unpublished Outbox rows.
 
 Every event carries `projectId`, positive project-scoped `seq`, `occurredAt`, `type`, and a JSON payload. Clients deduplicate by `projectId + seq` and reconnect with their last applied sequence.
+
+The HQ display validates events against the shared discriminated union. It applies only committed events, detects sequence gaps, and reloads the authoritative REST snapshot before resuming. A separate action map drives department flights, Agent work pulses, verification alerts, repair round trips, and delivery animation; snapshot reloads and duplicate events do not replay animation. The page has no local project presets or task/personnel creation controls.
 
 ## Understand the implementation
 
@@ -105,6 +108,9 @@ Every event carries `projectId`, positive project-scoped `seq`, `occurredAt`, `t
 | `src/run-launcher.ts` | Real Harness team launch, lease heartbeat, cancellation, and run settlement |
 | `src/artifact-server.ts` | Management assets, screenshots, delivery, and generated-project preview |
 | `src/postgres-store.ts` | Prisma PostgreSQL adapter for the shared orchestration store |
+| `ui/src/hq/` | HQ state projection and REST/Socket.IO bridge |
+| `ui/src/hq/animation.ts` | pure product-event to scene-action mapping |
+| `ui/public/hq/` | PolyForm-licensed 3D scene, license, and upstream notice |
 | `prisma/schema.prisma` | PostgreSQL tables, indexes, foreign keys, and JSONB fields |
 | `prisma/migrations/` | Checked-in PostgreSQL migration |
 
@@ -139,6 +145,7 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 - **Outbox at-least-once delivery:** a crashed dispatcher can cause replay after its claim expires. Client deduplication by `projectId + seq` is required.
 - **Settlement recovery:** transient database failures keep the workflow lease alive while terminal settlement retries. A permanent failure or bounded shutdown timeout leaves the durable run `RUNNING` for stale-run reconciliation on the next launch; cancel and close report `PROJECT_RUN_SETTLEMENT_PENDING` or `PROJECT_RUN_SETTLEMENT_TIMEOUT` instead of claiming success.
 - **Large Ant Design bundle:** the management application currently emits a roughly 1 MB Ant Design chunk. Route-level pages are lazy, but component-level Ant Design splitting remains performance work.
+- **Noncommercial HQ asset:** the HQ scene remains under PolyForm Noncommercial License 1.0.0. Every distribution must retain its license and Required Notice; commercial use requires separate authorization.
 
 <a id="dev-note"></a>
 ### Dev Note

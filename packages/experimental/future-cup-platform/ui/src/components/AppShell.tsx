@@ -1,7 +1,9 @@
 import {
   ApartmentOutlined,
+  ArrowLeftOutlined,
   BranchesOutlined,
   DashboardOutlined,
+  FundProjectionScreenOutlined,
   MenuOutlined,
   ProjectOutlined,
   RocketOutlined,
@@ -78,6 +80,20 @@ function useNavigation(projectId?: string): MenuProps['items'] {
       icon: <RocketOutlined />,
       label: <Link to={`${base}/delivery`}>{dictionary.nav.delivery}</Link>,
     },
+    {
+      key: 'hq',
+      icon: <FundProjectionScreenOutlined />,
+      label: (
+        <a
+          className="app-sider-menu-link"
+          href={`/hq/index.html?projectId=${encodeURIComponent(projectId)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {dictionary.nav.hq}
+        </a>
+      ),
+    },
   ]
 }
 
@@ -145,7 +161,14 @@ export function AppShell({
       </div>
       {project === undefined ? null : (
         <div className="app-sider-project">
-          <div className="app-sider-project-label">{dictionary.nav.projects}</div>
+          <Link
+            className="app-sider-project-back"
+            to="/"
+            onClick={() => { setDrawerOpen(false) }}
+          >
+            <ArrowLeftOutlined />
+            <span>{dictionary.common.backToProjects}</span>
+          </Link>
           <span className="app-sider-project-name">{project.name}</span>
         </div>
       )}

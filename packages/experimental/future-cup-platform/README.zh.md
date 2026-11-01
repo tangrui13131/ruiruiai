@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放，以及同源 React 管理应用。
+以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
 
 ## 目录
 
@@ -87,6 +87,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/projects/:projectId/delivery` | 公共交付摘要与截图地址 |
 | `GET` | `/api/v1/projects/:projectId/screenshots/:fileName` | 单张已记录验证截图 |
 | `GET` | `/preview/:projectId/*` | 生成工程生产构建预览 |
+| `GET` | `/hq/index.html?projectId=:projectId` | 从 REST 与 Socket.IO 投影的只读 HQ 大屏 |
 
 已挂载 profile 在 `/` 提供管理 SPA。REST 与 Socket.IO 继续在同一来源的专用路径提供。
 
@@ -95,6 +96,8 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 使用路径 `/future-cup/socket.io` 与认证值 `{ projectId, afterSeq }` 连接 Socket.IO。服务器加入项目房间，加载 `sync.snapshot`，随后只从尚未发布的 Outbox 行发送已提交的 `project.event`。
 
 每个事件包含 `projectId`、项目内正数 `seq`、`occurredAt`、`type` 与 JSON payload。客户端按 `projectId + seq` 去重，并使用最后应用的序号重连。
+
+HQ 大屏使用共享判别联合校验事件，只应用已提交事件，检测序号缺口，并在继续同步前重新读取权威 REST 快照。实时事件通过独立动作映射驱动部门间飞行、Agent 工作脉冲、验证告警、修复往返与交付动画；快照重载和重复事件不会重播动画。页面不包含本地项目预置，也不提供新增任务或人员入口。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现
@@ -106,6 +109,9 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `src/run-launcher.ts` | 真实 Harness 团队启动、租约心跳、取消与运行结算 |
 | `src/artifact-server.ts` | 管理资源、截图、交付与生成工程预览 |
 | `src/postgres-store.ts` | 共享编排仓储的 Prisma PostgreSQL 适配器 |
+| `ui/src/hq/` | HQ 状态投影与 REST/Socket.IO 桥接 |
+| `ui/src/hq/animation.ts` | 产品事件到真实场景动作的纯映射 |
+| `ui/public/hq/` | PolyForm 许可的 3D 场景、许可证与上游说明 |
 | `prisma/schema.prisma` | PostgreSQL 表、索引、外键与 JSONB 字段 |
 | `prisma/migrations/` | 仓库内 PostgreSQL 迁移 |
 
@@ -140,6 +146,7 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 - **Outbox 至少一次投递：** Dispatcher 崩溃后，claim 过期会触发重放。客户端必须按 `projectId + seq` 去重。
 - **结算恢复：** 短暂数据库失败期间，工作流租约保持有效并持续重试终态结算。永久失败或有界关闭超时会让持久化运行保留为 `RUNNING`，由下一次启动回收；cancel 与 close 会报告 `PROJECT_RUN_SETTLEMENT_PENDING` 或 `PROJECT_RUN_SETTLEMENT_TIMEOUT`，不能伪装成功。
 - **Ant Design 包较大：** 管理应用当前生成约 1 MB 的 Ant Design chunk。页面已按路由懒加载，组件级拆包仍属于性能工作。
+- **HQ 资产为非商业许可：** HQ 场景继续采用 PolyForm Noncommercial License 1.0.0。每份分发都必须保留许可证与 Required Notice；商业用途需另行取得授权。
 
 <a id="dev-note"></a>
 ### 开发备注

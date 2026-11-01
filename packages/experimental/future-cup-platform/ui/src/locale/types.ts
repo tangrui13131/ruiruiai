@@ -14,6 +14,7 @@ export const localeDictionaries = {
       repairs: '自愈修复',
       events: '事件流',
       delivery: '交付预览',
+      hq: '实时大屏',
     },
     common: {
       loading: '正在加载',
@@ -25,7 +26,7 @@ export const localeDictionaries = {
       confirm: '确认',
       unknown: '未知',
       none: '暂无',
-      backToProjects: '返回项目列表',
+      backToProjects: '返回项目管理',
       connected: '实时连接',
       reconnecting: '连接恢复中',
       disconnected: '实时连接已断开',
@@ -199,6 +200,7 @@ export const localeDictionaries = {
       repairs: 'Self-loop',
       events: 'Event stream',
       delivery: 'Delivery',
+      hq: 'Live HQ',
     },
     common: {
       loading: 'Loading',

@@ -41,7 +41,7 @@
     }
   },
   "scripts": {
-    "build:ui": "vite build --config ui/vite.config.ts",
+    "build:ui": "vite build --config ui/vite.config.ts && vite build --config ui/vite.hq.config.ts",
     "postinstall": "prisma generate",
     "test:ui": "vitest run --config ui/vitest.config.ts",
     "typecheck:ui": "tsc -p ui/tsconfig.json --pretty false"
