@@ -24,4 +24,16 @@ describe('project Agent API', () => {
       expect.objectContaining({ headers: expect.objectContaining({ accept: 'application/json' }) }),
     )
   })
+
+  it('treats a missing workflow-control run as an empty state', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      code: 'WORKFLOW_CONTROL_NOT_FOUND',
+      message: 'not found',
+    }), {
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+    })))
+
+    await expect(api.getWorkflowControl('project-1')).resolves.toBeUndefined()
+  })
 })

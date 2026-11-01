@@ -6,8 +6,13 @@ import Fastify from 'fastify'
 import { Server as SocketServer } from 'socket.io'
 import { z } from 'zod'
 import {
+  agentDiscoveryQuerySchema,
+  AgentRegistryError,
   ProjectId,
   projectReplayCursorSchema,
+  createAgentTeamVersionInputSchema,
+  registerAgentDefinitionInputSchema,
+  registerAgentVersionInputSchema,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type {
   PlatformProjectSnapshot,
@@ -47,6 +52,18 @@ const runParamsSchema = z.object({
   runId: z.string().min(1).max(160),
 }).strict()
 
+const definitionParamsSchema = z.object({
+  definitionId: z.string().min(1).max(160),
+}).strict()
+
+const versionParamsSchema = definitionParamsSchema.extend({
+  versionId: z.string().min(1).max(200),
+}).strict()
+
+const teamParamsSchema = z.object({
+  teamVersionId: z.string().min(1).max(200),
+}).strict()
+
 const snapshotQuerySchema = z.object({
   afterSeq: z.coerce.number().int().nonnegative().default(0),
   limit: z.coerce.number().int().positive().max(500).default(100),
@@ -56,6 +73,7 @@ const createProjectSchema = z.object({
   id: z.string().min(1).max(120).optional(),
   name: z.string().min(1).max(120),
   requirement: z.string().min(1).max(20_000),
+  teamVersionId: z.string().min(1).max(160).optional(),
 }).strict()
 
 class ApiError extends Error {
@@ -116,14 +134,34 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     if ((await options.store.listProjects()).some(project => project.id === projectId)) {
       throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
     }
+    const teamVersionId = body.teamVersionId ?? options.defaultTeamVersionId
     try {
+      const binding = teamVersionId === undefined
+        ? undefined
+        : await requireAgentRegistry().freezeProject(projectId, teamVersionId)
+      const createdAt = new Date().toISOString()
       await options.store.createProject({
         id: projectId,
         name: body.name,
         requirement: body.requirement,
-        createdAt: new Date().toISOString(),
-      }, [])
+        createdAt,
+      }, [], undefined, binding, [{
+        id: `memory-${randomUUID()}`,
+        projectId,
+        kind: 'requirement',
+        key: 'initial-requirement',
+        value: { requirement: body.requirement },
+        source: 'platform.project.create',
+        createdAt,
+      }])
     } catch (error: unknown) {
+      if (error instanceof AgentRegistryError) {
+        throw new ApiError(
+          error.code === 'TEAM_VERSION_NOT_FOUND' ? 404 : 400,
+          error.code,
+          error.message,
+        )
+      }
       if (error instanceof Error && error.message.includes('already exists')) {
         throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
       }
@@ -248,18 +286,110 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     available: profile.available,
   })))
 
+  app.get('/api/v1/agent-definitions', async () => {
+    const registry = requireAgentRegistry()
+    const definitions = await registry.listDefinitions()
+    return await Promise.all(definitions.map(async (definition) => {
+      const versions = await registry.listVersions(definition.id)
+      return {
+        ...definition,
+        versions: await Promise.all(versions.map(async version => ({
+          ...version,
+          status: await registry.getVersionStatus(version.id),
+        }))),
+      }
+    }))
+  })
+
+  app.post<{ Body: unknown }>('/api/v1/agent-definitions', async (request, reply) => {
+    const input = registerAgentDefinitionInputSchema.parse(request.body)
+    return await reply.code(201).send(
+      await registryCall(() => requireAgentRegistry().registerDefinition(input)),
+    )
+  })
+
+  app.post<{ Body: unknown }>('/api/v1/agent-definitions/discover', async (request) => {
+    const query = agentDiscoveryQuerySchema.parse(request.body)
+    return await requireAgentRegistry().discoverPublished(query)
+  })
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/agent-definitions/:definitionId/versions',
+    async (request, reply) => {
+      const { definitionId } = definitionParamsSchema.parse(request.params)
+      const input = registerAgentVersionInputSchema.parse(request.body)
+      return await reply.code(201).send(
+        await registryCall(() => requireAgentRegistry().registerVersion(definitionId, input)),
+      )
+    },
+  )
+
+  app.post<{ Params: unknown }>(
+    '/api/v1/agent-definitions/:definitionId/versions/:versionId/validate',
+    async (request) => {
+      const { definitionId, versionId } = versionParamsSchema.parse(request.params)
+      return await registryCall(
+        () => requireAgentRegistry().validateVersion(definitionId, versionId),
+      )
+    },
+  )
+
+  app.post<{ Params: unknown }>(
+    '/api/v1/agent-definitions/:definitionId/versions/:versionId/publish',
+    async (request) => {
+      const { definitionId, versionId } = versionParamsSchema.parse(request.params)
+      return await registryCall(
+        () => requireAgentRegistry().publishVersion(definitionId, versionId),
+      )
+    },
+  )
+
+  app.post<{ Params: unknown }>(
+    '/api/v1/agent-definitions/:definitionId/deprecate',
+    async (request) => {
+      const { definitionId } = definitionParamsSchema.parse(request.params)
+      return await registryCall(
+        () => requireAgentRegistry().deprecateDefinition(definitionId),
+      )
+    },
+  )
+
+  app.post<{ Body: unknown }>('/api/v1/agent-teams', async (request, reply) => {
+    const input = createAgentTeamVersionInputSchema.parse(request.body)
+    return await reply.code(201).send(
+      await registryCall(() => requireAgentRegistry().createTeamVersion(input)),
+    )
+  })
+
+  app.get('/api/v1/agent-teams', async () => {
+    return (await options.store.listAgentTeamVersions()).map(record => record.teamVersion)
+  })
+
+  app.get<{ Params: unknown }>('/api/v1/agent-teams/:teamVersionId', async (request, reply) => {
+    const { teamVersionId } = teamParamsSchema.parse(request.params)
+    const team = await options.store.getAgentTeamVersion(teamVersionId)
+    if (team === undefined) {
+      throw new ApiError(404, 'TEAM_VERSION_NOT_FOUND', `Agent team version "${teamVersionId}" was not found`)
+    }
+    return await reply.send(team.teamVersion)
+  })
+
   app.get<{ Params: unknown }>(
     '/api/v1/projects/:projectId/agents',
     async (request, reply) => {
       const { projectId } = projectParamsSchema.parse(request.params)
       const snapshot = await requireSnapshot(projectId)
       const rates = await options.store.historicalSuccessRates(projectId)
+      const boundProfiles = options.agentRegistry === undefined
+        ? undefined
+        : await options.agentRegistry.projectProfiles(projectId)
+      const profiles = boundProfiles ?? options.profiles
       const loads = new Map<string, number>()
       for (const execution of snapshot.executions) {
         if (execution.status !== 'RUNNING') continue
         loads.set(execution.agentId, (loads.get(execution.agentId) ?? 0) + 1)
       }
-      return await reply.send(options.profiles.map((profile) => {
+      return await reply.send(profiles.map((profile) => {
         const currentLoad = loads.get(profile.id) ?? 0
         return {
           id: profile.id,
@@ -270,8 +400,59 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           currentLoad,
           historicalSuccessRate: rates[profile.id] ?? profile.historicalSuccessRate,
           available: profile.available && currentLoad < profile.maxConcurrency,
+          definitionVersionId: profile.definitionVersionId,
+          model: profile.model,
+          toolAllowlist: profile.toolAllowlist,
         }
       }))
+    },
+  )
+
+  app.get<{ Params: unknown }>(
+    '/api/v1/projects/:projectId/team',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      await requireProject(projectId)
+      const binding = await options.store.getProjectTeamBinding(projectId)
+      if (binding === undefined) {
+        throw new ApiError(404, 'TEAM_BINDING_NOT_FOUND', `Project "${projectId}" has no team binding`)
+      }
+      return await reply.send(binding)
+    },
+  )
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/projects/:projectId/team-binding',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      const body = z.object({ teamVersionId: z.string().min(1).max(200) }).strict().parse(request.body)
+      await requireProject(projectId)
+      const binding = await registryCall(
+        () => requireAgentRegistry().bindProject(projectId, body.teamVersionId),
+      )
+      return await reply.code(201).send(binding)
+    },
+  )
+
+  app.get<{ Params: unknown }>(
+    '/api/v1/projects/:projectId/workflow-control',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      await requireProject(projectId)
+      const state = await options.store.getWorkflowControlState(projectId)
+      if (state === undefined) {
+        throw new ApiError(404, 'WORKFLOW_CONTROL_NOT_FOUND', `Workflow control for "${projectId}" was not found`)
+      }
+      return await reply.send(state)
+    },
+  )
+
+  app.get<{ Params: unknown }>(
+    '/api/v1/projects/:projectId/workflow-control/events',
+    async (request) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      await requireProject(projectId)
+      return await options.store.listWorkflowControlEvents(projectId)
     },
   )
 
@@ -332,6 +513,33 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       throw new ApiError(503, 'RUN_LAUNCHER_UNAVAILABLE', 'No project run launcher is mounted')
     }
     return launcher
+  }
+
+  function requireAgentRegistry() {
+    if (options.agentRegistry === undefined) {
+      throw new ApiError(503, 'AGENT_REGISTRY_UNAVAILABLE', 'No Agent Registry is mounted')
+    }
+    return options.agentRegistry
+  }
+
+  async function registryCall<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation()
+    } catch (error: unknown) {
+      if (!(error instanceof AgentRegistryError)) throw error
+      const status = error.code === 'DEFINITION_NOT_FOUND'
+        || error.code === 'VERSION_NOT_FOUND'
+        || error.code === 'TEAM_VERSION_NOT_FOUND'
+        ? 404
+        : error.code === 'PROJECT_ALREADY_BOUND'
+          || error.code === 'DUPLICATE_DEFINITION'
+          || error.code === 'DUPLICATE_VERSION'
+          || error.code === 'DUPLICATE_VERSION_NUMBER'
+          || error.code === 'DUPLICATE_TEAM_VERSION'
+          ? 409
+          : 400
+      throw new ApiError(status, error.code, error.message)
+    }
   }
 
   io.on('connection', (socket) => {

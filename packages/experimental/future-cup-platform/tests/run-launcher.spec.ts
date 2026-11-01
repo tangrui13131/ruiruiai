@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   AgentId,
   DagEngine,
+  defaultAgentProfiles,
   OrchestrationRepository,
+  PersistentAgentRegistry,
   ProjectId,
   TaskId,
   VerificationReportId,
@@ -190,6 +192,46 @@ describe('FutureCupRunLauncher', () => {
     }
   })
 
+  it('launches only the project frozen team definitions', async () => {
+    const { root, repository, project } = setupProject()
+    const registry = new PersistentAgentRegistry(repository)
+    const teamVersionId = await registry.ensureDefaultTeam()
+    repository.bindProjectTeam(await registry.freezeProject(project.id, teamVersionId))
+    let launchedProfiles: readonly string[] = []
+    const launcher = new FutureCupRunLauncher({
+      store: repository,
+      workspaceRoot: join(root, 'runs'),
+      agentHomeRoot: join(root, 'homes'),
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 0, repairTimeoutMs: 1_000 },
+      leaseDurationMs: 1_000,
+      heartbeatIntervalMs: 100,
+      settlementRetryMs: 10,
+      settlementWaitMs: 1_000,
+      createTeam: (request) => {
+        launchedProfiles = (request.profiles ?? defaultAgentProfiles())
+          .map(profile => profile.id)
+        return {
+          async run() {
+            return teamResult(request, 'PASSED')
+          },
+          async close() {},
+        }
+      },
+    })
+    try {
+      await launcher.start(project)
+      await waitForTerminalRun(repository, project.id)
+      expect(launchedProfiles).toEqual(expect.arrayContaining([
+        'frontend-1',
+        'frontend-2',
+        'planner',
+      ]))
+    } finally {
+      await launcher.close()
+    }
+  })
+
   it('rejects concurrent starts and converts runtime closure into a cancelled run', async () => {
     const { root, repository, project } = setupProject()
     let rejectRun!: (error: Error) => void
@@ -346,6 +388,7 @@ describe('FutureCupRunLauncher', () => {
         workspace: join(root, 'workspace'),
         homeRoot: join(root, 'homes'),
         screenshotDir: join(root, 'screenshots'),
+        profiles: defaultAgentProfiles(),
       }, 'PASSED')) }
     })
     const launcher = new FutureCupRunLauncher({
@@ -415,6 +458,7 @@ describe('FutureCupRunLauncher', () => {
           workspace: join(root, 'workspace'),
           homeRoot: join(root, 'homes'),
           screenshotDir: join(root, 'screenshots'),
+          profiles: defaultAgentProfiles(),
         }, 'PASSED'))
       }
     })

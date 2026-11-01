@@ -3,6 +3,19 @@
 import type { ProductEvent, ProductEventType } from './product-events.ts'
 import type { ExecutionId } from './brand.ts'
 import type {
+  AgentDefinition,
+  AgentLifecycleStatus,
+  AgentTeamVersion,
+  AgentVersion,
+  ProjectMemoryKind,
+  ProjectTeamBinding,
+} from './agent-registry.ts'
+import type {
+  WorkflowControlJournalEntry,
+  WorkflowControlSnapshot,
+  WorkflowDefinition,
+} from './workflow-control.ts'
+import type {
   ExecutionRecord,
   ExecutionEventRecord,
   ExecutionStatus,
@@ -114,6 +127,75 @@ export interface WorkflowLeaseState {
   readonly expiresAt: string
 }
 
+/** One durable Agent definition plus persistence timestamps. */
+export interface StoredAgentDefinition {
+  readonly definition: AgentDefinition
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+/** One immutable Agent version with its independently mutable lifecycle state. */
+export interface StoredAgentVersion {
+  readonly version: AgentVersion
+  /** Monotonic database ordering within the owning definition. */
+  readonly ordinal: number
+  readonly checksum: string
+  readonly status: AgentLifecycleStatus
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly publishedAt?: string | undefined
+  readonly deprecatedAt?: string | undefined
+}
+
+/** One immutable team version retained for project binding. */
+export interface StoredAgentTeamVersion {
+  readonly teamVersion: AgentTeamVersion
+  /** Monotonic database ordering for this team template. */
+  readonly ordinal: number
+  readonly checksum: string
+  readonly status: 'PUBLISHED'
+  readonly createdAt: string
+  readonly publishedAt: string
+}
+
+/** One structured project-memory fact permitted by Agent memory policies. */
+export interface ProjectMemoryEntry {
+  readonly id: string
+  readonly projectId: string
+  readonly kind: ProjectMemoryKind
+  readonly key: string
+  readonly value: JsonValue
+  readonly source: string
+  readonly createdAt: string
+}
+
+/** One immutable versioned workflow definition. */
+export interface StoredWorkflowDefinition {
+  readonly definition: WorkflowDefinition
+  readonly checksum: string
+  readonly status: 'PUBLISHED'
+  readonly createdAt: string
+  readonly publishedAt: string
+}
+
+/** Complete durable state for one project's workflow control run. */
+export interface WorkflowControlStateRecord {
+  readonly projectId: string
+  readonly definitionId: string
+  readonly definitionVersion: number
+  readonly snapshot: WorkflowControlSnapshot
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+/** One persisted workflow-control journal entry. */
+export interface WorkflowControlEventRecord {
+  readonly seq: number
+  readonly projectId: string
+  readonly entry: WorkflowControlJournalEntry
+  readonly createdAt: string
+}
+
 /** Durable operations consumed by the platform API and realtime dispatcher. */
 export interface PlatformStore {
   /**
@@ -126,6 +208,8 @@ export interface PlatformStore {
     project: ProjectRecord,
     tasks: readonly TaskSnapshot[],
     write?: WorkflowWriteContext,
+    binding?: ProjectTeamBinding,
+    memoryEntries?: readonly ProjectMemoryEntry[],
   ): Awaitable<void>
   /**
    * Read one project.
@@ -283,6 +367,90 @@ export interface PlatformStore {
     ownerId: string,
     fencingToken: bigint,
   ): Awaitable<boolean>
+  /** List every logical Agent definition in creation order. */
+  listAgentDefinitions(): Awaitable<StoredAgentDefinition[]>
+  /**
+   * Persist one definition metadata/status revision.
+   * @param record - complete definition state.
+   */
+  saveAgentDefinition(record: StoredAgentDefinition): Awaitable<void>
+  /**
+   * List immutable Agent versions, optionally narrowed to one definition.
+   * @param definitionId - optional owning definition.
+   */
+  listAgentVersions(definitionId?: string): Awaitable<StoredAgentVersion[]>
+  /**
+   * Persist one immutable Agent version and its current lifecycle state.
+   * @param record - complete version state.
+   */
+  saveAgentVersion(record: StoredAgentVersion): Awaitable<void>
+  /** List immutable team versions in creation order. */
+  listAgentTeamVersions(): Awaitable<StoredAgentTeamVersion[]>
+  /**
+   * Read one immutable team version.
+   * @param teamVersionId - team version identity.
+   */
+  getAgentTeamVersion(teamVersionId: string): Awaitable<StoredAgentTeamVersion | undefined>
+  /**
+   * Persist one immutable published team version and its member references.
+   * @param record - complete team version state.
+   */
+  saveAgentTeamVersion(record: StoredAgentTeamVersion): Awaitable<void>
+  /** List every frozen project team binding. */
+  listProjectTeamBindings(): Awaitable<ProjectTeamBinding[]>
+  /**
+   * Read one project's frozen team binding.
+   * @param projectId - owning project.
+   */
+  getProjectTeamBinding(projectId: string): Awaitable<ProjectTeamBinding | undefined>
+  /**
+   * Freeze one published team version to a project.
+   * @param binding - complete immutable member snapshot.
+   */
+  bindProjectTeam(binding: ProjectTeamBinding): Awaitable<void>
+  /**
+   * Insert or replace one structured project-memory fact.
+   * @param entry - complete project memory value.
+   */
+  saveProjectMemoryEntry(entry: ProjectMemoryEntry): Awaitable<void>
+  /**
+   * List project-memory entries in creation order.
+   * @param projectId - owning project.
+   */
+  listProjectMemoryEntries(projectId: string): Awaitable<ProjectMemoryEntry[]>
+  /**
+   * Persist one immutable workflow definition.
+   * @param record - complete versioned workflow definition.
+   */
+  saveWorkflowDefinition(record: StoredWorkflowDefinition): Awaitable<void>
+  /**
+   * Read one immutable workflow definition.
+   * @param id - workflow definition identity.
+   * @param version - numeric definition version.
+   */
+  getWorkflowDefinition(id: string, version: number): Awaitable<StoredWorkflowDefinition | undefined>
+  /**
+   * Persist one workflow-control snapshot and append newly committed journal entries.
+   * @param projectId - owning project.
+   * @param snapshot - complete current executor state.
+   * @param journal - newly committed entries not already stored.
+   */
+  saveWorkflowControlState(
+    projectId: string,
+    snapshot: WorkflowControlSnapshot,
+    journal: readonly WorkflowControlJournalEntry[],
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
+  /**
+   * Read one project's durable workflow-control state.
+   * @param projectId - owning project.
+   */
+  getWorkflowControlState(projectId: string): Awaitable<WorkflowControlStateRecord | undefined>
+  /**
+   * List project workflow-control journal entries in commit order.
+   * @param projectId - owning project.
+   */
+  listWorkflowControlEvents(projectId: string): Awaitable<WorkflowControlEventRecord[]>
   /** Close owned database resources. */
   close(): Awaitable<void>
 }

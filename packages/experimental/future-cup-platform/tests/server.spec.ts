@@ -10,6 +10,8 @@ import {
   DagEngine,
   defaultAgentProfiles,
   OrchestrationRepository,
+  PersistentAgentRegistry,
+  JSON_SCHEMA_DIALECT,
   ProjectId,
   TaskId,
   taskDefinition,
@@ -71,13 +73,22 @@ class RejectingCancelLauncher implements ProjectRunLauncher {
   }
 }
 
-async function startServer(launcher?: ProjectRunLauncher) {
+async function startServer(
+  launcher?: ProjectRunLauncher,
+  withRegistry = false,
+) {
   const runRoot = mkdtempSync(join(tmpdir(), 'future-cup-server-'))
   roots.push(runRoot)
   const store = new OrchestrationRepository(':memory:', { journalMode: 'delete' })
+  const agentRegistry = withRegistry ? new PersistentAgentRegistry(store) : undefined
+  const defaultTeamVersionId = agentRegistry === undefined
+    ? undefined
+    : await agentRegistry.ensureDefaultTeam()
   const errors: unknown[] = []
   const server = createFutureCupServer({
     store,
+    agentRegistry,
+    defaultTeamVersionId,
     profiles: defaultAgentProfiles(),
     host: '127.0.0.1',
     port: 0,
@@ -93,6 +104,8 @@ async function startServer(launcher?: ProjectRunLauncher) {
   return {
     server,
     store,
+    agentRegistry,
+    defaultTeamVersionId,
     errors,
     runRoot,
     baseUrl: `http://127.0.0.1:${String(address.port)}`,
@@ -307,6 +320,95 @@ describe('Future Cup platform server', () => {
     expect(launcher.started).toEqual(['project-api'])
     expect(launcher.cancelled).toEqual(['project-api'])
     expect(errors).toEqual([])
+  })
+
+  it('registers versioned Agents and freezes the default team on project creation', async () => {
+    const { baseUrl, agentRegistry, defaultTeamVersionId } = await startServer(undefined, true)
+    expect(agentRegistry).toBeDefined()
+    expect(defaultTeamVersionId).toBeDefined()
+
+    const definitionResponse = await fetch(`${baseUrl}/api/v1/agent-definitions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'accessibility-designer',
+        name: 'Accessibility Designer',
+        purpose: 'Define accessible interaction rules.',
+        discoveryTags: ['design', 'accessibility'],
+      }),
+    })
+    expect(definitionResponse.status).toBe(201)
+    const contract = {
+      id: 'future-cup.test-output',
+      version: '1.0.0',
+      dialect: JSON_SCHEMA_DIALECT,
+      schema: {
+        type: 'object',
+        required: ['summary'],
+        properties: { summary: { type: 'string' } },
+      },
+    }
+    const versionResponse = await fetch(
+      `${baseUrl}/api/v1/agent-definitions/accessibility-designer/versions`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'accessibility-designer-1.0.0',
+          version: '1.0.0',
+          role: 'ui-designer',
+          model: 'deepseek-flash',
+          prompt: 'Define accessible interaction rules.',
+          promptVersion: 'v1',
+          capabilities: { design: 0.9 },
+          toolAllowlist: ['fs-read'],
+          memoryPolicy: { access: 'READ', kinds: ['design-decision'] },
+          maxConcurrency: 1,
+          inputSchema: contract,
+          outputSchema: contract,
+        }),
+      },
+    )
+    expect(versionResponse.status).toBe(201)
+    expect((await fetch(
+      `${baseUrl}/api/v1/agent-definitions/accessibility-designer/versions/accessibility-designer-1.0.0/validate`,
+      { method: 'POST' },
+    )).status).toBe(200)
+    expect((await fetch(
+      `${baseUrl}/api/v1/agent-definitions/accessibility-designer/versions/accessibility-designer-1.0.0/publish`,
+      { method: 'POST' },
+    )).status).toBe(200)
+
+    const discovered = await fetch(`${baseUrl}/api/v1/agent-definitions/discover`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ capability: 'design', minimumCapability: 0.8 }),
+    }).then(async response => await readJson(response, z.array(z.looseObject({
+      version: z.looseObject({ id: z.string() }),
+    }))))
+    expect(discovered.map(item => item.version.id)).toContain('accessibility-designer-1.0.0')
+
+    const projectResponse = await fetch(`${baseUrl}/api/v1/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'project-bound-team',
+        name: 'Bound team',
+        requirement: 'Build an admin page',
+      }),
+    })
+    expect(projectResponse.status).toBe(201)
+    const binding = await fetch(`${baseUrl}/api/v1/projects/project-bound-team/team`)
+      .then(async response => await readJson(response, z.looseObject({
+        teamVersion: z.looseObject({ id: z.string() }),
+      })))
+    expect(binding.teamVersion.id).toBe(defaultTeamVersionId)
+    const projectAgents = await fetch(`${baseUrl}/api/v1/projects/project-bound-team/agents`)
+      .then(async response => await readJson(response, z.array(agentSchema)))
+    expect(projectAgents.map(agent => agent.id)).toEqual(expect.arrayContaining([
+      'frontend-1',
+      'frontend-2',
+    ]))
   })
 
   it('returns explicit validation, duplicate, missing-resource, and unavailable-run errors', async () => {

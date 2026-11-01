@@ -22,6 +22,16 @@ import {
   verificationStatusSchema,
 } from './schemas.ts'
 import {
+  parseProjectTeamBinding,
+  parseStoredAgentDefinition,
+  parseStoredAgentTeamVersion,
+  parseStoredAgentVersion,
+} from './agent-registry.ts'
+import type {
+  AgentLifecycleStatus,
+  ProjectTeamBinding,
+} from './agent-registry.ts'
+import {
   executionProductEventPayload,
   executionProductEventType,
   productEventSchema,
@@ -34,6 +44,13 @@ import {
 } from './platform-store.ts'
 import { openOrchestrationDatabase, ORCHESTRATION_SCHEMA_VERSION } from './sqlite.ts'
 import type {
+  ProjectMemoryEntry,
+  StoredAgentDefinition,
+  StoredAgentTeamVersion,
+  StoredAgentVersion,
+  StoredWorkflowDefinition,
+  WorkflowControlEventRecord,
+  WorkflowControlStateRecord,
   LeaseAcquisition,
   OrchestrationStore,
   OutboxClaim,
@@ -43,6 +60,15 @@ import type {
   WorkflowLeaseState,
   WorkflowWriteContext,
 } from './platform-store.ts'
+import {
+  parseWorkflowControlDefinition,
+  parseWorkflowControlSnapshot,
+  workflowControlJournalEntrySchema,
+} from './workflow-control.ts'
+import type {
+  WorkflowControlJournalEntry,
+  WorkflowControlSnapshot,
+} from './workflow-control.ts'
 import type {
   ExecutionEventRecord,
   ExecutionRecord,
@@ -191,6 +217,81 @@ const projectRunRowSchema = z.object({
   error_json: z.string().nullable(),
 }).strict()
 
+const agentDefinitionRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  purpose: z.string(),
+  discovery_tags_json: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).strict()
+
+const agentVersionRowSchema = z.object({
+  id: z.string(),
+  agent_definition_id: z.string(),
+  version: z.number(),
+  spec_json: z.string(),
+  checksum: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  published_at: z.string().nullable(),
+  deprecated_at: z.string().nullable(),
+}).strict()
+
+const agentTeamVersionRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.number(),
+  spec_json: z.string(),
+  checksum: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  published_at: z.string().nullable(),
+}).strict()
+
+const projectTeamBindingRowSchema = z.object({
+  team_version_id: z.string(),
+  frozen_json: z.string(),
+  created_at: z.string(),
+}).strict()
+
+const projectMemoryRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  kind: z.string(),
+  key: z.string(),
+  value_json: z.string(),
+  source: z.string(),
+  created_at: z.string(),
+}).strict()
+
+const workflowDefinitionRowSchema = z.object({
+  graph_json: z.string(),
+  checksum: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  published_at: z.string().nullable(),
+}).strict()
+
+const workflowControlRunRowSchema = z.object({
+  project_id: z.string(),
+  definition_id: z.string(),
+  definition_version: z.number(),
+  snapshot_json: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).strict()
+
+const workflowControlEventRowSchema = z.object({
+  seq: z.number(),
+  project_id: z.string(),
+  entry_seq: z.number(),
+  event_json: z.string(),
+  created_at: z.string(),
+}).strict()
+
 /** Current persisted DAG state used by resume verification. */
 export interface PersistedDag {
   readonly tasks: readonly TaskSnapshot[]
@@ -231,6 +332,8 @@ export class OrchestrationRepository implements OrchestrationStore {
     project: ProjectRecord,
     tasks: readonly TaskSnapshot[],
     write?: WorkflowWriteContext,
+    binding?: ProjectTeamBinding,
+    memoryEntries: readonly ProjectMemoryEntry[] = [],
   ): void {
     this.transaction(() => {
       this.assertWorkflowWriteFence(write)
@@ -286,6 +389,40 @@ export class OrchestrationRepository implements OrchestrationStore {
           taskId: task.id,
           payload: taskProductEventPayload(task),
         })
+      }
+      if (binding !== undefined) {
+        if (binding.projectId !== project.id) {
+          throw new Error(`team binding project "${binding.projectId}" does not match "${project.id}"`)
+        }
+        this.database.prepare(`
+          INSERT INTO project_team_bindings (
+            project_id, team_version_id, frozen_json, created_at
+          ) VALUES (?, ?, ?, ?)
+        `).run(
+          binding.projectId,
+          binding.teamVersion.id,
+          JSON.stringify(binding),
+          this.timestamp(),
+        )
+      }
+      const memoryStatement = this.database.prepare(`
+        INSERT INTO project_memory_entries (
+          id, project_id, kind, key, value_json, source, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, kind, key) DO UPDATE SET
+          value_json = excluded.value_json,
+          source = excluded.source
+      `)
+      for (const entry of memoryEntries) {
+        memoryStatement.run(
+          entry.id,
+          entry.projectId,
+          entry.kind,
+          entry.key,
+          JSON.stringify(entry.value),
+          entry.source,
+          entry.createdAt,
+        )
       }
     })
   }
@@ -1298,6 +1435,430 @@ export class OrchestrationRepository implements OrchestrationStore {
     }))
   }
 
+  /** {@inheritDoc PlatformStore.listAgentDefinitions} */
+  listAgentDefinitions(): StoredAgentDefinition[] {
+    const rows = agentDefinitionRowSchema.array().parse(this.database.prepare(`
+      SELECT id, name, purpose, discovery_tags_json, status, created_at, updated_at
+      FROM agent_definitions
+      ORDER BY created_at, id
+    `).all())
+    return rows.map(row => ({
+      definition: parseStoredAgentDefinition({
+        id: row.id,
+        name: row.name,
+        purpose: row.purpose,
+        discoveryTags: z.array(z.string()).parse(JSON.parse(row.discovery_tags_json)),
+        status: decodeAgentLifecycleStatus(row.status),
+      }),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentDefinition} */
+  saveAgentDefinition(record: StoredAgentDefinition): void {
+    this.transaction(() => {
+      this.database.prepare(`
+        INSERT INTO agent_definitions (
+          id, name, purpose, discovery_tags_json, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          purpose = excluded.purpose,
+          discovery_tags_json = excluded.discovery_tags_json,
+          status = excluded.status,
+          updated_at = excluded.updated_at
+      `).run(
+        record.definition.id,
+        record.definition.name,
+        record.definition.purpose,
+        JSON.stringify(record.definition.discoveryTags),
+        record.definition.status,
+        record.createdAt,
+        record.updatedAt,
+      )
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.listAgentVersions} */
+  listAgentVersions(definitionId?: string): StoredAgentVersion[] {
+    const statement = definitionId === undefined
+      ? this.database.prepare(`
+        SELECT id, agent_definition_id, version, spec_json, checksum, status,
+          created_at, published_at, deprecated_at
+        FROM agent_definition_versions
+        ORDER BY agent_definition_id, version, id
+      `)
+      : this.database.prepare(`
+        SELECT id, agent_definition_id, version, spec_json, checksum, status,
+          created_at, published_at, deprecated_at
+        FROM agent_definition_versions
+        WHERE agent_definition_id = ?
+        ORDER BY version, id
+      `)
+    const rows = agentVersionRowSchema.array().parse(
+      definitionId === undefined ? statement.all() : statement.all(definitionId),
+    )
+    return rows.map(row => ({
+      version: parseStoredAgentVersion(JSON.parse(row.spec_json)),
+      ordinal: row.version,
+      checksum: row.checksum,
+      status: decodeAgentLifecycleStatus(row.status),
+      createdAt: row.created_at,
+      updatedAt: row.deprecated_at ?? row.published_at ?? row.created_at,
+      publishedAt: row.published_at ?? undefined,
+      deprecatedAt: row.deprecated_at ?? undefined,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentVersion} */
+  saveAgentVersion(record: StoredAgentVersion): void {
+    const specJson = JSON.stringify(record.version)
+    this.transaction(() => {
+      const existing = this.database.prepare(`
+        SELECT id, agent_definition_id, version, spec_json, checksum, status,
+          created_at, published_at, deprecated_at
+        FROM agent_definition_versions
+        WHERE id = ?
+      `).get(record.version.id)
+      if (existing !== undefined) {
+        const row = agentVersionRowSchema.parse(existing)
+        if (row.spec_json !== specJson || row.checksum !== record.checksum) {
+          throw new Error(`Agent version "${record.version.id}" is immutable`)
+        }
+        this.database.prepare(`
+          UPDATE agent_definition_versions
+          SET status = ?, published_at = ?, deprecated_at = ?
+          WHERE id = ?
+        `).run(
+          record.status,
+          record.publishedAt ?? null,
+          record.deprecatedAt ?? null,
+          record.version.id,
+        )
+        return
+      }
+      this.database.prepare(`
+        INSERT INTO agent_definition_versions (
+          id, agent_definition_id, version, spec_json, checksum, status,
+          created_at, published_at, deprecated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.version.id,
+        record.version.definitionId,
+        record.ordinal,
+        specJson,
+        record.checksum,
+        record.status,
+        record.createdAt,
+        record.publishedAt ?? null,
+        record.deprecatedAt ?? null,
+      )
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.listAgentTeamVersions} */
+  listAgentTeamVersions(): StoredAgentTeamVersion[] {
+    const rows = agentTeamVersionRowSchema.array().parse(this.database.prepare(`
+      SELECT id, name, version, spec_json, checksum, status, created_at, published_at
+      FROM agent_team_versions
+      ORDER BY created_at, id
+    `).all())
+    return rows.map(row => ({
+      teamVersion: parseStoredAgentTeamVersion(JSON.parse(row.spec_json)),
+      ordinal: row.version,
+      checksum: row.checksum,
+      status: decodeTeamStatus(row.status),
+      createdAt: row.created_at,
+      publishedAt: row.published_at ?? row.created_at,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.getAgentTeamVersion} */
+  getAgentTeamVersion(teamVersionId: string): StoredAgentTeamVersion | undefined {
+    return this.listAgentTeamVersions().find(record => record.teamVersion.id === teamVersionId)
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentTeamVersion} */
+  saveAgentTeamVersion(record: StoredAgentTeamVersion): void {
+    const specJson = JSON.stringify(record.teamVersion)
+    this.transaction(() => {
+      const existing = this.database.prepare(`
+        SELECT id, name, version, spec_json, checksum, status, created_at, published_at
+        FROM agent_team_versions
+        WHERE id = ?
+      `).get(record.teamVersion.id)
+      if (existing !== undefined) {
+        const row = agentTeamVersionRowSchema.parse(existing)
+        if (row.spec_json !== specJson || row.checksum !== record.checksum) {
+          throw new Error(`Agent team version "${record.teamVersion.id}" is immutable`)
+        }
+        return
+      }
+      this.database.prepare(`
+        INSERT INTO agent_team_versions (
+          id, name, version, spec_json, checksum, status, created_at, published_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.teamVersion.id,
+        record.teamVersion.name,
+        record.ordinal,
+        specJson,
+        record.checksum,
+        record.status,
+        record.createdAt,
+        record.publishedAt,
+      )
+      const memberStatement = this.database.prepare(`
+        INSERT INTO agent_team_members (
+          team_version_id, member_id, agent_definition_version_id, instance_count, position
+        ) VALUES (?, ?, ?, ?, ?)
+      `)
+      for (const [position, member] of record.teamVersion.members.entries()) {
+        memberStatement.run(
+          record.teamVersion.id,
+          member.version.id,
+          member.version.id,
+          member.instanceCount,
+          position,
+        )
+      }
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.listProjectTeamBindings} */
+  listProjectTeamBindings(): ProjectTeamBinding[] {
+    const rows = projectTeamBindingRowSchema.array().parse(this.database.prepare(`
+      SELECT team_version_id, frozen_json, created_at
+      FROM project_team_bindings
+      ORDER BY created_at, project_id
+    `).all())
+    return rows.map(row => parseProjectTeamBinding(JSON.parse(row.frozen_json)))
+  }
+
+  /** {@inheritDoc PlatformStore.getProjectTeamBinding} */
+  getProjectTeamBinding(projectId: string): ProjectTeamBinding | undefined {
+    const raw = this.database.prepare(`
+      SELECT team_version_id, frozen_json, created_at
+      FROM project_team_bindings
+      WHERE project_id = ?
+    `).get(projectId)
+    if (raw === undefined) return undefined
+    const row = projectTeamBindingRowSchema.parse(raw)
+    return parseProjectTeamBinding(JSON.parse(row.frozen_json))
+  }
+
+  /** {@inheritDoc PlatformStore.bindProjectTeam} */
+  bindProjectTeam(binding: ProjectTeamBinding): void {
+    const frozenJson = JSON.stringify(binding)
+    this.transaction(() => {
+      const existing = this.getProjectTeamBinding(binding.projectId)
+      if (existing !== undefined) {
+        if (JSON.stringify(existing) !== frozenJson) {
+          throw new Error(`project "${binding.projectId}" already has a different team binding`)
+        }
+        return
+      }
+      this.database.prepare(`
+        INSERT INTO project_team_bindings (project_id, team_version_id, frozen_json, created_at)
+        VALUES (?, ?, ?, ?)
+      `).run(binding.projectId, binding.teamVersion.id, frozenJson, this.timestamp())
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.saveProjectMemoryEntry} */
+  saveProjectMemoryEntry(entry: ProjectMemoryEntry): void {
+    this.transaction(() => {
+      this.database.prepare(`
+        INSERT INTO project_memory_entries (
+          id, project_id, kind, key, value_json, source, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, kind, key) DO UPDATE SET
+          value_json = excluded.value_json,
+          source = excluded.source
+      `).run(
+        entry.id,
+        entry.projectId,
+        entry.kind,
+        entry.key,
+        JSON.stringify(entry.value),
+        entry.source,
+        entry.createdAt,
+      )
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.listProjectMemoryEntries} */
+  listProjectMemoryEntries(projectId: string): ProjectMemoryEntry[] {
+    const rows = projectMemoryRowSchema.array().parse(this.database.prepare(`
+      SELECT id, project_id, kind, key, value_json, source, created_at
+      FROM project_memory_entries
+      WHERE project_id = ?
+      ORDER BY created_at, id
+    `).all(projectId))
+    return rows.map(row => ({
+      id: row.id,
+      projectId: row.project_id,
+      kind: decodeProjectMemoryKind(row.kind),
+      key: row.key,
+      value: jsonValueSchema.parse(JSON.parse(row.value_json)),
+      source: row.source,
+      createdAt: row.created_at,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.saveWorkflowDefinition} */
+  saveWorkflowDefinition(record: StoredWorkflowDefinition): void {
+    const graphJson = JSON.stringify(record.definition)
+    this.transaction(() => {
+      const existing = this.getWorkflowDefinition(
+        record.definition.id,
+        record.definition.version,
+      )
+      if (existing !== undefined) {
+        if (existing.checksum !== record.checksum
+          || JSON.stringify(existing.definition) !== graphJson) {
+          throw new Error(
+            `workflow definition "${record.definition.id}@${String(record.definition.version)}" is immutable`,
+          )
+        }
+        return
+      }
+      this.database.prepare(`
+        INSERT INTO workflow_definitions (
+          id, version, graph_json, checksum, status, created_at, published_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.definition.id,
+        record.definition.version,
+        graphJson,
+        record.checksum,
+        record.status,
+        record.createdAt,
+        record.publishedAt,
+      )
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.getWorkflowDefinition} */
+  getWorkflowDefinition(id: string, version: number): StoredWorkflowDefinition | undefined {
+    const raw = this.database.prepare(`
+      SELECT graph_json, checksum, status, created_at, published_at
+      FROM workflow_definitions
+      WHERE id = ? AND version = ?
+    `).get(id, version)
+    if (raw === undefined) return undefined
+    const row = workflowDefinitionRowSchema.parse(raw)
+    return {
+      definition: parseWorkflowControlDefinition(JSON.parse(row.graph_json)),
+      checksum: row.checksum,
+      status: decodeWorkflowDefinitionStatus(row.status),
+      createdAt: row.created_at,
+      publishedAt: row.published_at ?? row.created_at,
+    }
+  }
+
+  /** {@inheritDoc PlatformStore.saveWorkflowControlState} */
+  saveWorkflowControlState(
+    projectId: string,
+    snapshot: WorkflowControlSnapshot,
+    journal: readonly WorkflowControlJournalEntry[],
+    write?: WorkflowWriteContext,
+  ): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      const existingRaw = this.database.prepare(`
+        SELECT project_id, definition_id, definition_version, snapshot_json, status,
+          created_at, updated_at
+        FROM workflow_control_runs
+        WHERE project_id = ?
+      `).get(projectId)
+      const existing = existingRaw === undefined
+        ? undefined
+        : workflowControlRunRowSchema.parse(existingRaw)
+      if (existing !== undefined) {
+        const current = parseWorkflowControlSnapshot(JSON.parse(existing.snapshot_json))
+        if (existing.definition_id !== snapshot.definition.id
+          || existing.definition_version !== snapshot.definition.version) {
+          throw new Error(`workflow control for "${projectId}" uses a different definition`)
+        }
+        if (snapshot.revision < current.revision) {
+          throw new Error(`workflow control for "${projectId}" rejected stale revision ${String(snapshot.revision)}`)
+        }
+        if (snapshot.revision === current.revision) return
+      }
+      const timestamp = this.timestamp()
+      this.database.prepare(`
+        INSERT INTO workflow_control_runs (
+          project_id, definition_id, definition_version, snapshot_json, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id) DO UPDATE SET
+          snapshot_json = excluded.snapshot_json,
+          status = excluded.status,
+          updated_at = excluded.updated_at
+      `).run(
+        projectId,
+        snapshot.definition.id,
+        snapshot.definition.version,
+        JSON.stringify(snapshot),
+        snapshot.status,
+        existing?.created_at ?? timestamp,
+        timestamp,
+      )
+      const journalStatement = this.database.prepare(`
+        INSERT INTO workflow_control_events (
+          project_id, entry_seq, event_type, event_json, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, entry_seq) DO NOTHING
+      `)
+      for (const entry of journal) {
+        journalStatement.run(
+          projectId,
+          entry.seq,
+          entry.type,
+          JSON.stringify(entry),
+          timestamp,
+        )
+      }
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.getWorkflowControlState} */
+  getWorkflowControlState(projectId: string): WorkflowControlStateRecord | undefined {
+    const raw = this.database.prepare(`
+      SELECT project_id, definition_id, definition_version, snapshot_json, status,
+        created_at, updated_at
+      FROM workflow_control_runs
+      WHERE project_id = ?
+    `).get(projectId)
+    if (raw === undefined) return undefined
+    const row = workflowControlRunRowSchema.parse(raw)
+    return {
+      projectId: row.project_id,
+      definitionId: row.definition_id,
+      definitionVersion: row.definition_version,
+      snapshot: parseWorkflowControlSnapshot(JSON.parse(row.snapshot_json)),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  }
+
+  /** {@inheritDoc PlatformStore.listWorkflowControlEvents} */
+  listWorkflowControlEvents(projectId: string): WorkflowControlEventRecord[] {
+    const rows = workflowControlEventRowSchema.array().parse(this.database.prepare(`
+      SELECT seq, project_id, entry_seq, event_json, created_at
+      FROM workflow_control_events
+      WHERE project_id = ?
+      ORDER BY seq
+    `).all(projectId))
+    return rows.map(row => ({
+      seq: row.seq,
+      projectId: row.project_id,
+      entry: parseWorkflowControlJournalEntry(JSON.parse(row.event_json)),
+      createdAt: row.created_at,
+    }))
+  }
+
   /** Close the SQLite connection. Idempotent. */
   close(): void {
     if (this.closed) return
@@ -1522,6 +2083,44 @@ function decodeProductEvent(row: z.infer<typeof productEventRowSchema>): Product
     ...row.agent_id === null ? {} : { agentId: row.agent_id },
     payload: jsonValueSchema.parse(JSON.parse(row.payload_json)),
   })
+}
+
+function decodeAgentLifecycleStatus(value: string): AgentLifecycleStatus {
+  switch (value) {
+    case 'DRAFT':
+    case 'VALIDATED':
+    case 'PUBLISHED':
+    case 'DEPRECATED':
+      return value
+    default:
+      throw new Error(`unknown Agent lifecycle status "${value}"`)
+  }
+}
+
+function decodeTeamStatus(value: string): 'PUBLISHED' {
+  if (value === 'PUBLISHED') return value
+  throw new Error(`unknown Agent team status "${value}"`)
+}
+
+function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {
+  if (value === 'PUBLISHED') return value
+  throw new Error(`unknown workflow definition status "${value}"`)
+}
+
+function decodeProjectMemoryKind(value: string): ProjectMemoryEntry['kind'] {
+  switch (value) {
+    case 'requirement':
+    case 'design-decision':
+    case 'failure-signature':
+    case 'accepted-artifact-summary':
+      return value
+    default:
+      throw new Error(`unknown project memory kind "${value}"`)
+  }
+}
+
+function parseWorkflowControlJournalEntry(value: unknown): WorkflowControlJournalEntry {
+  return workflowControlJournalEntrySchema.parse(value)
 }
 
 /** Validate a lease duration before touching durable rows. */

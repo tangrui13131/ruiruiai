@@ -254,7 +254,7 @@ export class TeamOrchestrator {
     try {
       const prompt = buildStructuredPrompt(
         'planner',
-        PLANNER_INSTRUCTIONS,
+        profile.instructions ?? PLANNER_INSTRUCTIONS,
         { requirement },
         plannerOutputSchema,
       )
@@ -292,7 +292,13 @@ export class TeamOrchestrator {
   ): Promise<{ ok: true } | { ok: false; taskId: TaskIdType; retryable: boolean; message: string }> {
     try {
       const invoker = requireAgentInvoker(this.options.invokers, running.agent.id)
-      const invocation = this.invocationForTask(running.task, requirement, planner, outputs)
+      const invocation = this.invocationForTask(
+        running.task,
+        running.agent,
+        requirement,
+        planner,
+        outputs,
+      )
       await this.options.repository.appendExecutionEvent(
         running.executionId,
         'agent/started',
@@ -314,7 +320,7 @@ export class TeamOrchestrator {
         'agent/structured-output',
         jsonValueSchema.parse(result.output),
       )
-      this.applyOutput(running.task, result.output)
+      await this.applyOutput(running.task, result.output)
       outputs.set(running.task.id, result.output)
       await dag.completeTask(running.task.id, jsonValueSchema.parse(result.output), {
         executionId: running.executionId,
@@ -343,6 +349,7 @@ export class TeamOrchestrator {
 
   private invocationForTask(
     task: TaskSnapshot,
+    profile: AgentProfile,
     requirement: string,
     planner: PlannerOutput,
     outputs: Map<TaskIdType, unknown>,
@@ -358,7 +365,7 @@ export class TeamOrchestrator {
         return {
           prompt: buildStructuredPrompt(
             'ui-designer',
-            UI_DESIGNER_INSTRUCTIONS,
+            profile.instructions ?? UI_DESIGNER_INSTRUCTIONS,
             { requirement, pages: planner.pages },
             uiDesignerOutputSchema,
           ),
@@ -375,7 +382,7 @@ export class TeamOrchestrator {
         return {
           prompt: buildStructuredPrompt(
             'frontend',
-            FRONTEND_INSTRUCTIONS,
+            profile.instructions ?? FRONTEND_INSTRUCTIONS,
             {
               task: task.description,
               page,
@@ -393,7 +400,7 @@ export class TeamOrchestrator {
         return {
           prompt: buildStructuredPrompt(
             'tester',
-            TESTER_INSTRUCTIONS,
+            profile.instructions ?? TESTER_INSTRUCTIONS,
             { requirement, pages: planner.pages, design },
             testerOutputSchema,
           ),
@@ -403,7 +410,7 @@ export class TeamOrchestrator {
         return {
           prompt: buildStructuredPrompt(
             'integration',
-            INTEGRATION_INSTRUCTIONS,
+            profile.instructions ?? INTEGRATION_INSTRUCTIONS,
             {
               pages: planner.pages,
               verificationSpec: testerOutputSchema.parse(verificationSpec),
@@ -421,17 +428,29 @@ export class TeamOrchestrator {
     }
   }
 
-  private applyOutput(task: TaskSnapshot, output: unknown): void {
+  private async applyOutput(task: TaskSnapshot, output: unknown): Promise<void> {
     switch (task.role) {
       case 'ui-designer': {
         const design = uiDesignerOutputSchema.parse(output)
         writeScopedFiles(this.options.workspace, [
           { path: 'src/design.css', content: renderDesignStylesheet(design.tokens) },
         ], ['src/'])
+        await this.saveTaskMemory(task, 'design-decision', 'design-system', {
+          summary: design.summary,
+          designSpec: design.designSpec,
+          tokens: design.tokens,
+        })
         return
       }
-      case 'tester':
+      case 'tester': {
+        const tester = testerOutputSchema.parse(output)
+        await this.saveTaskMemory(task, 'design-decision', 'verification-spec', {
+          summary: tester.summary,
+          pages: tester.pages.map(page => page.pageId),
+          interactions: tester.interactions.length,
+        })
         return
+      }
       case 'frontend': {
         const page = frontendOutputSchema.parse(output)
         if (page.pageId !== task.pageId) {
@@ -441,18 +460,45 @@ export class TeamOrchestrator {
         }
         validateFrontendImports(page.files)
         writeScopedFiles(this.options.workspace, page.files, ['src/pages/'])
+        await this.saveTaskMemory(task, 'accepted-artifact-summary', `page-${page.pageId}`, {
+          summary: page.summary,
+          files: page.files.map(file => file.path),
+        })
         return
       }
-      case 'integration':
+      case 'integration': {
+        const integration = integrationOutputSchema.parse(output)
         writeScopedFiles(
           this.options.workspace,
-          integrationOutputSchema.parse(output).files,
+          integration.files,
           ['src/'],
         )
+        await this.saveTaskMemory(task, 'accepted-artifact-summary', 'integrated-application', {
+          summary: integration.summary,
+          files: integration.files.map(file => file.path),
+        })
         return
+      }
       default:
         assertNever(task.role)
     }
+  }
+
+  private async saveTaskMemory(
+    task: TaskSnapshot,
+    kind: 'design-decision' | 'accepted-artifact-summary',
+    key: string,
+    value: Record<string, unknown>,
+  ): Promise<void> {
+    await this.options.repository.saveProjectMemoryEntry({
+      id: `memory-${task.projectId}-${key}`,
+      projectId: task.projectId,
+      kind,
+      key,
+      value: jsonValueSchema.parse(value),
+      source: `task:${task.id}`,
+      createdAt: new Date().toISOString(),
+    })
   }
 
   private async invoke<T>(

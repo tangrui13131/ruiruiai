@@ -13,6 +13,17 @@ import {
   WorkflowRunId,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type {
+  AgentLifecycleStatus,
+  ProjectMemoryEntry,
+  ProjectTeamBinding,
+  StoredAgentDefinition,
+  StoredAgentTeamVersion,
+  StoredAgentVersion,
+  StoredWorkflowDefinition,
+  WorkflowControlEventRecord,
+  WorkflowControlJournalEntry,
+  WorkflowControlSnapshot,
+  WorkflowControlStateRecord,
   LeaseAcquisition,
   OrchestrationStore,
   OutboxClaim,
@@ -43,10 +54,17 @@ import type {
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import {
   assertPositiveSafeInteger,
+  checksumJson,
   executionProductEventPayload,
   executionProductEventType,
   jsonValueSchema,
   productEventSchema,
+  parseProjectTeamBinding,
+  parseStoredAgentDefinition,
+  parseStoredAgentTeamVersion,
+  parseStoredAgentVersion,
+  parseWorkflowControlDefinition,
+  parseWorkflowControlSnapshot,
   schedulerDecisionSchema,
   taskFailureSchema,
   taskJournalEntrySchema,
@@ -55,6 +73,7 @@ import {
   taskSnapshotSchema,
   verificationStatusSchema,
   WorkflowFenceError,
+  workflowControlJournalEntrySchema,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import { Prisma, PrismaClient } from './generated/client/client.ts'
 
@@ -68,6 +87,12 @@ interface OutboxRawRow {
   readonly payloadJson: Prisma.JsonValue
   readonly occurredAt: Date
 }
+
+const M5_TRANSACTION_OPTIONS = {
+  isolationLevel: 'Serializable',
+  maxWait: 5_000,
+  timeout: 30_000,
+} as const
 
 /**
  * PostgreSQL platform storage over a Prisma schema and migration history.
@@ -89,6 +114,8 @@ export class PostgresPlatformStore implements OrchestrationStore {
     project: ProjectRecord,
     tasks: readonly TaskSnapshot[],
     write?: WorkflowWriteContext,
+    binding?: ProjectTeamBinding,
+    memoryEntries: readonly ProjectMemoryEntry[] = [],
   ): Promise<void> {
     await retrySerializable(async () => {
       await this.prisma.$transaction(async (tx) => {
@@ -158,6 +185,33 @@ export class PostgresPlatformStore implements OrchestrationStore {
             type: 'task.created',
             taskId: task.id,
             payload: taskProductEventPayload(task),
+          })
+        }
+        if (binding !== undefined) {
+          if (binding.projectId !== project.id) {
+            throw new Error(`team binding project "${binding.projectId}" does not match "${project.id}"`)
+          }
+          await tx.projectTeamBinding.create({
+            data: {
+              projectId: binding.projectId,
+              teamVersionId: binding.teamVersion.id,
+              frozenJson: json(binding),
+              createdAt: new Date(),
+            },
+          })
+        }
+        if (memoryEntries.length > 0) {
+          await tx.projectMemoryEntry.createMany({
+            data: memoryEntries.map(entry => ({
+              id: entry.id,
+              projectId: entry.projectId,
+              kind: entry.kind,
+              key: entry.key,
+              valueJson: json(entry.value),
+              source: entry.source,
+              createdAt: new Date(entry.createdAt),
+            })),
+            skipDuplicates: true,
           })
         }
       }, {
@@ -451,6 +505,387 @@ export class PostgresPlatformStore implements OrchestrationStore {
       RETURNING "resource_id" AS "resourceId"
     `
     return rows.length === 1
+  }
+
+  /** {@inheritDoc PlatformStore.listAgentDefinitions} */
+  async listAgentDefinitions(): Promise<StoredAgentDefinition[]> {
+    const rows = await this.prisma.agentDefinition.findMany({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(row => ({
+      definition: parseStoredAgentDefinition({
+        id: row.id,
+        name: row.name,
+        purpose: row.purpose,
+        discoveryTags: stringArray(row.discoveryTagsJson),
+        status: decodeAgentLifecycleStatus(row.status),
+      }),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentDefinition} */
+  async saveAgentDefinition(record: StoredAgentDefinition): Promise<void> {
+    await this.prisma.agentDefinition.upsert({
+      where: { id: record.definition.id },
+      create: {
+        id: record.definition.id,
+        name: record.definition.name,
+        purpose: record.definition.purpose,
+        discoveryTagsJson: json(record.definition.discoveryTags),
+        status: record.definition.status,
+        createdAt: new Date(record.createdAt),
+        updatedAt: new Date(record.updatedAt),
+      },
+      update: {
+        name: record.definition.name,
+        purpose: record.definition.purpose,
+        discoveryTagsJson: json(record.definition.discoveryTags),
+        status: record.definition.status,
+        updatedAt: new Date(record.updatedAt),
+      },
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.listAgentVersions} */
+  async listAgentVersions(definitionId?: string): Promise<StoredAgentVersion[]> {
+    const rows = await this.prisma.agentDefinitionVersion.findMany({
+      where: definitionId === undefined ? {} : { agentDefinitionId: definitionId },
+      orderBy: [{ agentDefinitionId: 'asc' }, { version: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(row => ({
+      version: parseStoredAgentVersion(row.specJson),
+      ordinal: row.version,
+      checksum: row.checksum,
+      status: decodeAgentLifecycleStatus(row.status),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: (row.deprecatedAt ?? row.publishedAt ?? row.createdAt).toISOString(),
+      publishedAt: row.publishedAt?.toISOString(),
+      deprecatedAt: row.deprecatedAt?.toISOString(),
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentVersion} */
+  async saveAgentVersion(record: StoredAgentVersion): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.agentDefinitionVersion.findUnique({
+        where: { id: record.version.id },
+      })
+      if (existing !== null) {
+        if (existing.checksum !== record.checksum) {
+          throw new Error(`Agent version "${record.version.id}" is immutable`)
+        }
+        await tx.agentDefinitionVersion.update({
+          where: { id: record.version.id },
+          data: {
+            status: record.status,
+            publishedAt: record.publishedAt === undefined
+              ? null
+              : new Date(record.publishedAt),
+            deprecatedAt: record.deprecatedAt === undefined
+              ? null
+              : new Date(record.deprecatedAt),
+          },
+        })
+        return
+      }
+      await tx.agentDefinitionVersion.create({
+        data: {
+          id: record.version.id,
+          agentDefinitionId: record.version.definitionId,
+          version: record.ordinal,
+          specJson: json(record.version),
+          checksum: record.checksum,
+          status: record.status,
+          createdAt: new Date(record.createdAt),
+          publishedAt: record.publishedAt === undefined
+            ? null
+            : new Date(record.publishedAt),
+          deprecatedAt: record.deprecatedAt === undefined
+            ? null
+            : new Date(record.deprecatedAt),
+        },
+      })
+    }, M5_TRANSACTION_OPTIONS)
+  }
+
+  /** {@inheritDoc PlatformStore.listAgentTeamVersions} */
+  async listAgentTeamVersions(): Promise<StoredAgentTeamVersion[]> {
+    const rows = await this.prisma.agentTeamVersion.findMany({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(row => ({
+      teamVersion: parseStoredAgentTeamVersion(row.specJson),
+      ordinal: row.version,
+      checksum: row.checksum,
+      status: decodeAgentTeamStatus(row.status),
+      createdAt: row.createdAt.toISOString(),
+      publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.getAgentTeamVersion} */
+  async getAgentTeamVersion(teamVersionId: string): Promise<StoredAgentTeamVersion | undefined> {
+    const row = await this.prisma.agentTeamVersion.findUnique({ where: { id: teamVersionId } })
+    if (row === null) return undefined
+    return {
+      teamVersion: parseStoredAgentTeamVersion(row.specJson),
+      ordinal: row.version,
+      checksum: row.checksum,
+      status: decodeAgentTeamStatus(row.status),
+      createdAt: row.createdAt.toISOString(),
+      publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+    }
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentTeamVersion} */
+  async saveAgentTeamVersion(record: StoredAgentTeamVersion): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.agentTeamVersion.findUnique({
+        where: { id: record.teamVersion.id },
+      })
+      if (existing !== null) {
+        if (existing.checksum !== record.checksum) {
+          throw new Error(`Agent team version "${record.teamVersion.id}" is immutable`)
+        }
+        return
+      }
+      await tx.agentTeamVersion.create({
+        data: {
+          id: record.teamVersion.id,
+          name: record.teamVersion.name,
+          version: record.ordinal,
+          specJson: json(record.teamVersion),
+          checksum: record.checksum,
+          status: record.status,
+          createdAt: new Date(record.createdAt),
+          publishedAt: new Date(record.publishedAt),
+          members: {
+            create: record.teamVersion.members.map((member, position) => ({
+              memberId: member.version.id,
+              agentDefinitionVersionId: member.version.id,
+              instanceCount: member.instanceCount,
+              position,
+            })),
+          },
+        },
+      })
+    }, M5_TRANSACTION_OPTIONS)
+  }
+
+  /** {@inheritDoc PlatformStore.listProjectTeamBindings} */
+  async listProjectTeamBindings(): Promise<ProjectTeamBinding[]> {
+    const rows = await this.prisma.projectTeamBinding.findMany({
+      orderBy: [{ createdAt: 'asc' }, { projectId: 'asc' }],
+    })
+    return rows.map(row => parseProjectTeamBinding(row.frozenJson))
+  }
+
+  /** {@inheritDoc PlatformStore.getProjectTeamBinding} */
+  async getProjectTeamBinding(projectId: string): Promise<ProjectTeamBinding | undefined> {
+    const row = await this.prisma.projectTeamBinding.findUnique({ where: { projectId } })
+    return row === null ? undefined : parseProjectTeamBinding(row.frozenJson)
+  }
+
+  /** {@inheritDoc PlatformStore.bindProjectTeam} */
+  async bindProjectTeam(binding: ProjectTeamBinding): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.projectTeamBinding.findUnique({
+        where: { projectId: binding.projectId },
+      })
+      if (existing !== null) {
+        if (checksumJson(jsonValueSchema.parse(existing.frozenJson))
+          !== checksumJson(jsonValueSchema.parse(binding))) {
+          throw new Error(`project "${binding.projectId}" already has a different team binding`)
+        }
+        return
+      }
+      await tx.projectTeamBinding.create({
+        data: {
+          projectId: binding.projectId,
+          teamVersionId: binding.teamVersion.id,
+          frozenJson: json(binding),
+          createdAt: new Date(),
+        },
+      })
+    }, M5_TRANSACTION_OPTIONS)
+  }
+
+  /** {@inheritDoc PlatformStore.saveProjectMemoryEntry} */
+  async saveProjectMemoryEntry(entry: ProjectMemoryEntry): Promise<void> {
+    await this.prisma.projectMemoryEntry.upsert({
+      where: {
+        projectId_kind_key: {
+          projectId: entry.projectId,
+          kind: entry.kind,
+          key: entry.key,
+        },
+      },
+      create: {
+        id: entry.id,
+        projectId: entry.projectId,
+        kind: entry.kind,
+        key: entry.key,
+        valueJson: json(entry.value),
+        source: entry.source,
+        createdAt: new Date(entry.createdAt),
+      },
+      update: {
+        valueJson: json(entry.value),
+        source: entry.source,
+      },
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.listProjectMemoryEntries} */
+  async listProjectMemoryEntries(projectId: string): Promise<ProjectMemoryEntry[]> {
+    const rows = await this.prisma.projectMemoryEntry.findMany({
+      where: { projectId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(row => ({
+      id: row.id,
+      projectId: row.projectId,
+      kind: decodeProjectMemoryKind(row.kind),
+      key: row.key,
+      value: jsonValueSchema.parse(row.valueJson),
+      source: row.source,
+      createdAt: row.createdAt.toISOString(),
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.saveWorkflowDefinition} */
+  async saveWorkflowDefinition(record: StoredWorkflowDefinition): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.workflowDefinition.findUnique({
+        where: {
+          id_version: {
+            id: record.definition.id,
+            version: record.definition.version,
+          },
+        },
+      })
+      if (existing !== null) {
+        if (existing.checksum !== record.checksum) {
+          throw new Error(
+            `workflow definition "${record.definition.id}@${String(record.definition.version)}" is immutable`,
+          )
+        }
+        return
+      }
+      await tx.workflowDefinition.create({
+        data: {
+          id: record.definition.id,
+          version: record.definition.version,
+          graphJson: json(record.definition),
+          checksum: record.checksum,
+          status: record.status,
+          createdAt: new Date(record.createdAt),
+          publishedAt: new Date(record.publishedAt),
+        },
+      })
+    }, M5_TRANSACTION_OPTIONS)
+  }
+
+  /** {@inheritDoc PlatformStore.getWorkflowDefinition} */
+  async getWorkflowDefinition(
+    id: string,
+    version: number,
+  ): Promise<StoredWorkflowDefinition | undefined> {
+    const row = await this.prisma.workflowDefinition.findUnique({
+      where: { id_version: { id, version } },
+    })
+    if (row === null) return undefined
+    return {
+      definition: parseWorkflowControlDefinition(row.graphJson),
+      checksum: row.checksum,
+      status: decodeWorkflowDefinitionStatus(row.status),
+      createdAt: row.createdAt.toISOString(),
+      publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+    }
+  }
+
+  /** {@inheritDoc PlatformStore.saveWorkflowControlState} */
+  async saveWorkflowControlState(
+    projectId: string,
+    snapshot: WorkflowControlSnapshot,
+    journal: readonly WorkflowControlJournalEntry[],
+    write?: WorkflowWriteContext,
+  ): Promise<void> {
+    await this.withWorkflowTransaction(write, async (tx) => {
+      const existing = await tx.workflowControlRun.findUnique({ where: { projectId } })
+      if (existing !== null) {
+        const current = parseWorkflowControlSnapshot(existing.snapshotJson)
+        if (existing.definitionId !== snapshot.definition.id
+          || existing.definitionVersion !== snapshot.definition.version) {
+          throw new Error(`workflow control for "${projectId}" uses a different definition`)
+        }
+        if (snapshot.revision < current.revision) {
+          throw new Error(`workflow control for "${projectId}" rejected stale revision ${String(snapshot.revision)}`)
+        }
+        if (snapshot.revision === current.revision) return
+      }
+      await tx.workflowControlRun.upsert({
+        where: { projectId },
+        create: {
+          projectId,
+          definitionId: snapshot.definition.id,
+          definitionVersion: snapshot.definition.version,
+          snapshotJson: json(snapshot),
+          status: snapshot.status,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        update: {
+          snapshotJson: json(snapshot),
+          status: snapshot.status,
+          updatedAt: new Date(),
+        },
+      })
+      if (journal.length > 0) {
+        await tx.workflowControlEvent.createMany({
+          data: journal.map(entry => ({
+            projectId,
+            entrySeq: entry.seq,
+            eventType: entry.type,
+            eventJson: json(entry),
+            createdAt: new Date(),
+          })),
+          skipDuplicates: true,
+        })
+      }
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.getWorkflowControlState} */
+  async getWorkflowControlState(
+    projectId: string,
+  ): Promise<WorkflowControlStateRecord | undefined> {
+    const row = await this.prisma.workflowControlRun.findUnique({ where: { projectId } })
+    if (row === null) return undefined
+    return {
+      projectId: row.projectId,
+      definitionId: row.definitionId,
+      definitionVersion: row.definitionVersion,
+      snapshot: parseWorkflowControlSnapshot(row.snapshotJson),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  }
+
+  /** {@inheritDoc PlatformStore.listWorkflowControlEvents} */
+  async listWorkflowControlEvents(projectId: string): Promise<WorkflowControlEventRecord[]> {
+    const rows = await this.prisma.workflowControlEvent.findMany({
+      where: { projectId },
+      orderBy: { seq: 'asc' },
+    })
+    return rows.map(row => ({
+      seq: Number(row.seq),
+      projectId: row.projectId,
+      entry: workflowControlJournalEntrySchema.parse(row.eventJson),
+      createdAt: row.createdAt.toISOString(),
+    }))
   }
 
   /** {@inheritDoc OrchestrationStore.saveTask} */
@@ -1086,6 +1521,48 @@ async function saveTaskInTransaction(
     ...task.assignedAgentId === undefined ? {} : { agentId: task.assignedAgentId },
     payload: taskProductEventPayload(task),
   })
+}
+
+function stringArray(value: Prisma.JsonValue): string[] {
+  const parsed = jsonValueSchema.parse(value)
+  if (!Array.isArray(parsed) || !parsed.every(item => typeof item === 'string')) {
+    throw new Error('expected a JSON array of strings')
+  }
+  return parsed
+}
+
+function decodeAgentLifecycleStatus(value: string): AgentLifecycleStatus {
+  switch (value) {
+    case 'DRAFT':
+    case 'VALIDATED':
+    case 'PUBLISHED':
+    case 'DEPRECATED':
+      return value
+    default:
+      throw new Error(`unknown Agent lifecycle status "${value}"`)
+  }
+}
+
+function decodeAgentTeamStatus(value: string): 'PUBLISHED' {
+  if (value === 'PUBLISHED') return value
+  throw new Error(`unknown Agent team status "${value}"`)
+}
+
+function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {
+  if (value === 'PUBLISHED') return value
+  throw new Error(`unknown workflow definition status "${value}"`)
+}
+
+function decodeProjectMemoryKind(value: string): ProjectMemoryEntry['kind'] {
+  switch (value) {
+    case 'requirement':
+    case 'design-decision':
+    case 'failure-signature':
+    case 'accepted-artifact-summary':
+      return value
+    default:
+      throw new Error(`unknown project memory kind "${value}"`)
+  }
 }
 
 function projectRecord(row: {

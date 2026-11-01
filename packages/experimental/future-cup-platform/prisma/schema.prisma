@@ -32,6 +32,96 @@ model Agent {
   @@map("agents")
 }
 
+model AgentDefinition {
+  id                String                   @id
+  name              String
+  purpose           String
+  discoveryTagsJson Json                     @map("discovery_tags_json") @db.JsonB
+  status            String
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  versions          AgentDefinitionVersion[]
+
+  @@index([status])
+  @@index([discoveryTagsJson], type: Gin)
+  @@map("agent_definitions")
+}
+
+model AgentDefinitionVersion {
+  id                String            @id
+  agentDefinitionId String            @map("agent_definition_id")
+  version           Int
+  specJson          Json              @map("spec_json") @db.JsonB
+  checksum          String
+  status            String
+  createdAt         DateTime          @default(now()) @map("created_at")
+  publishedAt       DateTime?         @map("published_at")
+  deprecatedAt      DateTime?         @map("deprecated_at")
+  agentDefinition   AgentDefinition   @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
+  teamMembers       AgentTeamMember[]
+
+  @@unique([agentDefinitionId, version])
+  @@index([status])
+  @@map("agent_definition_versions")
+}
+
+model AgentTeamVersion {
+  id              String               @id
+  name            String
+  version         Int
+  specJson        Json                 @map("spec_json") @db.JsonB
+  checksum        String
+  status          String
+  createdAt       DateTime             @default(now()) @map("created_at")
+  publishedAt     DateTime?            @map("published_at")
+  members         AgentTeamMember[]
+  projectBindings ProjectTeamBinding[]
+
+  @@unique([name, version])
+  @@index([status])
+  @@map("agent_team_versions")
+}
+
+model AgentTeamMember {
+  teamVersionId            String                 @map("team_version_id")
+  memberId                 String                 @map("member_id")
+  agentDefinitionVersionId String                 @map("agent_definition_version_id")
+  instanceCount            Int                    @map("instance_count")
+  position                 Int
+  teamVersion              AgentTeamVersion       @relation(fields: [teamVersionId], references: [id], onDelete: Cascade)
+  agentDefinitionVersion   AgentDefinitionVersion @relation(fields: [agentDefinitionVersionId], references: [id], onDelete: Restrict)
+
+  @@id([teamVersionId, memberId])
+  @@index([agentDefinitionVersionId])
+  @@map("agent_team_members")
+}
+
+model ProjectTeamBinding {
+  projectId     String           @id @map("project_id")
+  teamVersionId String           @map("team_version_id")
+  frozenJson    Json             @map("frozen_json") @db.JsonB
+  createdAt     DateTime         @default(now()) @map("created_at")
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  teamVersion   AgentTeamVersion @relation(fields: [teamVersionId], references: [id], onDelete: Restrict)
+
+  @@index([teamVersionId])
+  @@map("project_team_bindings")
+}
+
+model ProjectMemoryEntry {
+  id        String   @id
+  projectId String   @map("project_id")
+  kind      String
+  key       String
+  valueJson Json     @map("value_json") @db.JsonB
+  source    String
+  createdAt DateTime @default(now()) @map("created_at")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind, key])
+  @@map("project_memory_entries")
+}
+
 model Project {
   id           String   @id
   ownerId      String?  @map("owner_id")
@@ -51,6 +141,10 @@ model Project {
   runs         ProjectRun[]
   events       ProductEvent[]
   lease        WorkflowLease?
+  teamBinding  ProjectTeamBinding?
+  memoryEntries ProjectMemoryEntry[]
+  workflowControlRun WorkflowControlRun?
+  workflowControlEvents WorkflowControlEvent[]
 
   @@map("projects")
 }
@@ -263,4 +357,49 @@ model WorkflowLease {
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("workflow_leases")
+}
+
+model WorkflowDefinition {
+  id          String
+  version     Int
+  graphJson   Json                 @map("graph_json") @db.JsonB
+  checksum    String
+  status      String
+  createdAt   DateTime             @default(now()) @map("created_at")
+  publishedAt DateTime?            @map("published_at")
+  controlRuns WorkflowControlRun[]
+
+  @@id([id, version])
+  @@index([status])
+  @@map("workflow_definitions")
+}
+
+model WorkflowControlRun {
+  projectId         String             @id @map("project_id")
+  definitionId      String             @map("definition_id")
+  definitionVersion Int                @map("definition_version")
+  snapshotJson      Json               @map("snapshot_json") @db.JsonB
+  status            String
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  definition        WorkflowDefinition @relation(fields: [definitionId, definitionVersion], references: [id, version], onDelete: Restrict)
+
+  @@index([definitionId, definitionVersion])
+  @@index([status])
+  @@map("workflow_control_runs")
+}
+
+model WorkflowControlEvent {
+  seq       BigInt   @id @default(autoincrement())
+  projectId String   @map("project_id")
+  entrySeq  Int      @map("entry_seq")
+  eventType String   @map("event_type")
+  eventJson Json     @map("event_json") @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, entrySeq])
+  @@index([projectId, seq])
+  @@map("workflow_control_events")
 }

@@ -10,6 +10,7 @@ import type {
   VerificationReportId,
   WorkflowRunId,
 } from './brand.ts'
+import type { AgentMemoryPolicy } from './agent-registry.ts'
 import type { AGENT_ROLES, TASK_STATUSES } from './domain.ts'
 
 /** One JSON-compatible value retained in a task, report, or event payload. */
@@ -131,6 +132,16 @@ export interface AgentProfile {
   readonly currentLoad: number
   readonly historicalSuccessRate: number
   readonly available: boolean
+  /** Immutable registry version selected by the project team binding. */
+  readonly definitionVersionId?: string | undefined
+  /** Registry-pinned model route. */
+  readonly model?: string | undefined
+  /** Registry-pinned role instructions. */
+  readonly instructions?: string | undefined
+  /** Registry-pinned tool allowlist enforced by the Harness adapter. */
+  readonly toolAllowlist?: readonly string[] | undefined
+  /** Registry-pinned project-memory permissions. */
+  readonly memoryPolicy?: AgentMemoryPolicy | undefined
 }
 
 /** One weighted contribution to a candidate score. */

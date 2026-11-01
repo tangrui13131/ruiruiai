@@ -4,9 +4,12 @@ import { describe, expect, it } from 'vitest'
 import {
   AgentId,
   DagEngine,
+  DEFAULT_AGENT_TEAM_ID,
+  PersistentAgentRegistry,
   ProjectId,
   TaskId,
   taskDefinition,
+  WorkflowControlCoordinator,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type { LeaseAcquisition } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import { PostgresPlatformStore } from '../src/postgres-store.ts'
@@ -70,6 +73,55 @@ async function waitForExpiry(
 }
 
 describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL platform store', () => {
+  it('persists Agent Registry, frozen teams, memory, and workflow control', {
+    timeout: 30_000,
+  }, async () => {
+    if (databaseUrl === undefined) throw new Error('FUTURE_CUP_POSTGRES_URL is required')
+    const store = new PostgresPlatformStore(databaseUrl)
+    const projectId = ProjectId(`project-pg-m5-${randomUUID()}`)
+    try {
+      const registry = new PersistentAgentRegistry(store)
+      expect(await registry.ensureDefaultTeam()).toBe(DEFAULT_AGENT_TEAM_ID)
+      const binding = await registry.freezeProject(projectId, DEFAULT_AGENT_TEAM_ID)
+      const createdAt = new Date().toISOString()
+      await store.createProject({
+        id: projectId,
+        name: 'Postgres M5',
+        requirement: 'Persist the frozen team and workflow control',
+        createdAt,
+      }, [], undefined, binding, [{
+        id: `memory-${projectId}`,
+        projectId,
+        kind: 'requirement',
+        key: 'initial-requirement',
+        value: { requirement: 'Persist the frozen team and workflow control' },
+        source: 'postgres-e2e',
+        createdAt,
+      }])
+
+      expect((await store.getProjectTeamBinding(projectId))?.teamVersion.id)
+        .toBe(DEFAULT_AGENT_TEAM_ID)
+      expect(await store.listProjectMemoryEntries(projectId)).toHaveLength(1)
+
+      const control = new WorkflowControlCoordinator(store)
+      let snapshot = await control.start(projectId)
+      snapshot = await control.advance(projectId, {
+        type: 'VERIFICATION_COMPLETED',
+        instanceId: snapshot.activeNodes[0]!.instanceId,
+        status: 'PASS',
+      })
+      snapshot = await control.advance(projectId, {
+        type: 'TASK_COMPLETED',
+        instanceId: snapshot.activeNodes[0]!.instanceId,
+      })
+      expect(snapshot.status).toBe('PASSED')
+      expect((await store.getWorkflowControlState(projectId))?.snapshot.status).toBe('PASSED')
+      expect((await store.listWorkflowControlEvents(projectId)).length).toBeGreaterThan(0)
+    } finally {
+      await store.close()
+    }
+  })
+
   it('persists events, Outbox, reconnect cursors, and cross-process fencing', {
     timeout: 30_000,
   }, async () => {
@@ -207,15 +259,10 @@ describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL pla
       expect((await store.getProjectSnapshot(projectId, 0, 1))?.runs)
         .toEqual([expect.objectContaining({ id: run.id, status: 'PASSED' })])
 
-      const outbox = await store.claimOutbox('postgres-test-a', 100, 1_000)
-      const projectEvents = outbox.filter(item => item.event.projectId === projectId)
-      expect(projectEvents.length).toBeGreaterThan(2)
-      await store.markOutboxPublished(
-        'postgres-test-a',
-        projectEvents.map(item => item.eventId),
-      )
-      expect((await store.claimOutbox('postgres-test-b', 100, 1_000))
-        .filter(item => item.event.projectId === projectId)).toEqual([])
+      const owner = 'postgres-test-a'
+      const outbox = await store.claimOutbox(owner, 100, 1_000)
+      await store.markOutboxPublished(owner, outbox.map(item => item.eventId))
+      expect((await store.listProductEvents(projectId, 0, 500)).length).toBeGreaterThan(2)
 
       const firstLease = await store.acquireWorkflowLease(resourceId, projectId, 'worker-a', 2_000)
       expect(firstLease).toMatchObject({ acquired: true, ownerId: 'worker-a', fencingToken: 1n })

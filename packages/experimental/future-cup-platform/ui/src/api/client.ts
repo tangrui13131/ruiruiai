@@ -5,6 +5,8 @@ import {
   projectRunSchema,
   projectSchema,
   projectSnapshotSchema,
+  workflowControlEventSchema,
+  workflowControlStateSchema,
   cancelRunResponseSchema,
   runStartResponseSchema,
 } from './contracts.ts'
@@ -14,6 +16,8 @@ import type {
   ProjectRunView,
   ProjectSnapshotView,
   ProjectView,
+  WorkflowControlEventView,
+  WorkflowControlStateView,
 } from './contracts.ts'
 
 export class ApiRequestError extends Error {
@@ -108,6 +112,25 @@ export const api = {
 
   async getRun(runId: string): Promise<ProjectRunView> {
     return projectRunSchema.parse(await request(`/api/v1/runs/${encodeURIComponent(runId)}`))
+  },
+
+  async getWorkflowControl(projectId: string): Promise<WorkflowControlStateView | undefined> {
+    try {
+      return workflowControlStateSchema.parse(await request(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/workflow-control`,
+      ))
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.code === 'WORKFLOW_CONTROL_NOT_FOUND') {
+        return undefined
+      }
+      throw error
+    }
+  },
+
+  async listWorkflowControlEvents(projectId: string): Promise<WorkflowControlEventView[]> {
+    return workflowControlEventSchema.array().parse(await request(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/workflow-control/events`,
+    ))
   },
 }
 

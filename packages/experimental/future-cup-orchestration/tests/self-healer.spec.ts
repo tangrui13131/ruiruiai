@@ -165,6 +165,9 @@ describe('SelfLoopController', () => {
     expect(outcome.repairs[0]?.beforeStatus).toBe('FAIL')
     expect(outcome.repairs[0]?.afterStatus).toBe('PASS')
     expect(repository.listExecutions(projectId)[0]?.sessionId).toBe('session-repair-1')
+    expect(repository.getWorkflowControlState(projectId)?.snapshot.status).toBe('PASSED')
+    expect(repository.listWorkflowControlEvents(projectId).map(event => event.entry.type))
+      .toContain('subworkflow/entered')
   })
 
   it('reverifies after every attempt and succeeds on the second round', async () => {
@@ -243,6 +246,10 @@ describe('SelfLoopController', () => {
     expect(outcome.repairs).toHaveLength(1)
     expect(outcome.workflow.status).toBe('ESCALATED')
     expect(outcome.workflow.escalationReason).toBe('REPEATED_FAILURE')
+    expect(repository.getWorkflowControlState(projectId)?.snapshot).toMatchObject({
+      status: 'ESCALATED',
+      escalationReason: 'REPEATED_FAILURE',
+    })
   })
 
   it('persists a timed-out repair and an explicit escalation', async () => {

@@ -22,6 +22,12 @@ import type {
   VerificationReport,
   VerificationResult,
 } from './types.ts'
+import {
+  WorkflowControlCoordinator,
+} from './workflow-control-coordinator.ts'
+import type {
+  WorkflowControlSnapshot,
+} from './workflow-control.ts'
 import { createWorkspaceDiff, readWorkspaceSourceSnapshot } from './workspace-diff.ts'
 
 /** Explicit self-loop dependencies and bounds. */
@@ -58,6 +64,7 @@ type RepairOutcome =
 export class SelfLoopController {
   private readonly verifier: NonNullable<SelfLoopControllerOptions['verifier']>
   private readonly now: () => Date
+  private control: WorkflowControlCoordinator | undefined
 
   /**
    * @param options - durable repository, real Agent invokers, workspace, and explicit bounds.
@@ -81,12 +88,16 @@ export class SelfLoopController {
    * @returns the final report, all reports, repair diffs, and workflow terminal state.
    */
   async run(projectId: ProjectIdType, spec: TesterOutput): Promise<SelfHealingResult> {
+    this.control = new WorkflowControlCoordinator(this.options.repository)
+    let control = await this.control.start(projectId)
     await this.options.repository.startWorkflowRun(projectId)
     let current = await this.verifyAndPersist(projectId, spec)
+    control = await this.recordVerification(projectId, control, current)
     if (current.status === 'PASS') {
       return this.completed(projectId, current, 0)
     }
     if (current.status === 'INCOMPLETE') {
+      await this.control.escalate(projectId, 'VERIFIER_INCOMPLETE')
       return this.escalate(
         projectId,
         current,
@@ -96,6 +107,7 @@ export class SelfLoopController {
       )
     }
     if (this.options.config.maxRepairRounds === 0) {
+      await this.control.escalate(projectId, 'MAX_REPAIR_ROUNDS')
       return this.escalate(
         projectId,
         current,
@@ -109,6 +121,7 @@ export class SelfLoopController {
     for (let round = 1; round <= this.options.config.maxRepairRounds; round += 1) {
       const outcome = await this.runRepair(projectId, spec, current, round)
       if (!outcome.ok) {
+        await this.control.escalate(projectId, outcome.reason)
         return this.escalate(
           projectId,
           current,
@@ -120,11 +133,17 @@ export class SelfLoopController {
         )
       }
       const attempt = outcome.attempt
+      control = await this.control.advance(projectId, {
+        type: 'TASK_COMPLETED',
+        instanceId: activeControlTask(control, 'repair'),
+        summary: attempt.output.summary,
+      })
 
       let next: VerificationReport
       try {
         next = await this.verifyAndPersist(projectId, spec)
       } catch (error: unknown) {
+        await this.control.escalate(projectId, 'VERIFIER_INCOMPLETE')
         return this.escalate(
           projectId,
           current,
@@ -133,6 +152,7 @@ export class SelfLoopController {
           error instanceof Error ? error.message : String(error),
         )
       }
+      control = await this.recordVerification(projectId, control, next)
 
       await this.options.repository.saveRepairRecord(projectId, {
         repairRound: round,
@@ -147,11 +167,29 @@ export class SelfLoopController {
         startedAt: attempt.startedAt,
         completedAt: this.timestamp(),
       })
+      await this.options.repository.saveProjectMemoryEntry({
+        id: `memory-${projectId}-repair-${String(round)}`,
+        projectId,
+        kind: 'failure-signature',
+        key: `repair-round-${String(round)}`,
+        value: jsonValueSchema.parse({
+          failureSignature: requiredSignature(current),
+          diagnosis: attempt.output.diagnosis,
+          summary: attempt.output.summary,
+          fileCount: attempt.output.files.length,
+          afterStatus: next.status,
+        }),
+        source: `task:repair-round-${String(round)}`,
+        createdAt: this.timestamp(),
+      })
 
       if (next.status === 'PASS') {
         return this.completed(projectId, next, round)
       }
       if (next.status === 'INCOMPLETE') {
+        if (control.status !== 'ESCALATED') {
+          await this.control.escalate(projectId, 'VERIFIER_INCOMPLETE')
+        }
         return this.escalate(
           projectId,
           next,
@@ -163,6 +201,9 @@ export class SelfLoopController {
 
       const signature = requiredSignature(next)
       if (seenSignatures.has(signature)) {
+        if (control.status !== 'ESCALATED') {
+          await this.control.escalate(projectId, 'REPEATED_FAILURE')
+        }
         return this.escalate(
           projectId,
           next,
@@ -209,7 +250,7 @@ export class SelfLoopController {
     try {
       const prompt = buildStructuredPrompt(
         'repair',
-        REPAIR_INSTRUCTIONS,
+        profile.instructions ?? REPAIR_INSTRUCTIONS,
         {
           verification: report.report,
           verificationSpec: spec,
@@ -299,6 +340,7 @@ export class SelfLoopController {
     repairRound: number,
   ): Promise<SelfHealingResult> {
     const workflow = await this.options.repository.updateWorkflowRun(projectId, 'PASSED', repairRound)
+    await this.completeControl(projectId)
     return {
       verification,
       verificationReports: await this.options.repository.listVerificationReports(projectId),
@@ -315,6 +357,12 @@ export class SelfLoopController {
     reason: NonNullable<Awaited<ReturnType<OrchestrationStore['getWorkflowRun']>>>['escalationReason'],
     message: string,
   ): Promise<SelfHealingResult> {
+    if (this.control !== undefined) {
+      const current = await this.control.get(projectId)
+      if (current !== undefined && current.snapshot.status === 'RUNNING') {
+        await this.control.escalate(projectId, reason ?? 'MAX_REPAIR_ROUNDS')
+      }
+    }
     const workflow = await this.options.repository.updateWorkflowRun(
       projectId,
       'ESCALATED',
@@ -330,9 +378,51 @@ export class SelfLoopController {
     }
   }
 
+  private async recordVerification(
+    projectId: ProjectIdType,
+    snapshot: WorkflowControlSnapshot,
+    report: VerificationReport,
+  ): Promise<WorkflowControlSnapshot> {
+    return await this.requireControl().advance(projectId, {
+      type: 'VERIFICATION_COMPLETED',
+      instanceId: activeControlTask(snapshot, 'verification'),
+      status: report.status === 'WARNING' ? 'FAIL' : report.status,
+      ...report.failureSignature === undefined
+        ? {}
+        : { failureSignature: report.failureSignature },
+    })
+  }
+
+  private async completeControl(projectId: ProjectIdType): Promise<void> {
+    const control = this.requireControl()
+    const state = await control.get(projectId)
+    if (state === undefined || state.snapshot.status !== 'RUNNING') return
+    await control.advance(projectId, {
+      type: 'TASK_COMPLETED',
+      instanceId: activeControlTask(state.snapshot, 'delivery'),
+      summary: 'Delivery accepted after independent verification.',
+    })
+  }
+
+  private requireControl(): WorkflowControlCoordinator {
+    if (this.control === undefined) throw new Error('workflow control has not started')
+    return this.control
+  }
+
   private timestamp(): string {
     return this.now().toISOString()
   }
+}
+
+function activeControlTask(
+  snapshot: WorkflowControlSnapshot,
+  taskRef: string,
+): string {
+  const active = snapshot.activeNodes.find(node => node.taskRef === taskRef)
+  if (active === undefined) {
+    throw new Error(`workflow control has no active task "${taskRef}"`)
+  }
+  return active.instanceId
 }
 
 /** Resolve the configured Repair role and fail loudly when incomplete. */

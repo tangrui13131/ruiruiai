@@ -253,6 +253,14 @@ describe('TeamOrchestrator', () => {
         'agent.completed',
         'verification.passed',
       ]))
+      expect(repository.listProjectMemoryEntries(result.projectId).map(entry => entry.key))
+        .toEqual(expect.arrayContaining([
+          'design-system',
+          'verification-spec',
+          'page-dashboard',
+          'page-users',
+          'integrated-application',
+        ]))
     } finally {
       await team.close()
       repository.close()

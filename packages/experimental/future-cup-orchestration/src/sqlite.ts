@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 5
+export const ORCHESTRATION_SCHEMA_VERSION = 6
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -33,6 +33,7 @@ export function openOrchestrationDatabase(
       && version !== 2
       && version !== 3
       && version !== 4
+      && version !== 5
       && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
@@ -46,18 +47,25 @@ export function openOrchestrationDatabase(
       migrateVersionTwo(database)
       migrateVersionThree(database)
       migrateVersionFour(database)
+      migrateVersionFive(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 2) {
       migrateVersionTwo(database)
       migrateVersionThree(database)
       migrateVersionFour(database)
+      migrateVersionFive(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 3) {
       migrateVersionThree(database)
       migrateVersionFour(database)
+      migrateVersionFive(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 4) {
       migrateVersionFour(database)
+      migrateVersionFive(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 5) {
+      migrateVersionFive(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     }
     return database
@@ -67,7 +75,7 @@ export function openOrchestrationDatabase(
   }
 }
 
-/** Materialize every M3 table in one fresh-schema transaction. */
+/** Materialize the complete current schema. */
 function createSchema(database: DatabaseSync): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS projects (
@@ -245,6 +253,8 @@ function createSchema(database: DatabaseSync): void {
       ON outbox_events(published_at);
     CREATE INDEX IF NOT EXISTS outbox_events_claim_expiry
       ON outbox_events(published_at, claim_expires_at);
+
+    ${agentRegistryWorkflowSchemaSql('fresh')}
   `)
 }
 
@@ -420,4 +430,152 @@ function migrateVersionFour(database: DatabaseSync): void {
     }
     throw error
   }
+}
+
+/** Add the M5 Agent Registry, project memory, and workflow control tables. */
+function migrateVersionFive(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(agentRegistryWorkflowSchemaSql('migration'))
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v5 migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
+/**
+ * Build the v6 table and index DDL for a fresh database or an in-place upgrade.
+ * @param mode - whether repeated objects should be ignored or treated as corruption.
+ * @returns executable SQLite DDL.
+ */
+function agentRegistryWorkflowSchemaSql(mode: 'fresh' | 'migration'): string {
+  const guard = mode === 'fresh' ? 'IF NOT EXISTS ' : ''
+  return `
+    CREATE TABLE ${guard}agent_definitions (
+      id                  TEXT PRIMARY KEY,
+      name                TEXT NOT NULL,
+      purpose             TEXT NOT NULL,
+      discovery_tags_json TEXT NOT NULL,
+      status              TEXT NOT NULL,
+      created_at          TEXT NOT NULL,
+      updated_at          TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE ${guard}agent_definition_versions (
+      id                  TEXT PRIMARY KEY,
+      agent_definition_id TEXT NOT NULL
+        REFERENCES agent_definitions(id) ON DELETE RESTRICT,
+      version             INTEGER NOT NULL,
+      spec_json           TEXT NOT NULL,
+      checksum            TEXT NOT NULL,
+      status              TEXT NOT NULL,
+      created_at          TEXT NOT NULL,
+      published_at        TEXT,
+      deprecated_at       TEXT,
+      UNIQUE (agent_definition_id, version)
+    ) STRICT;
+
+    CREATE TABLE ${guard}agent_team_versions (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      version      INTEGER NOT NULL,
+      spec_json    TEXT NOT NULL,
+      checksum     TEXT NOT NULL,
+      status       TEXT NOT NULL,
+      created_at   TEXT NOT NULL,
+      published_at TEXT,
+      UNIQUE (name, version)
+    ) STRICT;
+
+    CREATE TABLE ${guard}agent_team_members (
+      team_version_id           TEXT NOT NULL
+        REFERENCES agent_team_versions(id) ON DELETE CASCADE,
+      member_id                 TEXT NOT NULL,
+      agent_definition_version_id TEXT NOT NULL
+        REFERENCES agent_definition_versions(id) ON DELETE RESTRICT,
+      instance_count            INTEGER NOT NULL,
+      position                  INTEGER NOT NULL,
+      PRIMARY KEY (team_version_id, member_id)
+    ) STRICT;
+
+    CREATE TABLE ${guard}project_team_bindings (
+      project_id      TEXT PRIMARY KEY
+        REFERENCES projects(id) ON DELETE CASCADE,
+      team_version_id TEXT NOT NULL
+        REFERENCES agent_team_versions(id) ON DELETE RESTRICT,
+      frozen_json     TEXT NOT NULL,
+      created_at      TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE ${guard}project_memory_entries (
+      id         TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      kind       TEXT NOT NULL,
+      key        TEXT NOT NULL,
+      value_json TEXT NOT NULL,
+      source     TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (project_id, kind, key)
+    ) STRICT;
+
+    CREATE TABLE ${guard}workflow_definitions (
+      id           TEXT NOT NULL,
+      version      INTEGER NOT NULL,
+      graph_json   TEXT NOT NULL,
+      checksum     TEXT NOT NULL,
+      status       TEXT NOT NULL,
+      created_at   TEXT NOT NULL,
+      published_at TEXT,
+      PRIMARY KEY (id, version)
+    ) STRICT;
+
+    CREATE TABLE ${guard}workflow_control_runs (
+      project_id         TEXT PRIMARY KEY
+        REFERENCES projects(id) ON DELETE CASCADE,
+      definition_id      TEXT NOT NULL,
+      definition_version INTEGER NOT NULL,
+      snapshot_json      TEXT NOT NULL,
+      status             TEXT NOT NULL,
+      created_at         TEXT NOT NULL,
+      updated_at         TEXT NOT NULL,
+      FOREIGN KEY (definition_id, definition_version)
+        REFERENCES workflow_definitions(id, version) ON DELETE RESTRICT
+    ) STRICT;
+
+    CREATE TABLE ${guard}workflow_control_events (
+      seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      entry_seq  INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      event_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (project_id, entry_seq)
+    ) STRICT;
+
+    CREATE INDEX ${guard}agent_definitions_status
+      ON agent_definitions(status);
+    CREATE INDEX ${guard}agent_definitions_discovery_tags
+      ON agent_definitions(discovery_tags_json);
+    CREATE INDEX ${guard}agent_definition_versions_status
+      ON agent_definition_versions(status);
+    CREATE INDEX ${guard}agent_team_versions_status
+      ON agent_team_versions(status);
+    CREATE INDEX ${guard}agent_team_members_definition_version
+      ON agent_team_members(agent_definition_version_id);
+    CREATE INDEX ${guard}project_team_bindings_team_version
+      ON project_team_bindings(team_version_id);
+    CREATE INDEX ${guard}workflow_definitions_status
+      ON workflow_definitions(status);
+    CREATE INDEX ${guard}workflow_control_runs_definition
+      ON workflow_control_runs(definition_id, definition_version);
+    CREATE INDEX ${guard}workflow_control_runs_status
+      ON workflow_control_runs(status);
+    CREATE INDEX ${guard}workflow_control_events_project_seq
+      ON workflow_control_events(project_id, seq);
+  `
 }

@@ -11,20 +11,15 @@ import { parseStructuredOutput } from './agent-contracts.ts'
 import { AgentId } from './brand.ts'
 import type { AgentProfile } from './types.ts'
 
-const ARTIFACT_ONLY_PATCH = `
+const BASE_ARTIFACT_PATCH = `
 - id: persistent-bash
   disabled: true
 
 - id: persistent-pwsh
   disabled: true
-
-- id: tool-fs
-  config:
-    read: true
-    readImage: true
-    write: false
-    edit: false
 `
+
+const SUPPORTED_AGENT_TOOLS = new Set(['fs-read'])
 
 /** Inputs shared by all real Harness Agent adapters. */
 export interface HarnessAgentOptions {
@@ -122,7 +117,7 @@ export class HarnessAgentInvoker implements AgentInvoker {
     const dshHome = resolve(options.homeRoot, profile.id)
     mkdirSync(dshHome, { recursive: true })
     const patchPath = resolve(dshHome, 'artifact-only.cordis.patch.yml')
-    writeFileSync(patchPath, ARTIFACT_ONLY_PATCH, { encoding: 'utf8', mode: 0o600 })
+    writeFileSync(patchPath, artifactOnlyPatch(profile), { encoding: 'utf8', mode: 0o600 })
     this.harness = new DeepSeekHarness({
       profile: 'sdk-minimal',
       patches: [patchPath],
@@ -134,7 +129,7 @@ export class HarnessAgentInvoker implements AgentInvoker {
         DSH_TELEMETRY_DISABLED: '1',
       },
       provider: options.provider ?? 'deepseek-official',
-      model: options.model ?? 'deepseek-flash',
+      model: profile.model ?? options.model ?? 'deepseek-flash',
       reasoningEffort: options.reasoningEffort ?? ReasoningEffortId('off'),
       maxTokens: options.maxTokens ?? 32_000,
       initializeTimeoutMs: 30_000,
@@ -164,6 +159,25 @@ export class HarnessAgentInvoker implements AgentInvoker {
     this.closed = true
     await this.harness.close()
   }
+}
+
+function artifactOnlyPatch(profile: AgentProfile): string {
+  const tools = profile.toolAllowlist ?? ['fs-read']
+  const unsupported = tools.filter(tool => !SUPPORTED_AGENT_TOOLS.has(tool))
+  if (unsupported.length > 0) {
+    throw new Error(
+      `Agent "${profile.id}" requests unsupported tools: ${unsupported.join(', ')}`,
+    )
+  }
+  const read = tools.includes('fs-read')
+  return `${BASE_ARTIFACT_PATCH}
+- id: tool-fs
+  config:
+    read: ${String(read)}
+    readImage: ${String(read)}
+    write: false
+    edit: false
+`
 }
 
 /**

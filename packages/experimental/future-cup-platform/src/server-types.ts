@@ -4,6 +4,7 @@ import type {
   AgentProfile,
   PlatformProjectSummary,
   PlatformStore,
+  PersistentAgentRegistry,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 
 /** Starts or cancels one project run, owned by a later orchestration plugin. */
@@ -26,6 +27,8 @@ export interface ProjectRunLauncher {
 export interface FutureCupServerOptions {
   readonly store: PlatformStore
   readonly profiles: readonly AgentProfile[]
+  readonly agentRegistry?: PersistentAgentRegistry | undefined
+  readonly defaultTeamVersionId?: string | undefined
   readonly host: string
   readonly port: number
   readonly outboxPollMs: number

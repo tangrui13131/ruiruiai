@@ -81,6 +81,9 @@ export const agentSchema = z.looseObject({
   currentLoad: z.number(),
   historicalSuccessRate: z.number(),
   available: z.boolean(),
+  definitionVersionId: z.string().optional(),
+  model: z.string().optional(),
+  toolAllowlist: z.array(z.string()).optional(),
 })
 
 export const schedulerScoreTermsSchema = z.looseObject({
@@ -187,6 +190,107 @@ export const workflowSchema = z.looseObject({
   updatedAt: isoDateSchema,
 })
 
+export const workflowControlNodeSchema = z.looseObject({
+  id: identifierSchema,
+  label: z.string(),
+  type: z.enum([
+    'TASK',
+    'SEQUENCE',
+    'PARALLEL',
+    'CONDITION',
+    'LOOP',
+    'SUBWORKFLOW',
+    'TERMINAL',
+  ]),
+  taskRef: z.string().optional(),
+  expectedResult: z.enum(['COMPLETION', 'VERIFICATION']).optional(),
+  graphId: z.string().optional(),
+  joinNodeId: z.string().optional(),
+  subject: z.string().optional(),
+  maxIterations: z.number().optional(),
+  status: z.enum(['PASSED', 'ESCALATED']).optional(),
+})
+
+export const workflowControlEdgeSchema = z.looseObject({
+  id: identifierSchema,
+  from: identifierSchema,
+  to: identifierSchema,
+  condition: z.looseObject({
+    kind: z.enum(['ALWAYS', 'VERIFICATION_STATUS', 'LOOP_RESULT']),
+    status: verificationStatusSchema.optional(),
+    result: z.enum(['CONTINUE', 'EXHAUSTED']).optional(),
+  }),
+})
+
+export const workflowControlGraphSchema = z.looseObject({
+  id: identifierSchema,
+  label: z.string(),
+  entryNodeId: identifierSchema,
+  nodes: z.array(workflowControlNodeSchema),
+  edges: z.array(workflowControlEdgeSchema),
+})
+
+export const workflowControlDefinitionSchema = z.looseObject({
+  version: z.number(),
+  id: identifierSchema,
+  label: z.string(),
+  entryGraphId: identifierSchema,
+  graphs: z.array(workflowControlGraphSchema),
+})
+
+export const workflowControlJournalEntrySchema = z.looseObject({
+  seq: z.number(),
+  type: z.string(),
+  graphId: z.string().optional(),
+  nodeId: z.string().optional(),
+  nodeType: z.string().optional(),
+  status: z.string().optional(),
+  escalationReason: z.string().optional(),
+})
+
+export const workflowControlSnapshotSchema = z.looseObject({
+  snapshotVersion: z.number(),
+  definition: workflowControlDefinitionSchema,
+  status: z.enum(['RUNNING', 'PASSED', 'ESCALATED']),
+  revision: z.number(),
+  activeNodes: z.array(z.looseObject({
+    instanceId: z.string(),
+    graphId: z.string(),
+    nodeId: z.string(),
+    taskRef: z.string(),
+    expectedResult: z.enum(['COMPLETION', 'VERIFICATION']),
+  })),
+  loopStates: z.array(z.looseObject({
+    graphId: z.string(),
+    nodeId: z.string(),
+    iterations: z.number(),
+    maxIterations: z.number(),
+  })),
+  lastVerification: z.looseObject({
+    status: verificationStatusSchema,
+    failureSignature: z.string().optional(),
+    repeated: z.boolean(),
+  }).optional(),
+  escalationReason: z.string().optional(),
+  journal: z.array(workflowControlJournalEntrySchema),
+})
+
+export const workflowControlStateSchema = z.looseObject({
+  projectId: identifierSchema,
+  definitionId: identifierSchema,
+  definitionVersion: z.number(),
+  snapshot: workflowControlSnapshotSchema,
+  createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+})
+
+export const workflowControlEventSchema = z.looseObject({
+  seq: z.number(),
+  projectId: identifierSchema,
+  entry: workflowControlJournalEntrySchema,
+  createdAt: isoDateSchema,
+})
+
 export const projectRunSchema = publicProjectRunSchema
 
 export const deliverySchema = projectDeliverySchema
@@ -224,6 +328,10 @@ export type VerificationStatus = z.infer<typeof verificationStatusSchema>
 export type VerificationReportView = z.infer<typeof verificationReportSchema>
 export type RepairView = z.infer<typeof repairSchema>
 export type WorkflowView = z.infer<typeof workflowSchema>
+export type WorkflowControlStateView = z.infer<typeof workflowControlStateSchema>
+export type WorkflowControlEventView = z.infer<typeof workflowControlEventSchema>
+export type WorkflowControlNodeView = z.infer<typeof workflowControlNodeSchema>
+export type WorkflowControlEdgeView = z.infer<typeof workflowControlEdgeSchema>
 type ProductEventInput = z.input<typeof productEventSchema>
 type OptionalUndefined<T> = T extends unknown
   ? {

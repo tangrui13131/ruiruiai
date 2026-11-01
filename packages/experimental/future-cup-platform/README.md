@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run the Future Cup management platform as a `dsh` plugin: a shared orchestration repository for SQLite and PostgreSQL, a real Harness team launcher, transactional project events with an Outbox, Fastify REST snapshots, Socket.IO replay, a same-origin React management application, and a read-only HQ 3D display.
+Run the Future Cup management platform as a `dsh` plugin: a shared orchestration repository for SQLite and PostgreSQL, a versioned Agent Registry, frozen project teams, recoverable workflow control, a real Harness team launcher, transactional project events with an Outbox, Fastify REST snapshots, Socket.IO replay, a same-origin React management application, and a read-only HQ 3D display.
 
 ## Table of Contents
 
@@ -69,7 +69,18 @@ The server binds only to a loopback host. Its current routes are:
 | `GET` | `/api/v1/health` | server status and project count |
 | `GET` | `/api/v1/projects` | project summaries and event cursors |
 | `POST` | `/api/v1/projects` | create a project from a name and requirement |
+| `GET` | `/api/v1/agent-definitions` | Agent definitions, versions, and version states |
+| `POST` | `/api/v1/agent-definitions` | register a DRAFT Agent definition |
+| `POST` | `/api/v1/agent-definitions/:definitionId/versions` | register an immutable Agent version |
+| `POST` | `/api/v1/agent-definitions/:definitionId/versions/:versionId/validate` | validate an Agent version |
+| `POST` | `/api/v1/agent-definitions/:definitionId/versions/:versionId/publish` | publish an Agent version |
+| `POST` | `/api/v1/agent-definitions/:definitionId/deprecate` | deprecate an Agent definition |
+| `POST` | `/api/v1/agent-definitions/discover` | discover published versions by capability, role, and tag |
+| `GET` | `/api/v1/agent-teams` | list team versions |
+| `POST` | `/api/v1/agent-teams` | validate and create an immutable team version |
 | `GET` | `/api/v1/projects/:projectId/agents` | project-scoped Agent capacity, live load, and observed success rates |
+| `GET` | `/api/v1/projects/:projectId/team` | complete frozen team snapshot for one project |
+| `POST` | `/api/v1/projects/:projectId/team-binding` | freeze a team version for an unbound project |
 | `GET` | `/api/v1/projects/:projectId/snapshot` | current project state plus events after `afterSeq` |
 | `GET` | `/api/v1/projects/:projectId/events` | ordered project events after `afterSeq` |
 | `GET` | `/api/v1/projects/:projectId/tasks` | ordered task snapshots |
@@ -80,6 +91,8 @@ The server binds only to a loopback host. Its current routes are:
 | `GET` | `/api/v1/projects/:projectId/verification-reports` | independent verification reports |
 | `GET` | `/api/v1/projects/:projectId/repairs` | repair rounds and unified diffs |
 | `GET` | `/api/v1/projects/:projectId/workflow` | current workflow disposition |
+| `GET` | `/api/v1/projects/:projectId/workflow-control` | conditional, loop, and subworkflow control snapshot |
+| `GET` | `/api/v1/projects/:projectId/workflow-control/events` | workflow-control Journal |
 | `GET` | `/api/v1/projects/:projectId/runs` | project run history |
 | `GET` | `/api/v1/runs/:runId` | one public project run |
 | `POST` | `/api/v1/projects/:projectId/runs` | start a real Harness team run |
@@ -116,6 +129,10 @@ The HQ display validates events against the shared discriminated union. It appli
 
 SQLite and PostgreSQL implement the same `OrchestrationStore` operations. Task updates require the previous revision, so a stale writer cannot overwrite newer DAG state. Project events and their Outbox obligations commit in one serializable transaction. Dispatchers claim Outbox rows with an expiring owner token; PostgreSQL uses `FOR UPDATE SKIP LOCKED`.
 
+At startup, the platform replays persisted definitions, versions, teams, and project bindings into the fixed default Registry team. New projects commit a complete team snapshot and initial requirement memory in the same transaction, so later Registry publications cannot alter started projects. Project runs derive scheduler profiles from the frozen team, including model, prompt, capabilities, tool allowlist, memory policy, and output contracts.
+
+`workflow_control_runs` stores the complete control snapshot, while `workflow_control_events` appends node, edge-selection, loop, and subworkflow events. Each snapshot carries a revision, and persistence rejects stale overwrites. PASS, Repair returning to verification, repeated failure, and infrastructure escalation all update this control state.
+
 Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease.
 
 Project-scoped Agent state derives live load from `RUNNING` executions and overlays persisted success rates from completed executions. The management UI refreshes this projection whenever the authoritative snapshot cursor advances.
@@ -140,6 +157,7 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 
 - **No mid-turn cancellation:** the Harness TypeScript SDK has no prompt-cancel request. Cancel closes the run-owned runtime, waits for settlement, and records `CANCELLED`.
 - **One generation per project:** the current MVP keeps one task set per project. Create a new project to generate again after a terminal run.
+- **Registry management UI deferred:** M5.1/M5.2 provide durable APIs and control-graph viewing; the full Agent/Team authoring UI belongs to M5.4/M5.5.
 - **Loopback transport:** the server rejects non-loopback hosts. Authenticated public deployment and TLS termination remain deployment work.
 - **Single store lifecycle:** closing the server closes its owned store. Consumers must not share that instance after shutdown.
 - **Outbox at-least-once delivery:** a crashed dispatcher can cause replay after its claim expires. Client deduplication by `projectId + seq` is required.
@@ -150,4 +168,4 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 <a id="dev-note"></a>
 ### Dev Note
 
-The PostgreSQL client is generated into ignored `src/generated/` during package installation. Run `prisma generate` after schema edits and `prisma migrate deploy` against a reachable PostgreSQL database before starting the bundle.
+The PostgreSQL client is generated into ignored `src/generated/` during package installation. Run `prisma generate` after schema edits and `prisma migrate deploy` against a reachable PostgreSQL database before starting the bundle. The M5 `20261101160000` and `20261101173000` migrations jointly create Registry, team, project-memory, and workflow-control tables.

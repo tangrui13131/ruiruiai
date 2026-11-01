@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-通过可解释调度和真实 DeepSeek Harness Agent 团队执行持久化的前端工程 DAG。本包负责任务修订、Journal 回放、调度决策、执行证据、结构化 Agent 输出、受限文件落盘、独立静态/构建/浏览器验证，以及有界 Repair Agent 重试。`OrchestrationStore` 约定同时接受本包的 SQLite 适配器与 `future-cup-platform` 的 PostgreSQL 适配器。
+通过可解释调度和真实 DeepSeek Harness Agent 团队执行持久化的前端工程 DAG。本包负责任务修订、Journal 回放、版本化 Agent Registry、冻结项目团队、结构化项目记忆、显式工作流控制、调度决策、执行证据、结构化 Agent 输出、受限文件落盘、独立静态/构建/浏览器验证，以及有界 Repair Agent 重试。`OrchestrationStore` 约定同时接受本包的 SQLite 适配器与 `future-cup-platform` 的 PostgreSQL 适配器。
 
 ## 目录
 
@@ -64,13 +64,19 @@ await team.close()
 repository.close()
 ```
 
+### Agent Registry 与工作流控制
+
+`PersistentAgentRegistry` 将 Agent 定义、不可变版本、发布状态、团队编制、项目记忆和项目冻结绑定持久化到共享仓储。默认团队由 `createDefaultAgentTeam()` 生成七个受控定义，其中 Frontend 版本实例化两次；项目创建时必须保存完整成员快照，后续 Registry 修改不能改变已启动项目。
+
+`WorkflowControlCoordinator` 将版本化控制图与执行快照写入仓储。固定控制图从独立验证开始，`PASS` 进入交付，`FAIL` 或 `INCOMPLETE` 进入 Repair 子工作流，Repair 完成返回验证；循环最多三轮，重复失败签名立即升级。每个节点、边选择、循环轮次和子工作流进入/退出都有持久 Journal，可从一个快照确定性恢复。
+
 ### DAG 状态
 
 任务使用 `PENDING`、`READY`、`RUNNING`、`COMPLETED`、`FAILED`、`BLOCKED` 与 `CANCELLED`。创建和恢复都会拒绝环及缺失依赖。依赖完成会解锁下游任务；依赖失败或取消会阻断所有未完成下游。
 
 ### 持久记录
 
-SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、工作流、产品事件、Outbox 与工作流租约记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1 与 v2 数据库原地迁移到 v4，不删除已有验证证据。
+SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、工作流、产品事件、Outbox、工作流租约、Agent Registry、团队绑定、项目记忆与工作流控制记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1-v5 数据库原地迁移到 v6，不删除已有验证证据。
 
 ### 调度
 
@@ -125,6 +131,11 @@ M4.0 门禁已用真实 PostgreSQL 序号与 TypeScript SDK 通知流验证该�
 | `src/self-healer.ts` | 有界修复循环、超时处理、重复失败熔断与人工升级 |
 | `src/workspace-diff.ts` | 源码快照与真实统一 Diff 生成 |
 | `src/product-events.ts` | Zod 产品事件约定与重连游标 |
+| `src/agent-registry.ts` | Agent 定义、不可变版本、团队校验与项目冻结 |
+| `src/agent-registry-service.ts` | Registry 的持久化重放与项目 profile 投影 |
+| `src/default-agent-team.ts` | 七个受控默认 Agent 定义与团队种子 |
+| `src/workflow-control.ts` | 版本化控制图、条件、循环、子工作流与恢复 |
+| `src/workflow-control-coordinator.ts` | 控制快照与 Journal 的持久化协调 |
 
 ## Model Experience
 
@@ -146,7 +157,7 @@ Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默
 
 - **实验性包**：M3 孵化期间公共 API 可能变化。
 - **两个存储适配器**：SQLite 继续作为确定性测试适配器；`future-cup-platform` 通过 Prisma 提供 PostgreSQL。
-- **固定进程内团队**：M3 团队由配置驱动，但不是通用 Agent 市场。
+- **受控 Registry 团队**：默认团队可从持久 Registry 恢复并按项目冻结，但初赛仍不允许任意 Agent 或工具市场。
 - **租约获取由启动器负责**：存储提供工作流租约与 revision 守卫；`future-cup-platform` 为每个项目运行获取、续期并校验 fencing token。
 - **Playwright 运行时**：浏览器验证要求安装匹配的 Chromium 构建；浏览器不可用时产生 `INCOMPLETE`，不能产生 `PASS`。
 - **不修复生成要求**：Repair 只能修改生成的 `src/` 文件；平台自有 scaffold 文件失败时进入人工升级，不能静默改写生成器。
@@ -155,4 +166,4 @@ Planner 与角色提示词包含任务输入和生成的 JSON Schema。Agent 默
 <a id="dev-note"></a>
 ### 开发备注
 
-M3 对任务 Agent 使用 32,000 token 的结构化输出预算，并默认关闭 reasoning。浏览器验证与有界修复已接入正常 `TeamOrchestrator.run()` 路径。M4 负责 PostgreSQL、实时事件以及管理界面与 HQ 集成。
+M3 对任务 Agent 使用 32,000 token 的结构化输出预算，并默认关闭 reasoning。M4 完成 PostgreSQL、实时事件、管理界面与 HQ；M5.1 和 M5.2 增加持久 Agent Registry、项目团队冻结、项目记忆和可恢复工作流控制。修复执行仍由同一个 `SelfLoopController` 管理。

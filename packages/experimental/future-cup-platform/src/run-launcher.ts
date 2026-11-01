@@ -5,6 +5,7 @@ import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
   assertPositiveSafeInteger,
+  agentProfilesFromTeamBinding,
   createHarnessAgentTeam,
   DagEngine,
   defaultAgentProfiles,
@@ -23,15 +24,21 @@ import type {
   OrchestrationStore,
   OutboxClaim,
   PlatformProjectSummary,
+  ProjectMemoryEntry,
   ProjectRecord,
   ProjectRunRecord,
   ProjectRunStatus,
+  ProjectTeamBinding,
   ProductEvent,
   ProductEventDraft,
   RepairRecord,
   RepairRecordDraft,
   SchedulerDecision,
   SelfLoopConfig,
+  StoredAgentDefinition,
+  StoredAgentTeamVersion,
+  StoredAgentVersion,
+  StoredWorkflowDefinition,
   TaskFailure,
   TaskJournalEntry,
   TaskJournalEventType,
@@ -40,6 +47,10 @@ import type {
   VerificationReport,
   VerificationStatus,
   VerificationConfig,
+  WorkflowControlEventRecord,
+  WorkflowControlJournalEntry,
+  WorkflowControlSnapshot,
+  WorkflowControlStateRecord,
   WorkflowLeaseState,
   WorkflowRunRecord,
   WorkflowStatus,
@@ -69,6 +80,7 @@ export interface FutureCupRunTeamRequest {
   readonly workspace: string
   readonly homeRoot: string
   readonly screenshotDir: string
+  readonly profiles?: readonly AgentProfile[] | undefined
 }
 
 /** Creates one isolated team runtime for a project run. */
@@ -82,8 +94,14 @@ class FencedOrchestrationStore implements OrchestrationStore {
     private readonly write: WorkflowWriteContext,
   ) {}
 
-  async createProject(project: ProjectRecord, tasks: readonly TaskSnapshot[]): Promise<void> {
-    await this.base.createProject(project, tasks, this.write)
+  async createProject(
+    project: ProjectRecord,
+    tasks: readonly TaskSnapshot[],
+    _write?: WorkflowWriteContext,
+    binding?: ProjectTeamBinding,
+    memoryEntries?: readonly ProjectMemoryEntry[],
+  ): Promise<void> {
+    await this.base.createProject(project, tasks, this.write, binding, memoryEntries)
   }
 
   async getProject(id: ProjectRecord['id']) {
@@ -183,6 +201,78 @@ class FencedOrchestrationStore implements OrchestrationStore {
     fencingToken: bigint,
   ): Promise<boolean> {
     return await this.base.releaseWorkflowLease(resourceId, ownerId, fencingToken)
+  }
+
+  async listAgentDefinitions(): Promise<StoredAgentDefinition[]> {
+    return await this.base.listAgentDefinitions()
+  }
+
+  async saveAgentDefinition(record: StoredAgentDefinition): Promise<void> {
+    await this.base.saveAgentDefinition(record)
+  }
+
+  async listAgentVersions(definitionId?: string): Promise<StoredAgentVersion[]> {
+    return await this.base.listAgentVersions(definitionId)
+  }
+
+  async saveAgentVersion(record: StoredAgentVersion): Promise<void> {
+    await this.base.saveAgentVersion(record)
+  }
+
+  async listAgentTeamVersions(): Promise<StoredAgentTeamVersion[]> {
+    return await this.base.listAgentTeamVersions()
+  }
+
+  async getAgentTeamVersion(teamVersionId: string): Promise<StoredAgentTeamVersion | undefined> {
+    return await this.base.getAgentTeamVersion(teamVersionId)
+  }
+
+  async saveAgentTeamVersion(record: StoredAgentTeamVersion): Promise<void> {
+    await this.base.saveAgentTeamVersion(record)
+  }
+
+  async listProjectTeamBindings(): Promise<ProjectTeamBinding[]> {
+    return await this.base.listProjectTeamBindings()
+  }
+
+  async getProjectTeamBinding(projectId: string): Promise<ProjectTeamBinding | undefined> {
+    return await this.base.getProjectTeamBinding(projectId)
+  }
+
+  async bindProjectTeam(binding: ProjectTeamBinding): Promise<void> {
+    await this.base.bindProjectTeam(binding)
+  }
+
+  async saveProjectMemoryEntry(entry: ProjectMemoryEntry): Promise<void> {
+    await this.base.saveProjectMemoryEntry(entry)
+  }
+
+  async listProjectMemoryEntries(projectId: string): Promise<ProjectMemoryEntry[]> {
+    return await this.base.listProjectMemoryEntries(projectId)
+  }
+
+  async saveWorkflowDefinition(record: StoredWorkflowDefinition): Promise<void> {
+    await this.base.saveWorkflowDefinition(record)
+  }
+
+  async getWorkflowDefinition(id: string, version: number): Promise<StoredWorkflowDefinition | undefined> {
+    return await this.base.getWorkflowDefinition(id, version)
+  }
+
+  async saveWorkflowControlState(
+    projectId: string,
+    snapshot: WorkflowControlSnapshot,
+    journal: readonly WorkflowControlJournalEntry[],
+  ): Promise<void> {
+    await this.base.saveWorkflowControlState(projectId, snapshot, journal, this.write)
+  }
+
+  async getWorkflowControlState(projectId: string): Promise<WorkflowControlStateRecord | undefined> {
+    return await this.base.getWorkflowControlState(projectId)
+  }
+
+  async listWorkflowControlEvents(projectId: string): Promise<WorkflowControlEventRecord[]> {
+    return await this.base.listWorkflowControlEvents(projectId)
   }
 
   async saveTask(
@@ -500,6 +590,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
         workspace,
         homeRoot,
         screenshotDir,
+        profiles: await this.resolveProfiles(project.id),
       })
       if (this.isClosed()) {
         await team.close()
@@ -890,7 +981,8 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
   }
 
   private defaultTeam(request: FutureCupRunTeamRequest): FutureCupRunTeam {
-    const invokers = createHarnessAgentTeam(this.profiles, {
+    const profiles = request.profiles ?? this.profiles
+    const invokers = createHarnessAgentTeam(profiles, {
       ...this.options.harness,
       workspace: request.workspace,
       homeRoot: request.homeRoot,
@@ -898,7 +990,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     const orchestrator = new TeamOrchestrator({
       repository: request.store,
       invokers,
-      profiles: this.profiles,
+      profiles,
       workspace: request.workspace,
       verification: {
         ...this.options.verification,
@@ -913,6 +1005,11 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       run: async (requirement, project) => await orchestrator.run(requirement, project),
       close: async () => { await orchestrator.close() },
     }
+  }
+
+  private async resolveProfiles(projectId: string): Promise<readonly AgentProfile[]> {
+    const binding = await this.options.store.getProjectTeamBinding(projectId)
+    return binding === undefined ? this.profiles : agentProfilesFromTeamBinding(binding)
   }
 }
 

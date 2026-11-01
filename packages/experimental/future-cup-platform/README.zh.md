@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
+以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、版本化 Agent Registry、项目团队冻结、可恢复工作流控制、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
 
 ## 目录
 
@@ -69,7 +69,18 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/health` | 服务器状态与项目数 |
 | `GET` | `/api/v1/projects` | 项目摘要与事件游标 |
 | `POST` | `/api/v1/projects` | 根据名称与需求创建项目 |
+| `GET` | `/api/v1/agent-definitions` | Agent 定义、版本与版本状态 |
+| `POST` | `/api/v1/agent-definitions` | 注册 DRAFT Agent 定义 |
+| `POST` | `/api/v1/agent-definitions/:definitionId/versions` | 注册不可变 Agent 版本 |
+| `POST` | `/api/v1/agent-definitions/:definitionId/versions/:versionId/validate` | 校验 Agent 版本 |
+| `POST` | `/api/v1/agent-definitions/:definitionId/versions/:versionId/publish` | 发布 Agent 版本 |
+| `POST` | `/api/v1/agent-definitions/:definitionId/deprecate` | 弃用 Agent 定义 |
+| `POST` | `/api/v1/agent-definitions/discover` | 按能力、角色和标签发现已发布版本 |
+| `GET` | `/api/v1/agent-teams` | 团队版本列表 |
+| `POST` | `/api/v1/agent-teams` | 校验并创建不可变团队版本 |
 | `GET` | `/api/v1/projects/:projectId/agents` | 项目级 Agent 容量、实时负载与已观测成功率 |
+| `GET` | `/api/v1/projects/:projectId/team` | 项目冻结的完整团队快照 |
+| `POST` | `/api/v1/projects/:projectId/team-binding` | 为未绑定项目冻结团队版本 |
 | `GET` | `/api/v1/projects/:projectId/snapshot` | 当前项目状态与 `afterSeq` 后的事件 |
 | `GET` | `/api/v1/projects/:projectId/events` | `afterSeq` 后的有序项目事件 |
 | `GET` | `/api/v1/projects/:projectId/tasks` | 有序任务快照 |
@@ -80,6 +91,8 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/projects/:projectId/verification-reports` | 独立验证报告 |
 | `GET` | `/api/v1/projects/:projectId/repairs` | 修复轮次与 unified diff |
 | `GET` | `/api/v1/projects/:projectId/workflow` | 当前工作流处置 |
+| `GET` | `/api/v1/projects/:projectId/workflow-control` | 条件、循环与子工作流控制快照 |
+| `GET` | `/api/v1/projects/:projectId/workflow-control/events` | 工作流控制 Journal |
 | `GET` | `/api/v1/projects/:projectId/runs` | 项目运行历史 |
 | `GET` | `/api/v1/runs/:runId` | 单个公共项目运行 |
 | `POST` | `/api/v1/projects/:projectId/runs` | 启动真实 Harness 团队运行 |
@@ -117,6 +130,10 @@ HQ 大屏使用共享判别联合校验事件，只应用已提交事件，检�
 
 SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新要求匹配前一 revision，旧写入者不能覆盖较新的 DAG 状态。项目事件与 Outbox 义务在同一 Serializable 事务中提交。Dispatcher 使用带过期时间的 owner token 领取 Outbox 行；PostgreSQL 使用 `FOR UPDATE SKIP LOCKED`。
 
+平台启动时从持久 Registry 重放定义、版本、团队和项目绑定，并恢复固定默认团队。新项目必须在同一事务中写入完整团队快照和初始需求记忆；后续 Registry 发布新版本不会改变已启动项目。项目运行从冻结团队派生 scheduler profiles，模型、提示词、能力、工具白名单、记忆策略与输出契约均来自该项目版本。
+
+`workflow_control_runs` 保存完整控制快照，`workflow_control_events` 追加节点、边选择、循环与子工作流事件。每个快照带 revision，持久化层拒绝旧 revision 覆盖；Self-loop 的 PASS、Repair 返回验证、重复失败和基础设施升级都会更新该控制状态。
+
 工作流租约保存 owner、heartbeat、expiry 与单调 fencing token。租约接管会递增 token，只有当前 owner 与 token 能续期或释放。领域写会在自身事务内校验该 fence。新启动在接管过期租约后会回收遗留 `RUNNING` 行。
 
 项目级 Agent 状态从 `RUNNING` 执行记录计算实时负载，并用已完成执行记录覆盖持久化成功率。权威快照游标推进时，管理界面会刷新该投影。
@@ -141,6 +158,7 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 
 - **没有 mid-turn cancel：** Harness TypeScript SDK 没有 prompt-cancel 请求。取消会关闭运行拥有的 runtime、等待结算并记录 `CANCELLED`。
 - **每个项目一次生成：** 当前 MVP 为每个项目保留一组任务。终态运行后如需重新生成，请新建项目。
+- **Registry 管理界面延后：** M5.1/M5.2 已提供持久 API 与控制图查看；完整的 Agent/Team 创建编辑器属于 M5.4/M5.5。
 - **Loopback 传输：** 服务器拒绝非 loopback 主机。带认证的公网部署与 TLS 终止仍属于部署工作。
 - **单一存储生命周期：** 关闭服务器会关闭其拥有的存储。消费者不得在关闭后继续共享该实例。
 - **Outbox 至少一次投递：** Dispatcher 崩溃后，claim 过期会触发重放。客户端必须按 `projectId + seq` 去重。
@@ -151,4 +169,4 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 <a id="dev-note"></a>
 ### 开发备注
 
-PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。
+PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。M5 的 `20261101160000` 与 `20261101173000` 迁移共同建立 Registry、团队、项目记忆和工作流控制表。

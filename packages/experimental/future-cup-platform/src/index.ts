@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import {
   defaultAgentProfiles,
   OrchestrationRepository,
+  PersistentAgentRegistry,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import z from '@deepseek-ai/schemastery'
 import { closeFutureCupResources } from './lifecycle.ts'
@@ -116,6 +117,8 @@ export function apply(ctx: Context, config: Config): void {
       ? createPostgresStore(config.databaseUrl)
       : new OrchestrationRepository(config.sqlitePath ?? ':memory:', { journalMode: 'wal' })
     const profiles = defaultAgentProfiles()
+    const agentRegistry = new PersistentAgentRegistry(store)
+    const defaultTeamVersionId = await agentRegistry.ensureDefaultTeam()
     let launcher: FutureCupRunLauncher | undefined
     let server: ReturnType<typeof createFutureCupServer> | undefined
     try {
@@ -149,6 +152,8 @@ export function apply(ctx: Context, config: Config): void {
       server = createFutureCupServer({
         store,
         profiles,
+        agentRegistry,
+        defaultTeamVersionId,
         host: config.host,
         port: config.port,
         outboxPollMs: config.outboxPollMs,

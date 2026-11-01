@@ -6,18 +6,83 @@ import {
   ReactFlowProvider,
   useNodesState,
 } from '@xyflow/react'
-import { Descriptions, Drawer, Tag } from 'antd'
+import { Descriptions, Drawer, Space, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
-import type { TaskView } from '../api/contracts.ts'
+import { useParams } from 'react-router-dom'
+import type {
+  TaskView,
+  WorkflowControlEventView,
+  WorkflowControlStateView,
+} from '../api/contracts.ts'
+import { api } from '../api/client.ts'
 import { EmptyPanel } from '../components/EmptyPanel.tsx'
 import { JsonViewer } from '../components/JsonViewer.tsx'
 import { PageHeading } from '../components/PageHeading.tsx'
 import { TaskNode } from '../components/TaskNode.tsx'
+import { buildControlGraph } from '../graph/control-layout.ts'
 import { buildDagGraph } from '../graph/dag-layout.ts'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import { useProjectState } from '../state/ProjectStoreContext.tsx'
 
 const nodeTypes = { task: TaskNode }
+
+function ControlCanvas({
+  state,
+  events,
+}: {
+  readonly state: WorkflowControlStateView
+  readonly events: readonly WorkflowControlEventView[]
+}) {
+  const { dictionary } = useLocale()
+  const graph = useMemo(() => buildControlGraph(state), [state])
+  const activeCount = state.snapshot.activeNodes.length
+  const recent = events.slice(-8).reverse()
+  return (
+    <section>
+      <div className="section-panel-heading">
+        <div>
+          <h3>{dictionary.dag.workflowTitle}</h3>
+          <p>{dictionary.dag.workflowDescription}</p>
+        </div>
+        <Space wrap>
+          <Tag color={state.snapshot.status === 'PASSED' ? 'green' : 'blue'}>
+            {state.snapshot.status}
+          </Tag>
+          <Tag>{dictionary.dag.active}: {activeCount}</Tag>
+        </Space>
+      </div>
+      <div className="dag-frame">
+        <ReactFlow
+          nodes={graph.nodes}
+          edges={graph.edges}
+          fitView
+          minZoom={0.3}
+          maxZoom={1.4}
+          nodesDraggable={false}
+          nodesConnectable={false}
+        >
+          <Background color="#cbd7d1" gap={22} size={1} />
+          <MiniMap pannable zoomable />
+          <Controls showInteractive={false} />
+        </ReactFlow>
+      </div>
+      <div className="agent-metric-label" style={{ marginTop: 16 }}>
+        {dictionary.dag.controlEvents}
+      </div>
+      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        {recent.map(event => (
+          <div key={event.seq}>
+            <Tag>{String(event.seq)}</Tag>
+            <code>{event.entry.type}</code>
+            {event.entry.nodeId === undefined ? null : (
+              <span style={{ marginLeft: 8 }}>{event.entry.nodeId}</span>
+            )}
+          </div>
+        ))}
+      </Space>
+    </section>
+  )
+}
 
 function DagCanvas({ tasks }: { readonly tasks: readonly TaskView[] }) {
   const { dictionary } = useLocale()
@@ -78,13 +143,36 @@ function DagCanvas({ tasks }: { readonly tasks: readonly TaskView[] }) {
 /** Render durable task dependencies with React Flow. */
 export function DagPage() {
   const { dictionary } = useLocale()
+  const { projectId } = useParams()
   const snapshot = useProjectState().snapshot
+  const [controlState, setControlState] = useState<WorkflowControlStateView>()
+  const [controlEvents, setControlEvents] = useState<WorkflowControlEventView[]>([])
+  useEffect(() => {
+    if (projectId === undefined) return
+    let current = true
+    void Promise.all([
+      api.getWorkflowControl(projectId),
+      api.listWorkflowControlEvents(projectId),
+    ]).then(([state, events]) => {
+      if (!current) return
+      setControlState(state)
+      setControlEvents(events)
+    }).catch(() => {
+      if (!current) return
+      setControlState(undefined)
+      setControlEvents([])
+    })
+    return () => { current = false }
+  }, [projectId, snapshot?.lastEventSeq])
   if (snapshot === undefined) return null
   return (
     <div className="page-stack">
       <PageHeading title={dictionary.dag.title} description={dictionary.dag.description} />
       <ReactFlowProvider>
         <DagCanvas tasks={snapshot.tasks} />
+        {controlState === undefined
+          ? <EmptyPanel text={dictionary.dag.workflowEmpty} />
+          : <ControlCanvas state={controlState} events={controlEvents} />}
       </ReactFlowProvider>
     </div>
   )

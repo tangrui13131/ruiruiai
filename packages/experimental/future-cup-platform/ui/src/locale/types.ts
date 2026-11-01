@@ -94,6 +94,11 @@ export const localeDictionaries = {
       writeScope: '写入范围',
       revision: '修订',
       retries: '重试',
+      workflowTitle: '验证与修复控制流',
+      workflowDescription: '条件分支、有界循环和 Repair 子工作流来自持久化控制图。',
+      workflowEmpty: '该运行尚未产生工作流控制记录。',
+      active: '当前节点',
+      controlEvents: '控制事件',
     },
     scheduler: {
       title: '调度决策',
@@ -280,6 +285,11 @@ export const localeDictionaries = {
       writeScope: 'Write scopes',
       revision: 'Revision',
       retries: 'Retries',
+      workflowTitle: 'Verification and repair control flow',
+      workflowDescription: 'Conditional branches, bounded loops, and the Repair subworkflow come from durable control records.',
+      workflowEmpty: 'This run has no workflow-control record yet.',
+      active: 'Active nodes',
+      controlEvents: 'Control events',
     },
     scheduler: {
       title: 'Scheduling decisions',
