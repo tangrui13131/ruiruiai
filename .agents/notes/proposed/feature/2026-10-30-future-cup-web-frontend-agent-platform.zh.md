@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1、M2、M3、M4.0、M4.1、M4.2、M4.3 与 M4.4 已经完成，M5 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1 与 M5.2 已经完成，M5.3 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4/M5.1/M5.2 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -141,7 +141,17 @@ M5 以初赛可验收为边界，按依赖顺序完成以下阶段，不并行�
 
 初赛明确后置 MCP、A2A、外部 API 插件、RAG、向量数据库、任意工具安装、完整拖拽工作流编辑器、Agent 市场、多租户与计费。现有只读文件工具、TypeScript/Vite/Playwright 工具链、数据库事件和工具权限记录继续作为工具使用证据；文档必须明确这些边界，不宣称尚未接入 MCP。
 
-### M1、M2、M3、M4.0、M4.1、M4.2、M4.3 与 M4.4 结果和 M5 后续工作
+### M5.1 and M5.2 results
+
+- Agent Registry 现在持久化定义、独立版本状态、发布与弃用、能力发现、团队编制、项目记忆和完整项目冻结绑定。发布定义可继续登记新版本，旧版本保持不可变；弃用后不再参与发现，但已冻结项目仍使用原成员快照。
+- SQLite schema v6 与 PostgreSQL 迁移保存 Registry、团队、项目记忆和工作流控制记录。项目创建在同一事务中写入冻结团队与初始需求记忆，SQLite 与 PostgreSQL 均通过恢复、版本、外键和唯一约束测试。
+- 默认团队从七个受控定义生成：Planner、UI Designer、Tester、Frontend、Integration、Verifier 与 Repair，其中 Frontend 版本实例化两次。平台启动会恢复或被中断的默认种子修复为完整团队。
+- 项目启动器从项目冻结快照派生 scheduler profiles，模型、提示词、能力、工具白名单、记忆策略和输出契约来自不可变 Agent 版本；Bash 与 PowerShell 继续禁用。
+- 版本化工作流控制图支持顺序、并行、条件、有界循环、Repair 子工作流和终态。每次节点进入/完成、边选择、循环评估和子工作流进出均写入 Journal，快照 revision 防止旧状态覆盖。
+- Self-loop 已接入控制图：PASS 进入交付，FAIL 或 INCOMPLETE 进入 Repair 子工作流，Repair 返回验证；重复失败、三轮耗尽、Repair 失败或验证不完整进入可见升级。管理界面在任务 DAG 下展示控制图与最近控制事件。
+- 聚焦结果为编排包 88/88、平台包 25/25、UI 50/50 测试通过；真实 PostgreSQL E2E 2/2 通过，覆盖 Registry 恢复、团队冻结、项目记忆、工作流控制以及原有事务/租约路径。
+
+### M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1 与 M5.2 结果和 M5.3 后续工作
 
 M1 已于 2026-10-30 完成。官方 TypeScript SDK 启动了真实 Harness runtime，真实 DeepSeek 模型完成了轮次，真实模型生成了 React、TypeScript、Vite 与 Ant Design 工程。后续真实模型轮次安装依赖并运行生产构建；独立 Playwright 验证在桌面与移动视口通过，计数器交互正常。
 

@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, M3, M4.0, M4.1, M4.2, M4.3, and M4.4 are complete and M5 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, and M5.2 are complete and M5.3 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -141,7 +141,17 @@ M5 targets initial-round acceptance and completes the following phases in depend
 
 MCP, A2A, external API plugins, RAG, vector databases, arbitrary tool installation, a complete drag-and-drop workflow editor, an Agent marketplace, multi-tenancy, and billing are explicitly deferred beyond the initial round. Existing read-only file tools, the TypeScript/Vite/Playwright toolchain, database events, and tool permission records remain tool-use evidence. Documentation must state these limits and must not claim MCP integration.
 
-### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, and M4.4 results and M5 next work
+### M5.1 and M5.2 results
+
+- Agent Registry now persists definitions, independent version states, publication and deprecation, capability discovery, team compositions, project memory, and complete frozen project bindings. Published definitions can receive new versions while old versions remain immutable; deprecated definitions leave discovery, while already frozen projects retain their member snapshots.
+- SQLite schema v6 and PostgreSQL migrations store Registry, team, project-memory, and workflow-control records. Project creation writes the frozen team and initial requirement memory in one transaction; both stores pass recovery, version, foreign-key, and uniqueness tests.
+- The default team contains seven controlled definitions: Planner, UI Designer, Tester, Frontend, Integration, Verifier, and Repair, with two Frontend instances. Startup restores the registry or repairs an interrupted default seed into the complete team.
+- The project launcher derives scheduler profiles from the project's frozen snapshot. Model, prompt, capabilities, tool allowlist, memory policy, and output contracts come from immutable Agent versions; Bash and PowerShell remain disabled.
+- The versioned workflow-control graph supports sequencing, parallelism, conditions, bounded loops, Repair subworkflows, and terminal states. Node entry and completion, edge selection, loop evaluation, and subworkflow entry and exit are journaled; snapshot revisions reject stale overwrites.
+- The self-loop now drives the control graph: PASS advances to delivery, FAIL or INCOMPLETE enters the Repair subworkflow, and Repair returns to verification. Repeated failure, three-round exhaustion, Repair failure, or incomplete verification produces a visible escalation. The management UI renders the control graph and recent control events below the task DAG.
+- Focused results pass 88/88 orchestration tests, 25/25 platform tests, and 50/50 UI tests. The real PostgreSQL E2E passes 2/2 and covers Registry recovery, team freezing, project memory, workflow control, and the existing transaction and lease paths.
+
+### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, and M5.2 results and M5.3 next work
 
 M1 completed on 2026-10-30. The official TypeScript SDK started a real Harness runtime, a real DeepSeek model completed a turn, and a real model generated a React, TypeScript, Vite, and Ant Design project. A later real-model turn installed dependencies and ran the production build; independent Playwright verification passed on desktop and mobile with working counter behavior.
 
