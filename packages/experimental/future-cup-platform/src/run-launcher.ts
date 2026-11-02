@@ -245,6 +245,10 @@ class FencedOrchestrationStore implements OrchestrationStore {
     await this.base.saveAgentTeamVersion(record)
   }
 
+  async publishAgentTeamVersion(record: StoredAgentTeamVersion): Promise<boolean> {
+    return await this.base.publishAgentTeamVersion(record)
+  }
+
   async listProjectTeamBindings(): Promise<ProjectTeamBinding[]> {
     return await this.base.listProjectTeamBindings()
   }
