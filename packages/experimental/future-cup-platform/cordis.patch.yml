@@ -4,7 +4,8 @@
       config:
         host: 127.0.0.1
         port: !!js Number(process.env.FUTURE_CUP_PORT ?? 3090)
-        databaseDriver: postgres
+        databaseDriver: !!js >-
+          process.env.FUTURE_CUP_DATABASE_URL ? 'postgres' : 'sqlite'
         databaseUrl: !!js process.env.FUTURE_CUP_DATABASE_URL
         sqlitePath: !!js process.env.FUTURE_CUP_SQLITE_PATH ?? '.artifacts/future-cup-platform.sqlite'
         outboxPollMs: 100
