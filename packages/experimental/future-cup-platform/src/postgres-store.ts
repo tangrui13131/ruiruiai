@@ -17,6 +17,7 @@ import type {
   ProjectMemoryEntry,
   ProjectTeamBinding,
   StoredAgentDefinition,
+  StoredAgentTeam,
   StoredAgentTeamVersion,
   StoredAgentVersion,
   StoredWorkflowDefinition,
@@ -65,6 +66,7 @@ import {
   parsePublishedStatus,
   parseWorkflowEscalationReason,
   parseStoredAgentDefinition,
+  parseStoredAgentTeam,
   parseStoredAgentTeamVersion,
   parseStoredAgentVersion,
   parseWorkflowControlDefinition,
@@ -619,9 +621,68 @@ export class PostgresPlatformStore implements OrchestrationStore {
     }, M5_TRANSACTION_OPTIONS)
   }
 
+  /** {@inheritDoc PlatformStore.listAgentTeams} */
+  async listAgentTeams(ownerId?: string): Promise<StoredAgentTeam[]> {
+    const rows = await this.prisma.agentTeam.findMany({
+      where: ownerId === undefined ? {} : { ownerId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(row => ({
+      team: parseStoredAgentTeam({
+        id: row.id,
+        ownerId: row.ownerId,
+        name: row.name,
+        purpose: row.purpose,
+        status: row.status,
+      }),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.getAgentTeam} */
+  async getAgentTeam(teamId: string): Promise<StoredAgentTeam | undefined> {
+    const row = await this.prisma.agentTeam.findUnique({ where: { id: teamId } })
+    if (row === null) return undefined
+    return {
+      team: parseStoredAgentTeam({
+        id: row.id,
+        ownerId: row.ownerId,
+        name: row.name,
+        purpose: row.purpose,
+        status: row.status,
+      }),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentTeam} */
+  async saveAgentTeam(record: StoredAgentTeam): Promise<void> {
+    await this.prisma.agentTeam.upsert({
+      where: { id: record.team.id },
+      create: {
+        id: record.team.id,
+        ownerId: record.team.ownerId,
+        name: record.team.name,
+        purpose: record.team.purpose,
+        status: record.team.status,
+        createdAt: new Date(record.createdAt),
+        updatedAt: new Date(record.updatedAt),
+      },
+      update: {
+        name: record.team.name,
+        purpose: record.team.purpose,
+        status: record.team.status,
+        updatedAt: new Date(record.updatedAt),
+      },
+    })
+  }
+
   /** {@inheritDoc PlatformStore.listAgentTeamVersions} */
-  async listAgentTeamVersions(): Promise<StoredAgentTeamVersion[]> {
+  async listAgentTeamVersions(teamId?: string): Promise<StoredAgentTeamVersion[]> {
     const rows = await this.prisma.agentTeamVersion.findMany({
+      where: teamId === undefined ? {} : { teamId },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })
     return rows.map(row => ({
@@ -630,7 +691,7 @@ export class PostgresPlatformStore implements OrchestrationStore {
       checksum: row.checksum,
       status: decodeAgentTeamStatus(row.status),
       createdAt: row.createdAt.toISOString(),
-      publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+      publishedAt: row.publishedAt?.toISOString(),
     }))
   }
 
@@ -644,7 +705,7 @@ export class PostgresPlatformStore implements OrchestrationStore {
       checksum: row.checksum,
       status: decodeAgentTeamStatus(row.status),
       createdAt: row.createdAt.toISOString(),
-      publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+      publishedAt: row.publishedAt?.toISOString(),
     }
   }
 
@@ -658,29 +719,66 @@ export class PostgresPlatformStore implements OrchestrationStore {
         if (existing.checksum !== record.checksum) {
           throw new Error(`Agent team version "${record.teamVersion.id}" is immutable`)
         }
+        await tx.agentTeamVersion.update({
+          where: { id: record.teamVersion.id },
+          data: {
+            specJson: json(record.teamVersion),
+            checksum: record.checksum,
+            status: record.status,
+            publishedAt: record.publishedAt === undefined
+              ? null
+              : new Date(record.publishedAt),
+          },
+        })
         return
       }
       await tx.agentTeamVersion.create({
         data: {
           id: record.teamVersion.id,
+          teamId: record.teamVersion.teamId,
           name: record.teamVersion.name,
           version: record.ordinal,
           specJson: json(record.teamVersion),
           checksum: record.checksum,
           status: record.status,
           createdAt: new Date(record.createdAt),
-          publishedAt: new Date(record.publishedAt),
+          publishedAt: record.publishedAt === undefined
+            ? null
+            : new Date(record.publishedAt),
           members: {
-            create: record.teamVersion.members.map((member, position) => ({
-              memberId: member.version.id,
+            create: record.teamVersion.members.map(member => ({
+              memberId: member.instanceId,
               agentDefinitionVersionId: member.version.id,
-              instanceCount: member.instanceCount,
-              position,
+              displayName: member.displayName,
+              departmentKey: member.departmentKey,
+              position: member.position,
             })),
           },
         },
       })
     }, M5_TRANSACTION_OPTIONS)
+  }
+
+  /**
+   * Atomically publish one DRAFT team version so two writers cannot both win.
+   * @param record - complete PUBLISHED team version state.
+   * @returns whether this call performed the DRAFT to PUBLISHED transition.
+   */
+  async publishAgentTeamVersion(record: StoredAgentTeamVersion): Promise<boolean> {
+    return await retrySerializable(async () => {
+      const result = await this.prisma.agentTeamVersion.updateMany({
+        where: { id: record.teamVersion.id, status: 'DRAFT' },
+        data: {
+          specJson: json(record.teamVersion),
+          checksum: record.checksum,
+          status: 'PUBLISHED',
+          publishedAt: record.publishedAt === undefined
+            ? new Date()
+            : new Date(record.publishedAt),
+        },
+      })
+      return result.count === 1
+    })
   }
 
   /** {@inheritDoc PlatformStore.listProjectTeamBindings} */
@@ -1628,8 +1726,15 @@ function decodeAgentLifecycleStatus(value: string): AgentLifecycleStatus {
   }
 }
 
-function decodeAgentTeamStatus(value: string): 'PUBLISHED' {
-  return parsePublishedStatus(value, 'Agent team')
+function decodeAgentTeamStatus(value: string): StoredAgentTeamVersion['status'] {
+  switch (value) {
+    case 'DRAFT':
+      return 'DRAFT'
+    case 'PUBLISHED':
+      return 'PUBLISHED'
+    default:
+      throw new Error(`unknown Agent team status "${value}"`)
+  }
 }
 
 function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {

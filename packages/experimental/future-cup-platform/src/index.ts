@@ -34,6 +34,8 @@ export interface Config {
   readonly port: number
   /** Durable storage adapter selected for this profile. */
   readonly databaseDriver: 'sqlite' | 'postgres'
+  /** Stable profile-local user identity used to scope Team ownership. */
+  readonly ownerId: string
   /** PostgreSQL connection URL, required by the PostgreSQL adapter. */
   readonly databaseUrl?: string | undefined
   /** SQLite database path, required by the SQLite adapter. */
@@ -83,6 +85,7 @@ export const Config = z.object({
   host: z.union(['127.0.0.1', '::1'] as const),
   port: z.number().min(0).max(65_535),
   databaseDriver: z.union(['sqlite', 'postgres'] as const),
+  ownerId: z.string().min(1).default('future-cup-local-user'),
   databaseUrl: z.union([z.string().min(1), z.const(undefined)]).default(undefined),
   sqlitePath: z.union([z.string().min(1), z.const(undefined)]).default(undefined),
   outboxPollMs: z.number().min(1),
@@ -153,6 +156,7 @@ export function apply(ctx: Context, config: Config): void {
         store,
         profiles,
         agentRegistry,
+        currentUserId: config.ownerId,
         defaultTeamVersionId,
         host: config.host,
         port: config.port,

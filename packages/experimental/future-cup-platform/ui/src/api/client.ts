@@ -1,4 +1,9 @@
 import {
+  agentTeamPageSchema,
+  agentTeamSchema,
+  agentDefinitionViewSchema,
+  createAgentTeamRequestSchema,
+  createTeamDraftRequestSchema,
   agentSchema,
   apiErrorSchema,
   deliverySchema,
@@ -9,12 +14,18 @@ import {
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationPlanSchema,
   teamRecommendationSaveResponseSchema,
+  publicAgentTeamVersionSchema,
+  publicTeamVersionResponseSchema,
   workflowControlEventSchema,
   workflowControlStateSchema,
   cancelRunResponseSchema,
   runStartResponseSchema,
 } from './contracts.ts'
 import type {
+  AgentTeamPageView,
+  AgentTeamView,
+  AgentTeamVersionView,
+  AgentDefinitionView,
   AgentView,
   DeliveryView,
   ProjectRunView,
@@ -74,8 +85,50 @@ export const api = {
     }))
   },
 
+  async listTeams(): Promise<AgentTeamPageView> {
+    return agentTeamPageSchema.parse(await request('/api/v1/teams'))
+  },
+
+  async createTeam(input: {
+    readonly name: string
+    readonly purpose: string
+  }): Promise<AgentTeamView> {
+    return agentTeamSchema.parse(await request('/api/v1/teams', {
+      method: 'POST',
+      body: JSON.stringify(createAgentTeamRequestSchema.parse(input)),
+    }))
+  },
+
+  async listTeamVersions(teamId: string): Promise<AgentTeamVersionView[]> {
+    return publicAgentTeamVersionSchema.array().parse(await request(
+      `/api/v1/teams/${encodeURIComponent(teamId)}/versions`,
+    ))
+  },
+
+  async createTeamDraft(teamId: string, input: unknown): Promise<AgentTeamVersionView> {
+    return publicAgentTeamVersionSchema.parse(await request(
+      `/api/v1/teams/${encodeURIComponent(teamId)}/versions`,
+      {
+        method: 'POST',
+        body: JSON.stringify(createTeamDraftRequestSchema.parse(input)),
+      },
+    ))
+  },
+
+  async publishTeamVersion(teamId: string, versionId: string): Promise<AgentTeamVersionView> {
+    const value = publicTeamVersionResponseSchema.parse(await request(
+      `/api/v1/teams/${encodeURIComponent(teamId)}/versions/${encodeURIComponent(versionId)}/publish`,
+      { method: 'POST', body: '{}' },
+    ))
+    return value.teamVersion
+  },
+
   async listAgents(): Promise<AgentView[]> {
     return agentSchema.array().parse(await request('/api/v1/agents'))
+  },
+
+  async listAgentDefinitions(): Promise<AgentDefinitionView[]> {
+    return agentDefinitionViewSchema.array().parse(await request('/api/v1/agent-definitions'))
   },
 
   async listProjectAgents(projectId: string): Promise<AgentView[]> {

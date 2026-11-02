@@ -5,6 +5,7 @@ import type { ExecutionId } from './brand.ts'
 import type {
   AgentDefinition,
   AgentLifecycleStatus,
+  AgentTeam,
   AgentTeamVersion,
   AgentVersion,
   ProjectMemoryKind,
@@ -162,15 +163,22 @@ export interface StoredAgentVersion {
   readonly deprecatedAt?: string | undefined
 }
 
+/** One logical user-owned Team with persistence timestamps. */
+export interface StoredAgentTeam {
+  readonly team: AgentTeam
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
 /** One immutable team version retained for project binding. */
 export interface StoredAgentTeamVersion {
   readonly teamVersion: AgentTeamVersion
   /** Monotonic database ordering for this team template. */
   readonly ordinal: number
   readonly checksum: string
-  readonly status: 'PUBLISHED'
+  readonly status: AgentTeamVersion['status']
   readonly createdAt: string
-  readonly publishedAt: string
+  readonly publishedAt?: string | undefined
 }
 
 /** One structured project-memory fact permitted by Agent memory policies. */
@@ -429,18 +437,33 @@ export interface PlatformStore {
    * @param record - complete version state.
    */
   saveAgentVersion(record: StoredAgentVersion): Awaitable<void>
-  /** List immutable team versions in creation order. */
-  listAgentTeamVersions(): Awaitable<StoredAgentTeamVersion[]>
+  /** List logical Teams in creation order, optionally narrowed to one owner. */
+  listAgentTeams(ownerId?: string): Awaitable<StoredAgentTeam[]>
+  /**
+   * Read one logical Team.
+   * @param teamId - logical Team identity.
+   */
+  getAgentTeam(teamId: string): Awaitable<StoredAgentTeam | undefined>
+  /** Persist logical Team metadata and lifecycle state. */
+  saveAgentTeam(record: StoredAgentTeam): Awaitable<void>
+  /** List immutable team versions in creation order, optionally narrowed to one Team. */
+  listAgentTeamVersions(teamId?: string): Awaitable<StoredAgentTeamVersion[]>
   /**
    * Read one immutable team version.
    * @param teamVersionId - team version identity.
    */
   getAgentTeamVersion(teamVersionId: string): Awaitable<StoredAgentTeamVersion | undefined>
   /**
-   * Persist one immutable published team version and its member references.
+   * Persist one immutable team version and its one-row-per-instance member references.
    * @param record - complete team version state.
    */
   saveAgentTeamVersion(record: StoredAgentTeamVersion): Awaitable<void>
+  /**
+   * Atomically publish one DRAFT team version.
+   * @param record - complete PUBLISHED team version state.
+   * @returns whether this call performed the DRAFT to PUBLISHED transition.
+   */
+  publishAgentTeamVersion(record: StoredAgentTeamVersion): Awaitable<boolean>
   /** List every frozen project team binding. */
   listProjectTeamBindings(): Awaitable<ProjectTeamBinding[]>
   /**

@@ -145,7 +145,7 @@ M5 以初赛可验收为边界，按依赖顺序完成以下阶段，不并行�
 
 - Agent Registry 现在持久化定义、独立版本状态、发布与弃用、能力发现、团队编制、项目记忆和完整项目冻结绑定。发布定义可继续登记新版本，旧版本保持不可变；弃用后不再参与发现，但已冻结项目仍使用原成员快照。
 - SQLite schema v6 与 PostgreSQL 迁移保存 Registry、团队、项目记忆和工作流控制记录。项目创建在同一事务中写入冻结团队与初始需求记忆，SQLite 与 PostgreSQL 均通过恢复、版本、外键和唯一约束测试。
-- 默认团队从七个受控定义生成：Planner、UI Designer、Tester、Frontend、Integration、Verifier 与 Repair，其中 Frontend 版本实例化两次。平台启动会恢复或被中断的默认种子修复为完整团队。
+- 默认团队从七个受控定义生成：Planner、UI Designer、Tester、Frontend、Integration、Verifier 与 Repair，其中 Frontend 版本实例化两次；确定性 Verifier 由系统拥有，不计入运行时成员或 HQ 小人。平台启动会恢复或被中断的默认种子修复为完整团队。
 - 项目启动器从项目冻结快照派生 scheduler profiles，模型、提示词、能力、工具白名单、记忆策略和输出契约来自不可变 Agent 版本；Bash 与 PowerShell 继续禁用。
 - 版本化工作流控制图支持顺序、并行、条件、有界循环、Repair 子工作流和终态。每次节点进入/完成、边选择、循环评估和子工作流进出均写入 Journal，快照 revision 防止旧状态覆盖。
 - Self-loop 已接入控制图：PASS 进入交付，FAIL 或 INCOMPLETE 进入 Repair 子工作流，Repair 返回验证；重复失败、三轮耗尽、Repair 失败或验证不完整进入可见升级。管理界面在任务 DAG 下展示控制图与最近控制事件。
@@ -160,6 +160,15 @@ M5 以初赛可验收为边界，按依赖顺序完成以下阶段，不并行�
 - 用户可应用受控自然语言调整、保存不可变团队版本，或采用团队并创建已冻结项目。管理前端增加“智能配队”入口、项目画像、成员与能力覆盖、风险、调整历史和采用流程。
 - 新增模块达到 per-file 100% 覆盖：`adaptive-repair.ts`、`self-healer.ts`、`team-recommender.ts`、`TeamBuilderPage.tsx`、`TeamRecommendationDetails.tsx`、`recommendation-labels.ts` 与 `RepairsPage.tsx`。
 - 当前聚合结果为编排包 169/169、平台包 26/26、UI 73/73 测试通过；包级 TypeScript、Prisma schema、目标文件 Oxlint 与 `git diff --check` 通过。
+
+### M5.5 团队库结果
+
+- SQLite schema v8 与 PostgreSQL migration `20261102130000` 新增逻辑团队归属、每实例一行运行时成员、不可变版本状态与稳定 HQ 工位字段。
+- 用户可以创建多个团队、保存空草稿、发布 1–7 个运行时实例、复制已发布团队、归档团队并查看项目引用。同一已发布 Agent 版本可以出现多次，每个实例都占用团队人数。
+- 团队发布与智能推荐共用能力、并发、工具、记忆、输出契约、部门和发布状态校验。确定性 Verifier 仍由系统拥有，不属于团队成员。
+- 项目创建冻结所选团队版本；项目 Agent 接口从冻结快照派生名单，HQ 读取冻结的部门与工位，而不是根据角色字符串猜测。
+- “我的团队”管理页提供团队列表、版本历史、容量与引用摘要，以及 1–7 实例编辑器；既有“智能配队”仍作为推荐入口。
+- 当前聚焦结果为编排包 181/181、平台包 27/27、UI 76/76 测试通过；SQLite v1–v7 迁移测试、Prisma schema、TypeScript 检查与构建产物检查通过。
 
 ### M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3 与 M5.4 结果
 

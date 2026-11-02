@@ -30,9 +30,10 @@ import {
 } from './schemas.ts'
 
 /** Stable identity of the default published team. */
-export const DEFAULT_AGENT_TEAM_ID = 'future-cup-default-team-1.0.0'
+export const DEFAULT_AGENT_TEAM_ID = 'future-cup-default-team-2.0.0'
 
 const VERSION = '1.0.0'
+const TEAM_VERSION = '2.0.0'
 const MODEL = 'deepseek-flash'
 const commonInputSchema = descriptor(
   'future-cup.agent-task-input',
@@ -150,19 +151,20 @@ function teamInput(versions: ReadonlyMap<AgentRegistryRole, string>): CreateAgen
   return {
     id: DEFAULT_AGENT_TEAM_ID,
     name: 'future-cup-default-team',
-    version: VERSION,
+    version: TEAM_VERSION,
     purpose: 'Deliver a verified React frontend project with controlled specialist Agents.',
-    members: [...versions.entries()].map(([role, agentVersionId]) => ({
-      agentVersionId,
-      instanceCount: role === 'frontend' ? 2 : 1,
-    })),
+    members: [...versions.entries()]
+      .filter(([role]) => role !== 'verifier')
+      .map(([role, agentVersionId]) => ({
+        agentVersionId,
+        instanceCount: role === 'frontend' ? 2 : 1,
+      })),
     requiredCapabilities: {
       planning: 1,
       design: 1,
       testing: 1,
       frontend: 1,
       integration: 1,
-      verification: 1,
       repair: 1,
     },
     requiredConcurrency: 5,
@@ -182,7 +184,9 @@ function teamInput(versions: ReadonlyMap<AgentRegistryRole, string>): CreateAgen
       requiredKinds: ['requirement', 'design-decision', 'failure-signature'],
     },
     inputSchema: commonInputSchema,
-    requiredOutputSchemas: Object.values(OUTPUT_SCHEMAS),
+    requiredOutputSchemas: Object.entries(OUTPUT_SCHEMAS)
+      .filter(([role]) => role !== 'verifier')
+      .map(([, schema]) => schema),
   }
 }
 

@@ -3,12 +3,16 @@
 import { AgentId } from './brand.ts'
 import {
   AgentRegistry,
+  type AgentTeam,
+  AgentRegistryError,
   type AgentDefinition,
   type AgentDiscoveryQuery,
   type AgentLifecycleStatus,
   type AgentTeamVersion,
   type AgentVersion,
+  type CreateAgentTeamInput,
   type CreateAgentTeamVersionInput,
+  type CreateTeamLibraryDraftInput,
   type ProjectTeamBinding,
   type PublishedAgent,
   type RegisterAgentDefinitionInput,
@@ -19,6 +23,7 @@ import { DEFAULT_AGENT_TEAM_ID, createDefaultAgentTeam } from './default-agent-t
 import { checksumJson } from './content-checksum.ts'
 import type {
   PlatformStore,
+  StoredAgentTeam,
   StoredAgentVersion,
 } from './platform-store.ts'
 import { jsonValueSchema } from './schemas.ts'
@@ -217,8 +222,119 @@ export class PersistentAgentRegistry {
   async createTeamVersion(input: CreateAgentTeamVersionInput): Promise<AgentTeamVersion> {
     await this.initialize()
     const team = this.registry.createTeamVersion(input)
+    await this.store.saveAgentTeam({
+      team: this.registry.getTeam(team.teamId),
+      createdAt: this.timestamp(),
+      updatedAt: this.timestamp(),
+    })
     await this.persistTeam(team)
     return team
+  }
+
+  /**
+   * Create one active logical Team owned by a user.
+   * @param input - Team identity, owner, and metadata.
+   * @returns the persisted logical Team.
+   */
+  async createTeam(input: CreateAgentTeamInput): Promise<AgentTeam> {
+    await this.initialize()
+    const team = this.registry.createTeam(input)
+    await this.persistTeamMetadata(team)
+    return team
+  }
+
+  /**
+   * List logical Teams owned by one user.
+   * @param ownerId - optional owner filter.
+   * @returns persisted logical Teams.
+   */
+  async listTeams(ownerId?: string): Promise<readonly AgentTeam[]> {
+    await this.initialize()
+    return this.registry.listTeams(ownerId)
+  }
+
+  /**
+   * Read one logical Team.
+   * @param teamId - logical Team identity.
+   * @returns the persisted logical Team.
+   */
+  async getTeam(teamId: string): Promise<AgentTeam> {
+    await this.initialize()
+    return this.registry.getTeam(teamId)
+  }
+
+  /**
+   * Create a draft version under one logical Team.
+   * @param teamId - owning logical Team.
+   * @param input - runtime instances and optional policy requirements.
+   * @returns the persisted draft.
+   */
+  async createTeamVersionDraft(
+    teamId: string,
+    input: CreateTeamLibraryDraftInput,
+  ): Promise<AgentTeamVersion> {
+    await this.initialize()
+    const version = this.registry.createTeamVersionDraft(teamId, input)
+    await this.persistTeam(version)
+    return version
+  }
+
+  /**
+   * Publish one validated draft under its logical Team.
+   * @param teamId - owning logical Team.
+   * @param teamVersionId - draft version.
+   * @returns the persisted published version.
+   */
+  async publishTeamVersion(teamId: string, teamVersionId: string): Promise<AgentTeamVersion> {
+    await this.initialize()
+    const version = this.registry.publishTeamVersion(teamId, teamVersionId)
+    await this.persistPublishedTeam(version)
+    return version
+  }
+
+  /**
+   * Archive one logical Team.
+   * @param teamId - logical Team identity.
+   * @returns the persisted archived Team.
+   */
+  async archiveTeam(teamId: string): Promise<AgentTeam> {
+    await this.initialize()
+    const team = this.registry.archiveTeam(teamId)
+    await this.persistTeamMetadata(team)
+    return team
+  }
+
+  /**
+   * Clone one published Team into a new active Team draft.
+   * @param sourceTeamVersionId - published source version.
+   * @param options - new owner, identity, and optional display metadata.
+   * @returns the cloned logical Team and draft version.
+   */
+  async cloneTeam(
+    sourceTeamVersionId: string,
+    options: {
+      readonly id: string
+      readonly ownerId: string
+      readonly name?: string | undefined
+      readonly purpose?: string | undefined
+      readonly version?: string | undefined
+    },
+  ): Promise<{ readonly team: AgentTeam; readonly version: AgentTeamVersion }> {
+    await this.initialize()
+    const cloned = this.registry.cloneTeam(sourceTeamVersionId, options)
+    await this.persistTeamMetadata(cloned.team)
+    await this.persistTeam(cloned.version)
+    return cloned
+  }
+
+  /**
+   * List immutable versions of one logical Team.
+   * @param teamId - optional logical Team filter.
+   * @returns persisted versions.
+   */
+  async listTeamVersions(teamId?: string): Promise<readonly AgentTeamVersion[]> {
+    await this.initialize()
+    return this.registry.listTeamVersions(teamId)
   }
 
   /**
@@ -266,9 +382,10 @@ export class PersistentAgentRegistry {
   }
 
   private async load(): Promise<void> {
-    const [definitions, versions, teams, bindings] = await Promise.all([
+    const [definitions, versions, logicalTeams, teamVersions, bindings] = await Promise.all([
       this.store.listAgentDefinitions(),
       this.store.listAgentVersions(),
+      this.store.listAgentTeams(),
       this.store.listAgentTeamVersions(),
       this.store.listProjectTeamBindings(),
     ])
@@ -302,10 +419,16 @@ export class PersistentAgentRegistry {
         }
       }
     }
-    for (const record of [...teams].sort((left, right) => left.ordinal - right.ordinal)) {
-      this.registry.createTeamVersion(teamInput(record.teamVersion))
+    for (const record of logicalTeams) {
+      this.registry.restoreTeam(record.team)
+    }
+    for (const record of [...teamVersions].sort((left, right) => left.ordinal - right.ordinal)) {
+      this.registry.restoreTeamVersion(record.teamVersion)
     }
     for (const binding of bindings) {
+      // A frozen binding is the authoritative published snapshot for historical projects.
+      this.registry.restoreTeamVersion(binding.teamVersion)
+      await this.persistTeam(binding.teamVersion)
       this.registry.freezeTeamForProject(binding.projectId, binding.teamVersion.id)
     }
     for (const record of definitions) {
@@ -321,6 +444,9 @@ export class PersistentAgentRegistry {
       for (const version of this.registry.listVersions(definition.id)) {
         await this.persistVersion(version)
       }
+    }
+    for (const team of this.registry.listTeams()) {
+      await this.persistTeamMetadata(team)
     }
     for (const team of this.registry.listTeamVersions()) {
       await this.persistTeam(team)
@@ -364,20 +490,69 @@ export class PersistentAgentRegistry {
   private async persistTeam(team: AgentTeamVersion): Promise<void> {
     const teams = await this.store.listAgentTeamVersions()
     const existing = teams.find(record => record.teamVersion.id === team.id)
+    if (existing !== undefined && JSON.stringify(existing.teamVersion) === JSON.stringify(team)) {
+      return
+    }
     const timestamp = this.timestamp()
     await this.store.saveAgentTeamVersion({
       teamVersion: team,
       ordinal: existing?.ordinal ?? teams.length + 1,
-      checksum: checksumJson(jsonValueSchema.parse(team)),
-      status: 'PUBLISHED',
+      checksum: agentTeamVersionChecksum(team),
+      status: team.status,
       createdAt: existing?.createdAt ?? timestamp,
-      publishedAt: existing?.publishedAt ?? timestamp,
+      publishedAt: team.status === 'PUBLISHED'
+        ? existing?.publishedAt ?? timestamp
+        : undefined,
     })
+  }
+
+  private async persistPublishedTeam(team: AgentTeamVersion): Promise<void> {
+    const teams = await this.store.listAgentTeamVersions()
+    const existing = teams.find(record => record.teamVersion.id === team.id)
+    if (existing === undefined) {
+      throw new AgentRegistryError(
+        `Agent team version "${team.id}" is not persisted`,
+        'TEAM_VERSION_NOT_FOUND',
+      )
+    }
+    const published = await this.store.publishAgentTeamVersion({
+      teamVersion: team,
+      ordinal: existing.ordinal,
+      checksum: agentTeamVersionChecksum(team),
+      status: 'PUBLISHED',
+      createdAt: existing.createdAt,
+      publishedAt: this.timestamp(),
+    })
+    if (!published) {
+      throw new AgentRegistryError(
+        `Agent team version "${team.id}" is not a draft`,
+        'TEAM_VERSION_NOT_DRAFT',
+      )
+    }
+  }
+
+  private async persistTeamMetadata(team: AgentTeam): Promise<void> {
+    const existing = (await this.store.listAgentTeams())
+      .find(record => record.team.id === team.id)
+    const timestamp = this.timestamp()
+    const record: StoredAgentTeam = {
+      team,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    }
+    await this.store.saveAgentTeam(record)
   }
 
   private timestamp(): string {
     return this.now().toISOString()
   }
+}
+
+function agentTeamVersionChecksum(team: AgentTeamVersion): string {
+  return checksumJson(jsonValueSchema.parse({
+    ...team,
+    status: 'PUBLISHED',
+  }))
 }
 
 /**
@@ -391,47 +566,25 @@ export function agentProfilesFromTeamBinding(
   const profiles: AgentProfile[] = []
   for (const member of binding.members) {
     if (member.version.role === 'verifier') continue
-    for (let instance = 1; instance <= member.instanceCount; instance += 1) {
-      const suffix = member.instanceCount === 1 ? '' : `-${String(instance)}`
-      profiles.push(Object.freeze({
-        id: AgentId(`${member.definition.id}${suffix}`),
-        name: member.instanceCount === 1
-          ? member.definition.name
-          : `${member.definition.name} ${String(instance)}`,
-        role: member.version.role,
-        capabilities: member.version.capabilities,
-        maxConcurrency: member.version.maxConcurrency,
-        currentLoad: 0,
-        historicalSuccessRate: 0.75,
-        available: true,
-        definitionVersionId: member.version.id,
-        model: member.version.model,
-        instructions: member.version.prompt,
-        toolAllowlist: member.version.toolAllowlist,
-        memoryPolicy: member.version.memoryPolicy,
-      }))
-    }
+    profiles.push(Object.freeze({
+      id: AgentId(member.instanceId),
+      name: member.displayName,
+      role: member.version.role,
+      capabilities: member.version.capabilities,
+      maxConcurrency: member.version.maxConcurrency,
+      currentLoad: 0,
+      historicalSuccessRate: 0.75,
+      available: true,
+      definitionVersionId: member.version.id,
+      model: member.version.model,
+      instructions: member.version.prompt,
+      toolAllowlist: member.version.toolAllowlist,
+      memoryPolicy: member.version.memoryPolicy,
+      departmentKey: member.departmentKey,
+      position: member.position,
+    }))
   }
   return Object.freeze(profiles)
-}
-
-function teamInput(team: AgentTeamVersion): CreateAgentTeamVersionInput {
-  return {
-    id: team.id,
-    name: team.name,
-    version: team.version,
-    purpose: team.purpose,
-    members: team.members.map(member => ({
-      agentVersionId: member.version.id,
-      instanceCount: member.instanceCount,
-    })),
-    requiredCapabilities: team.requiredCapabilities,
-    requiredConcurrency: team.requiredConcurrency,
-    toolPolicy: team.toolPolicy,
-    memoryPolicy: team.memoryPolicy,
-    inputSchema: team.inputSchema,
-    requiredOutputSchemas: team.outputSchemas,
-  }
 }
 
 function versionRegistrationInput(version: AgentVersion): RegisterAgentVersionInput {

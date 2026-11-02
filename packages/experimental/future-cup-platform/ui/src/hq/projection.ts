@@ -47,6 +47,7 @@ export interface HqAgentProjection {
   readonly name: string
   readonly role: string
   readonly department: string
+  readonly position?: number | undefined
   readonly capabilities: Readonly<Record<string, number>>
   readonly maxConcurrency: number
   readonly currentLoad: number
@@ -277,7 +278,8 @@ function agentProjection(agent: AgentView, tasks: readonly HqTaskProjection[]): 
     id: agent.id,
     name: agent.name,
     role: agent.role,
-    department: departmentForAgent(agent.id, agent.role),
+    department: agent.departmentKey ?? departmentForAgent(agent.id, agent.role),
+    ...agent.position === undefined ? {} : { position: agent.position },
     capabilities: agent.capabilities,
     maxConcurrency: agent.maxConcurrency,
     currentLoad: agent.currentLoad,

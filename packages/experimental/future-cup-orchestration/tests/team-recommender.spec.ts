@@ -40,6 +40,7 @@ const ROLES: readonly AgentRegistryRole[] = [
   'verifier',
   'repair',
 ]
+const RUNTIME_ROLES = ROLES.filter(role => role !== 'verifier')
 
 interface AgentFixtureOptions {
   readonly omittedRoles?: readonly AgentRegistryRole[]
@@ -362,7 +363,7 @@ describe('Future Cup team recommender', () => {
   })
 
   it('reports missing roles and capabilities without inventing an Agent', () => {
-    const fixture = createAgentFixture({ omittedRoles: ['verifier'] })
+    const fixture = createAgentFixture({ omittedRoles: ['repair'] })
     const recommendation = recommendAgentTeam({
       profile: completeProfile(),
       publishedAgents: fixture.publishedAgents,
@@ -370,13 +371,13 @@ describe('Future Cup team recommender', () => {
 
     expect(recommendation.members.some(member => member.role === 'verifier')).toBe(false)
     expect(recommendation.missingCapabilities).toContainEqual(expect.objectContaining({
-      capability: 'verification',
+      capability: 'repair',
       covered: 0,
       required: 1,
     }))
     expect(recommendation.risks).toContainEqual(expect.objectContaining({
       kind: 'missing-role',
-      role: 'verifier',
+      role: 'repair',
     }))
   })
 
@@ -407,7 +408,7 @@ describe('Future Cup team recommender', () => {
     }))
   })
 
-  it('adds testing and verification capacity in quality mode', () => {
+  it('adds testing capacity in quality mode', () => {
     const fixture = createAgentFixture()
     const standard = recommendAgentTeam({
       profile: completeProfile(),
@@ -422,7 +423,6 @@ describe('Future Cup team recommender', () => {
     })
 
     expect(roleInstances(quality, 'tester')).toBeGreaterThan(roleInstances(standard, 'tester'))
-    expect(roleInstances(quality, 'verifier')).toBeGreaterThan(roleInstances(standard, 'verifier'))
     expect(quality.risks).toContainEqual(expect.objectContaining({
       kind: 'quality-tradeoff',
     }))
@@ -454,9 +454,6 @@ describe('Future Cup team recommender', () => {
     const higherQuality = applyTeamAdjustment(recommendation, '提高质量并加强验证')
     expect(roleInstances(higherQuality.recommendation, 'tester')).toBeGreaterThan(
       roleInstances(recommendation, 'tester'),
-    )
-    expect(roleInstances(higherQuality.recommendation, 'verifier')).toBeGreaterThan(
-      roleInstances(recommendation, 'verifier'),
     )
 
     const lowerConcurrency = applyTeamAdjustment(recommendation, '降低并发到 1')
@@ -541,6 +538,9 @@ describe('Future Cup team recommender', () => {
       name: template.name,
       version: template.version,
     })
+    expect(new Set(recommendation.members.map(member => member.agentVersionId))).toEqual(
+      new Set(template.members.map(member => member.version.id)),
+    )
   })
 
   it('requires clarification before recommending from an underspecified profile', () => {
@@ -783,7 +783,7 @@ describe('Future Cup team recommender', () => {
       estimatedParallelism: 1,
       requiredConcurrency: 1,
     })
-    expect(recommendation.missingCapabilities).toHaveLength(ROLES.length)
+    expect(recommendation.missingCapabilities).toHaveLength(RUNTIME_ROLES.length)
     expect(summarizeAgentTeamRecommendation(recommendation)).toContain(
       'Recommended team: no published Agents.',
     )
@@ -1257,11 +1257,11 @@ describe('Future Cup team recommender', () => {
     const defaultDecrement = applyTeamAdjustment(recommendation, {
       type: 'reduce-concurrency',
     })
-    expect(defaultDecrement.recommendation.concurrency.estimatedParallelism).toBe(2)
+    expect(defaultDecrement.recommendation.concurrency.estimatedParallelism).toBe(1)
     expect(defaultDecrement.changes).toContainEqual({
       kind: 'parallelism',
-      from: 3,
-      to: 2,
+      from: 2,
+      to: 1,
     })
 
     const higherThanEstimated = applyTeamAdjustment(recommendation, {
@@ -1269,7 +1269,7 @@ describe('Future Cup team recommender', () => {
       maximum: 5,
     })
     expect(higherThanEstimated.changes).toEqual([])
-    expect(higherThanEstimated.recommendation.concurrency.estimatedParallelism).toBe(3)
+    expect(higherThanEstimated.recommendation.concurrency.estimatedParallelism).toBe(2)
 
     const atCeiling = applyTeamAdjustment(defaultDecrement.recommendation, {
       type: 'reduce-concurrency',
@@ -1291,12 +1291,10 @@ describe('Future Cup team recommender', () => {
     })
 
     const once = applyTeamAdjustment(recommendation, { type: 'reduce-scale' })
-    expect(roleInstances(once.recommendation, 'frontend')).toBe(2)
+    expect(roleInstances(once.recommendation, 'frontend')).toBe(1)
     const twice = applyTeamAdjustment(once.recommendation, { type: 'reduce-scale' })
-    expect(roleInstances(twice.recommendation, 'frontend')).toBe(1)
-    const floored = applyTeamAdjustment(twice.recommendation, { type: 'reduce-scale' })
-    expect(floored.changes).toEqual([])
-    expect(floored.explanation).toContain('valid floor')
+    expect(twice.changes).toEqual([])
+    expect(twice.explanation).toContain('valid floor')
   })
 
   it('handles missing scalable roles as an unchanged valid floor', () => {
@@ -1442,7 +1440,7 @@ describe('Future Cup team recommender', () => {
     })).toThrow()
   })
 
-  it('summarizes available members and every missing capability deterministically', () => {
+  it('summarizes available members and every missing runtime capability deterministically', () => {
     const fixture = createAgentFixture({ omittedRoles: ['verifier', 'repair'] })
     const recommendation = recommendAgentTeam({
       profile: completeProfile(),
@@ -1452,7 +1450,7 @@ describe('Future Cup team recommender', () => {
 
     expect(summary).toContain('planner x1')
     expect(summary).toContain('frontend x2')
-    expect(summary).toContain('Missing capabilities: verification, repair.')
+    expect(summary).toContain('Missing capabilities: repair.')
   })
 
 })

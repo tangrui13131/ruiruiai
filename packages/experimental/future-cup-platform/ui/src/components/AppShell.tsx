@@ -45,6 +45,11 @@ function useNavigation(projectId?: string): MenuProps['items'] {
         label: <Link to="/">{dictionary.nav.projects}</Link>,
       },
       {
+        key: 'teams',
+        icon: <TeamOutlined />,
+        label: <Link to="/teams">{dictionary.nav.teams}</Link>,
+      },
+      {
         key: 'team-builder',
         icon: <TeamOutlined />,
         label: <Link to="/team-builder">{dictionary.teamBuilder.entry}</Link>,
@@ -149,7 +154,9 @@ export function AppShell({
   const project = projectState?.snapshot?.project
   const items = useNavigation(projectId)
   const activeKey = projectId === undefined
-    ? location.pathname === '/team-builder' ? 'team-builder' : 'projects'
+    ? location.pathname === '/team-builder'
+      ? 'team-builder'
+      : location.pathname === '/teams' ? 'teams' : 'projects'
     : selectedKey(location.pathname)
   const menu = (
     <Menu

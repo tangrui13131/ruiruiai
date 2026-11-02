@@ -10,7 +10,10 @@ import type {
   VerificationReportId,
   WorkflowRunId,
 } from './brand.ts'
-import type { AgentMemoryPolicy } from './agent-registry.ts'
+import type {
+  AgentMemoryPolicy,
+  AgentTeamDepartmentKey,
+} from './agent-registry.ts'
 import type { AGENT_ROLES, TASK_STATUSES } from './domain.ts'
 
 /** One JSON-compatible value retained in a task, report, or event payload. */
@@ -142,6 +145,10 @@ export interface AgentProfile {
   readonly toolAllowlist?: readonly string[] | undefined
   /** Registry-pinned project-memory permissions. */
   readonly memoryPolicy?: AgentMemoryPolicy | undefined
+  /** Stable HQ department when the profile comes from a frozen Team. */
+  readonly departmentKey?: AgentTeamDepartmentKey | undefined
+  /** One-based workstation position within the HQ department. */
+  readonly position?: number | undefined
 }
 
 /** One weighted contribution to a candidate score. */

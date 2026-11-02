@@ -24,6 +24,8 @@ import {
 import { createFutureCupServer } from '../src/server.ts'
 import type { FutureCupServer, ProjectRunLauncher } from '../src/server-types.ts'
 import {
+  agentTeamPageSchema,
+  publicAgentTeamVersionSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationPlanSchema,
@@ -436,8 +438,8 @@ describe('Future Cup platform server', () => {
     const projectAgents = await fetch(`${baseUrl}/api/v1/projects/project-bound-team/agents`)
       .then(async response => await readJson(response, z.array(agentSchema)))
     expect(projectAgents.map(agent => agent.id)).toEqual(expect.arrayContaining([
-      'frontend-1',
-      'frontend-2',
+      'frontend-1.0.0:instance-1',
+      'frontend-1.0.0:instance-2',
     ]))
   })
 
@@ -474,9 +476,13 @@ describe('Future Cup platform server', () => {
     expect(recommendation.recommendation?.missingCapabilities).toEqual([])
     expect(recommendation.recommendation?.members).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'planner', instanceCount: 1 }),
-      expect.objectContaining({ role: 'frontend', instanceCount: 2 }),
+      expect.objectContaining({ role: 'tester', instanceCount: 2 }),
       expect.objectContaining({ role: 'integration', instanceCount: 1 }),
     ]))
+    expect(recommendation.recommendation?.members.reduce(
+      (total, member) => total + member.instanceCount,
+      0,
+    )).toBe(7)
 
     const adjustmentResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/adjust`, {
       method: 'POST',
@@ -532,6 +538,116 @@ describe('Future Cup platform server', () => {
       teamVersion: z.looseObject({ id: z.string() }),
     })))
     expect(binding.teamVersion.id).toBe(adopted.teamVersion.id)
+  })
+
+  it('manages a user Team with seven runtime instances and publishes it', async () => {
+    const { baseUrl } = await startServer(undefined, true)
+    const createResponse = await fetch(`${baseUrl}/api/v1/teams`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'my-seven-agent-team',
+        purpose: 'Deliver a verified frontend project.',
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+    const created = await readJson(createResponse, z.looseObject({ id: z.string() }))
+
+    const draftResponse = await fetch(`${baseUrl}/api/v1/teams/${created.id}/versions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        version: '1.0.0',
+        members: [
+          { agentVersionId: 'planner-1.0.0', displayName: 'Planner', departmentKey: 'planning', position: 1 },
+          { agentVersionId: 'ui-designer-1.0.0', displayName: 'Designer', departmentKey: 'design', position: 1 },
+          { agentVersionId: 'tester-1.0.0', displayName: 'Tester 1', departmentKey: 'verification', position: 1 },
+          { agentVersionId: 'tester-1.0.0', displayName: 'Tester 2', departmentKey: 'verification', position: 2 },
+          { agentVersionId: 'frontend-1.0.0', displayName: 'Frontend', departmentKey: 'frontend-a', position: 1 },
+          { agentVersionId: 'integration-1.0.0', displayName: 'Integration', departmentKey: 'integration', position: 1 },
+          { agentVersionId: 'repair-1.0.0', displayName: 'Repair', departmentKey: 'repair', position: 1 },
+        ],
+      }),
+    })
+    expect(draftResponse.status).toBe(201)
+    const draft = await readJson(draftResponse, publicAgentTeamVersionSchema)
+    expect(draft.members).toHaveLength(7)
+    expect(draft.members.filter(member => member.agentVersionId === 'tester-1.0.0')).toHaveLength(2)
+
+    const publishResponse = await fetch(
+      `${baseUrl}/api/v1/teams/${created.id}/versions/${draft.id}/publish`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
+    )
+    expect(publishResponse.status).toBe(200)
+    const published = await readJson(publishResponse, z.looseObject({
+      teamVersion: publicAgentTeamVersionSchema,
+    }))
+    expect(published.teamVersion.status).toBe('PUBLISHED')
+
+    const page = await readJson(
+      await fetch(`${baseUrl}/api/v1/teams`),
+      agentTeamPageSchema,
+    )
+    expect(page.items.find(team => team.id === created.id)?.latestVersion?.members).toHaveLength(7)
+
+    const projectResponse = await fetch(`${baseUrl}/api/v1/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Seven-agent project',
+        requirement: 'Deliver the operations console.',
+        teamVersionId: published.teamVersion.id,
+      }),
+    })
+    expect(projectResponse.status).toBe(201)
+    const project = await readJson(projectResponse, z.looseObject({ id: z.string() }))
+    const runtimeAgents = await readJson(
+      await fetch(`${baseUrl}/api/v1/projects/${project.id}/agents`),
+      z.array(agentSchema),
+    )
+    expect(runtimeAgents).toHaveLength(7)
+    expect(runtimeAgents.map(agent => agent.departmentKey)).toEqual([
+      'planning',
+      'design',
+      'frontend-a',
+      'integration',
+      'verification',
+      'verification',
+      'repair',
+    ])
+
+    const cloneResponse = await fetch(`${baseUrl}/api/v1/teams/${created.id}/clone`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'seven-agent-team-copy' }),
+    })
+    expect(cloneResponse.status).toBe(201)
+    const cloned = await readJson(cloneResponse, z.looseObject({
+      team: z.looseObject({ id: z.string() }),
+      version: publicAgentTeamVersionSchema,
+    }))
+    expect(cloned.version.status).toBe('DRAFT')
+
+    const usage = await readJson(
+      await fetch(`${baseUrl}/api/v1/teams/${created.id}/usage`),
+      z.looseObject({
+        projects: z.array(z.looseObject({
+          projectId: z.string(),
+          teamVersionId: z.string(),
+        })),
+      }),
+    )
+    expect(usage.projects).toContainEqual(expect.objectContaining({
+      projectId: project.id,
+      teamVersionId: published.teamVersion.id,
+    }))
+
+    const archiveResponse = await fetch(`${baseUrl}/api/v1/teams/${created.id}/archive`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    })
+    expect(archiveResponse.status).toBe(200)
   })
 
   it('returns explicit validation, duplicate, missing-resource, and unavailable-run errors', async () => {

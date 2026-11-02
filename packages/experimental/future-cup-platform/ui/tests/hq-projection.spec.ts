@@ -18,6 +18,7 @@ function realAgent(
   id: string,
   role: string,
   currentLoad = 0,
+  departmentKey?: AgentView['departmentKey'],
 ): AgentView {
   return {
     id,
@@ -28,6 +29,7 @@ function realAgent(
     currentLoad,
     historicalSuccessRate: 0.9,
     available: currentLoad < 1,
+    ...departmentKey === undefined ? {} : { departmentKey },
   }
 }
 
@@ -124,6 +126,33 @@ function realSnapshot(): ProjectSnapshotView {
 }
 
 describe('HQ realtime projection', () => {
+  it.each([1, 5, 7])('keeps the HQ population equal to the frozen roster (%i)', (count) => {
+    const departments = [
+      'planning',
+      'design',
+      'frontend-a',
+      'frontend-b',
+      'integration',
+      'verification',
+      'repair',
+    ] as const
+    const agents = Array.from({ length: count }, (_, index) => (
+      realAgent(
+        `runtime-${String(index + 1)}`,
+        index === 0 ? 'planner' : 'frontend',
+        0,
+        departments[index % departments.length],
+      )
+    ))
+
+    const projection = createProjection(realSnapshot(), agents)
+
+    expect(projection.agents).toHaveLength(count)
+    expect(projection.agents.map(agent => agent.department)).toEqual(
+      agents.map(agent => agent.departmentKey),
+    )
+  })
+
   it('maps the seven Agent roles, live load, verification, and departments', () => {
     const projection = createProjection(realSnapshot(), [
       realAgent('planner', 'planner'),

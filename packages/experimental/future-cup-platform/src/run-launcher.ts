@@ -37,6 +37,7 @@ import type {
   SchedulerDecision,
   SelfLoopConfig,
   StoredAgentDefinition,
+  StoredAgentTeam,
   StoredAgentTeamVersion,
   StoredAgentVersion,
   StoredWorkflowDefinition,
@@ -220,8 +221,20 @@ class FencedOrchestrationStore implements OrchestrationStore {
     await this.base.saveAgentVersion(record)
   }
 
-  async listAgentTeamVersions(): Promise<StoredAgentTeamVersion[]> {
-    return await this.base.listAgentTeamVersions()
+  async listAgentTeams(ownerId?: string): Promise<StoredAgentTeam[]> {
+    return await this.base.listAgentTeams(ownerId)
+  }
+
+  async getAgentTeam(teamId: string): Promise<StoredAgentTeam | undefined> {
+    return await this.base.getAgentTeam(teamId)
+  }
+
+  async saveAgentTeam(record: StoredAgentTeam): Promise<void> {
+    await this.base.saveAgentTeam(record)
+  }
+
+  async listAgentTeamVersions(teamId?: string): Promise<StoredAgentTeamVersion[]> {
+    return await this.base.listAgentTeamVersions(teamId)
   }
 
   async getAgentTeamVersion(teamVersionId: string): Promise<StoredAgentTeamVersion | undefined> {

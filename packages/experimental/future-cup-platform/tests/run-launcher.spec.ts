@@ -223,9 +223,9 @@ describe('FutureCupRunLauncher', () => {
       await launcher.start(project)
       await waitForTerminalRun(repository, project.id)
       expect(launchedProfiles).toEqual(expect.arrayContaining([
-        'frontend-1',
-        'frontend-2',
-        'planner',
+        'frontend-1.0.0:instance-1',
+        'frontend-1.0.0:instance-2',
+        'planner-1.0.0:instance-1',
       ]))
     } finally {
       await launcher.close()

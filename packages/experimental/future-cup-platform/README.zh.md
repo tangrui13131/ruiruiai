@@ -78,6 +78,15 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `POST` | `/api/v1/agent-definitions/discover` | 按能力、角色和标签发现已发布版本 |
 | `GET` | `/api/v1/agent-teams` | 团队版本列表 |
 | `POST` | `/api/v1/agent-teams` | 校验并创建不可变团队版本 |
+| `GET` | `/api/v1/teams` | 分页查询当前用户的逻辑团队 |
+| `POST` | `/api/v1/teams` | 创建用户拥有的逻辑团队 |
+| `GET` | `/api/v1/teams/:teamId` | 读取单个团队摘要 |
+| `GET` | `/api/v1/teams/:teamId/versions` | 查询不可变团队版本 |
+| `POST` | `/api/v1/teams/:teamId/versions` | 创建可编辑团队草稿 |
+| `POST` | `/api/v1/teams/:teamId/versions/:versionId/publish` | 校验并发布团队草稿 |
+| `POST` | `/api/v1/teams/:teamId/clone` | 将已发布团队复制为新草稿 |
+| `POST` | `/api/v1/teams/:teamId/archive` | 归档逻辑团队 |
+| `GET` | `/api/v1/teams/:teamId/usage` | 查询冻结到团队的项�?|
 | `GET` | `/api/v1/projects/:projectId/agents` | 项目级 Agent 容量、实时负载与已观测成功率 |
 | `GET` | `/api/v1/projects/:projectId/team` | 项目冻结的完整团队快照 |
 | `POST` | `/api/v1/projects/:projectId/team-binding` | 为未绑定项目冻结团队版本 |
@@ -133,6 +142,7 @@ HQ 大屏使用共享判别联合校验事件，只应用已提交事件，检�
 | `ui/src/hq/` | HQ 状态投影与 REST/Socket.IO 桥接 |
 | `ui/src/hq/animation.ts` | 产品事件到真实场景动作的纯映射 |
 | `ui/src/pages/TeamBuilderPage.tsx` | 自然语言需求、澄清、推荐、调整与采用团队入口 |
+| `ui/src/pages/MyTeamsPage.tsx` | 用户团队库与 1–7 人运行时成员编辑器 |
 | `ui/public/hq/` | PolyForm 许可的 3D 场景、许可证与上游说明 |
 | `prisma/schema.prisma` | PostgreSQL 表、索引、外键与 JSONB 字段 |
 | `prisma/migrations/` | 仓库内 PostgreSQL 迁移 |
@@ -150,6 +160,8 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 工作流租约保存 owner、heartbeat、expiry 与单调 fencing token。租约接管会递增 token，只有当前 owner 与 token 能续期或释放。领域写会在自身事务内校验该 fence。新启动在接管过期租约后会回收遗留 `RUNNING` 行。
 
 项目级 Agent 状态从 `RUNNING` 执行记录计算实时负载，并用已完成执行记录覆盖持久化成功率。权威快照游标推进时，管理界面会刷新该投影。
+
+“我的团队”入口独立管理逻辑团队。团队版本包含 1–7 个运行时实例；重复的已发布 Agent 版本按多个成员计数，每个实例拥有稳定显示名、部门与工位。草稿可以为空，但发布必须通过推荐器使用的同一套能力与策略校验。项目创建时冻结所选版本，项目 Agent 接口投影该冻结名单，因此 HQ 大屏的人数与部门位置严格一致。
 
 ## Model Experience
 
@@ -182,4 +194,4 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 <a id="dev-note"></a>
 ### 开发备注
 
-PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。M5 的 `20261101160000`、`20261101173000` 与 `20261101200000` 迁移共同建立 Registry、团队、项目记忆、工作流控制与自适应修复策略表。
+PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。M5 的 `20261101160000`、`20261101173000`、`20261101200000` 与 `20261102130000` 迁移共同建立 Registry、逻辑团队、每实例一行运行时成员、项目记忆、工作流控制与自适应修复策略表。

@@ -67,6 +67,7 @@ model AgentDefinitionVersion {
 
 model AgentTeamVersion {
   id              String               @id
+  teamId          String               @map("team_id")
   name            String
   version         Int
   specJson        Json                 @map("spec_json") @db.JsonB
@@ -74,24 +75,41 @@ model AgentTeamVersion {
   status          String
   createdAt       DateTime             @default(now()) @map("created_at")
   publishedAt     DateTime?            @map("published_at")
+  team            AgentTeam            @relation(fields: [teamId], references: [id], onDelete: Restrict)
   members         AgentTeamMember[]
   projectBindings ProjectTeamBinding[]
 
-  @@unique([name, version])
+  @@unique([teamId, version])
   @@index([status])
   @@map("agent_team_versions")
+}
+
+model AgentTeam {
+  id        String             @id
+  ownerId   String             @map("owner_id")
+  name      String
+  purpose   String
+  status    String
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  versions  AgentTeamVersion[]
+
+  @@unique([ownerId, name])
+  @@map("agent_teams")
 }
 
 model AgentTeamMember {
   teamVersionId            String                 @map("team_version_id")
   memberId                 String                 @map("member_id")
   agentDefinitionVersionId String                 @map("agent_definition_version_id")
-  instanceCount            Int                    @map("instance_count")
+  displayName              String                 @map("display_name")
+  departmentKey            String                 @map("department_key")
   position                 Int
   teamVersion              AgentTeamVersion       @relation(fields: [teamVersionId], references: [id], onDelete: Cascade)
   agentDefinitionVersion   AgentDefinitionVersion @relation(fields: [agentDefinitionVersionId], references: [id], onDelete: Restrict)
 
   @@id([teamVersionId, memberId])
+  @@unique([teamVersionId, departmentKey, position])
   @@index([agentDefinitionVersionId])
   @@map("agent_team_members")
 }

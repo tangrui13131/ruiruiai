@@ -66,7 +66,11 @@ repository.close()
 
 ### Agent Registry 与工作流控制
 
-`PersistentAgentRegistry` 将 Agent 定义、不可变版本、发布状态、团队编制、项目记忆和项目冻结绑定持久化到共享仓储。默认团队由 `createDefaultAgentTeam()` 生成七个受控定义，其中 Frontend 版本实例化两次；项目创建时必须保存完整成员快照，后续 Registry 修改不能改变已启动项目。
+`PersistentAgentRegistry` 将 Agent 定义、不可变版本、发布状态、逻辑团队归属、团队版本、项目记忆和项目冻结绑定持久化到共享仓储。`createDefaultAgentTeam()` 生成七个受控 Agent 定义；确定性 Verifier 仍由系统拥有，不作为运行时团队成员。默认团队包含七个运行时实例：Frontend 定义实例化两次，其余可执行角色各一次。项目创建时保存每个实例一行的完整成员快照，后续 Registry 修改不能改变已启动项目。
+
+### 我的团队库
+
+`AgentTeam` 是用户拥有的逻辑父级。每个 `AgentTeamVersion` 属于一个团队，创建后不可修改，并按每个可调度 Agent 实例保存一行运行时成员。团队版本接受 1–7 个运行时实例，允许同一已发布 Agent 版本出现多次，并要求稳定的 `instanceId`、`displayName`、`departmentKey` 与 `position`。草稿可以为空；发布和项目冻结必须通过能力、并发、工具、记忆、输出契约、部门位置与发布状态校验。
 
 `WorkflowControlCoordinator` 将版本化控制图与执行快照写入仓储。固定控制图从独立验证开始，`PASS` 进入交付，`FAIL` 或 `INCOMPLETE` 进入 Repair 子工作流，Repair 完成返回验证；循环最多三轮，重复失败签名先切换未使用策略，再无替代策略时升级。每个节点、边选择、循环轮次和子工作流进入/退出都有持久 Journal，可从一个快照确定性恢复。
 
@@ -82,7 +86,7 @@ repository.close()
 
 ### 持久记录
 
-SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、策略决策、工作流、产品事件、Outbox、工作流租约、Agent Registry、团队绑定、项目记忆与工作流控制记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1-v6 数据库原地迁移到 v7，不删除已有验证证据。
+SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、策略决策、工作流、产品事件、Outbox、工作流租约、Agent Registry、逻辑团队、运行时成员、团队绑定、项目记忆与工作流控制记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1-v7 数据库原地迁移到 v8，不删除已有验证证据，也不把旧成员数量扩成空的运行时身份。
 
 ### 调度
 
@@ -139,7 +143,7 @@ M4.0 门禁已用真实 PostgreSQL 序号与 TypeScript SDK 通知流验证该�
 | `src/workspace-diff.ts` | 源码快照与真实统一 Diff 生成 |
 | `src/product-events.ts` | Zod 产品事件约定与重连游标 |
 | `src/agent-registry.ts` | Agent 定义、不可变版本、团队校验与项目冻结 |
-| `src/agent-registry-service.ts` | Registry 的持久化重放与项目 profile 投影 |
+| `src/agent-registry-service.ts` | Registry 持久化重放、逻辑团队持久化与项目 profile 投影 |
 | `src/default-agent-team.ts` | 七个受控默认 Agent 定义与团队种子 |
 | `src/team-recommender.ts` | 项目画像、澄清、完整团队推荐、受控调整与 Registry 转换 |
 | `src/workflow-control.ts` | 版本化控制图、条件、循环、子工作流与恢复 |

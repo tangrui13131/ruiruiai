@@ -20,8 +20,10 @@ import {
   structureProjectProfile,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type {
+  AgentTeam,
   AgentTeamRecommendation,
   AgentTeamVersion,
+  CreateTeamLibraryDraftInput,
   PlatformProjectSnapshot,
   PlatformProjectSummary,
   ProductEvent,
@@ -31,6 +33,12 @@ import {
   publicProjectRun,
   publicProjectSnapshot,
   publicVerificationReport,
+  agentTeamPageSchema,
+  agentTeamSchema,
+  createAgentTeamRequestSchema,
+  createTeamDraftRequestSchema,
+  publicAgentTeamVersionSchema,
+  publicTeamVersionResponseSchema,
   projectRunStartSchema,
   savedAgentTeamVersionSchema,
   structuredProjectProfileSchema,
@@ -82,9 +90,23 @@ const teamParamsSchema = z.object({
   teamVersionId: z.string().min(1).max(200),
 }).strict()
 
+const logicalTeamParamsSchema = z.object({
+  teamId: z.string().min(1).max(160),
+}).strict()
+
+const logicalTeamVersionParamsSchema = logicalTeamParamsSchema.extend({
+  versionId: z.string().min(1).max(200),
+}).strict()
+
 const snapshotQuerySchema = z.object({
   afterSeq: z.coerce.number().int().nonnegative().default(0),
   limit: z.coerce.number().int().positive().max(500).default(100),
+}).strict()
+
+const teamLibraryQuerySchema = z.object({
+  offset: z.coerce.number().int().nonnegative().default(0),
+  limit: z.coerce.number().int().positive().max(100).default(24),
+  status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
 }).strict()
 
 const createProjectSchema = z.object({
@@ -113,6 +135,7 @@ class ApiError extends Error {
 export function createFutureCupServer(options: FutureCupServerOptions): FutureCupServer {
   assertServerOptions(options)
   const app = Fastify({ logger: false })
+  const currentUserId = options.currentUserId ?? 'future-cup-local-user'
   const io = new SocketServer(app.server, {
     path: '/future-cup/socket.io',
     serveClient: false,
@@ -367,6 +390,129 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     return await reply.send(team.teamVersion)
   })
 
+  app.get<{ Querystring: unknown }>('/api/v1/teams', async (request, reply) => {
+    const query = teamLibraryQuerySchema.parse(request.query)
+    const registry = requireAgentRegistry()
+    const teams = (await registry.listTeams(currentUserId))
+      .filter(team => query.status === undefined || team.status === query.status)
+    const page = teams.slice(query.offset, query.offset + query.limit)
+    const items = await Promise.all(page.map(team => publicTeamSummary(team)))
+    return await reply.send(agentTeamPageSchema.parse({
+      items,
+      total: teams.length,
+      offset: query.offset,
+      limit: query.limit,
+    }))
+  })
+
+  app.post<{ Body: unknown }>('/api/v1/teams', async (request, reply) => {
+    const body = createAgentTeamRequestSchema.parse(request.body)
+    const team = await registryCall(() => requireAgentRegistry().createTeam({
+      id: body.id ?? `team:${randomUUID()}`,
+      ownerId: currentUserId,
+      name: body.name,
+      purpose: body.purpose,
+    }))
+    return await reply.code(201).send(await publicTeamSummary(team))
+  })
+
+  app.get<{ Params: unknown }>('/api/v1/teams/:teamId', async (request, reply) => {
+    const { teamId } = logicalTeamParamsSchema.parse(request.params)
+    await requireOwnedTeam(teamId)
+    return await reply.send(await publicTeamSummary(await requireAgentRegistry().getTeam(teamId)))
+  })
+
+  app.get<{ Params: unknown }>(
+    '/api/v1/teams/:teamId/versions',
+    async (request, reply) => {
+      const { teamId } = logicalTeamParamsSchema.parse(request.params)
+      await requireOwnedTeam(teamId)
+      const versions = await requireAgentRegistry().listTeamVersions(teamId)
+      return await reply.send(versions.map(publicTeamVersion))
+    },
+  )
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/teams/:teamId/versions',
+    async (request, reply) => {
+      const { teamId } = logicalTeamParamsSchema.parse(request.params)
+      await requireOwnedTeam(teamId)
+      const body = createTeamDraftRequestSchema.parse(request.body)
+      const version = await registryCall(() => requireAgentRegistry().createTeamVersionDraft(
+        teamId,
+        body as CreateTeamLibraryDraftInput,
+      ))
+      return await reply.code(201).send(publicTeamVersion(version))
+    },
+  )
+
+  app.post<{ Params: unknown }>(
+    '/api/v1/teams/:teamId/versions/:versionId/publish',
+    async (request, reply) => {
+      const { teamId, versionId } = logicalTeamVersionParamsSchema.parse(request.params)
+      await requireOwnedTeam(teamId)
+      const version = await registryCall(
+        () => requireAgentRegistry().publishTeamVersion(teamId, versionId),
+      )
+      return await reply.send(publicTeamVersionResponseSchema.parse({
+        teamVersion: publicTeamVersion(version),
+      }))
+    },
+  )
+
+  app.post<{ Params: unknown }>('/api/v1/teams/:teamId/archive', async (request, reply) => {
+    const { teamId } = logicalTeamParamsSchema.parse(request.params)
+    await requireOwnedTeam(teamId)
+    const team = await registryCall(() => requireAgentRegistry().archiveTeam(teamId))
+    return await reply.send(await publicTeamSummary(team))
+  })
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/teams/:teamId/clone',
+    async (request, reply) => {
+      const { teamId } = logicalTeamParamsSchema.parse(request.params)
+      await requireOwnedTeam(teamId)
+      const body = z.object({
+        name: z.string().trim().min(1).max(160).optional(),
+        purpose: z.string().trim().min(1).max(4_000).optional(),
+        version: z.string().trim().min(1).max(160).optional(),
+      }).strict().parse(request.body)
+      const team = await requireAgentRegistry().getTeam(teamId)
+      const versions = await requireAgentRegistry().listTeamVersions(teamId)
+      const source = versions.findLast(version => version.status === 'PUBLISHED')
+      if (source === undefined) {
+        throw new ApiError(409, 'TEAM_VERSION_NOT_PUBLISHED', `Agent team "${teamId}" has no published version`)
+      }
+      const cloned = await registryCall(() => requireAgentRegistry().cloneTeam(source.id, {
+        id: `team:${randomUUID()}`,
+        ownerId: currentUserId,
+        name: body.name ?? `${team.name} copy`,
+        purpose: body.purpose ?? team.purpose,
+        version: body.version ?? '1.0.0',
+      }))
+      return await reply.code(201).send({
+        team: await publicTeamSummary(cloned.team),
+        version: publicTeamVersion(cloned.version),
+      })
+    },
+  )
+
+  app.get<{ Params: unknown }>('/api/v1/teams/:teamId/usage', async (request, reply) => {
+    const { teamId } = logicalTeamParamsSchema.parse(request.params)
+    await requireOwnedTeam(teamId)
+    const bindings = await options.store.listProjectTeamBindings()
+    const projects = bindings
+      .filter(binding => binding.teamVersion.teamId === teamId)
+      .map(binding => ({
+        projectId: binding.projectId,
+        teamVersionId: binding.teamVersion.id,
+      }))
+    return await reply.send({
+      teamId,
+      projects: projects.sort((left, right) => left.projectId.localeCompare(right.projectId)),
+    })
+  })
+
   app.post<{ Body: unknown }>(
     '/api/v1/team-recommendations/profile',
     async (request, reply) => {
@@ -457,6 +603,8 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           definitionVersionId: profile.definitionVersionId,
           model: profile.model,
           toolAllowlist: profile.toolAllowlist,
+          departmentKey: profile.departmentKey,
+          position: profile.position,
         }
       }))
     },
@@ -481,6 +629,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       const { projectId } = projectParamsSchema.parse(request.params)
       const body = z.object({ teamVersionId: z.string().min(1).max(200) }).strict().parse(request.body)
       await requireProject(projectId)
+      await requireAccessibleTeamVersion(body.teamVersionId)
       const binding = await registryCall(
         () => requireAgentRegistry().bindProject(projectId, body.teamVersionId),
       )
@@ -556,6 +705,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       throw new ApiError(409, 'PROJECT_EXISTS', `Project "${projectId}" already exists`)
     }
     const teamVersionId = input.teamVersionId
+    if (teamVersionId !== undefined) await requireAccessibleTeamVersion(teamVersionId)
     const binding = teamVersionId === undefined
       ? undefined
       : await registryCall(
@@ -617,7 +767,12 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     let recommendation: AgentTeamRecommendation = recommendAgentTeam({
       profile: structured.profile,
       publishedAgents,
-      teamTemplates: storedTemplates.map(record => record.teamVersion),
+      teamTemplates: storedTemplates
+        .map(record => record.teamVersion)
+        .filter(team => (
+          team.status === 'PUBLISHED'
+          && (team.ownerId === currentUserId || team.ownerId === 'system')
+        )),
       ...(input.maximumParallelism === undefined
         ? {}
         : { maximumParallelism: input.maximumParallelism }),
@@ -659,6 +814,13 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       )
     }
     const recommendation = built.recommendation
+    const registry = requireAgentRegistry()
+    const team = await registryCall(() => registry.createTeam({
+      id: `team:${randomUUID()}`,
+      ownerId: currentUserId,
+      name: teamName,
+      purpose: recommendation.profile.goal,
+    }))
     const input = await recommendationCall(() => createAgentTeamVersionInputFromRecommendation(
       recommendation,
       {
@@ -668,8 +830,11 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
         purpose: recommendation.profile.goal,
       },
     ))
-    const registry = requireAgentRegistry()
-    return await registryCall(() => registry.createTeamVersion(input))
+    return await registryCall(() => registry.createTeamVersion({
+      ...input,
+      teamId: team.id,
+      ownerId: currentUserId,
+    }))
   }
 
   function publicSavedTeamVersion(team: AgentTeamVersion) {
@@ -695,6 +860,76 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
         : 400
       throw new ApiError(status, error.code, error.message)
     }
+  }
+
+  async function requireOwnedTeam(teamId: string): Promise<AgentTeam> {
+    const team = await registryCall(() => requireAgentRegistry().getTeam(teamId))
+    if (team.ownerId !== currentUserId) {
+      throw new ApiError(404, 'TEAM_NOT_FOUND', `Agent team "${teamId}" was not found`)
+    }
+    return team
+  }
+
+  async function requireAccessibleTeamVersion(teamVersionId: string) {
+    const record = await options.store.getAgentTeamVersion(teamVersionId)
+    if (record === undefined) {
+      throw new ApiError(404, 'TEAM_VERSION_NOT_FOUND', `Agent team version "${teamVersionId}" was not found`)
+    }
+    const team = await requireAgentRegistry().getTeam(record.teamVersion.teamId)
+    if (team.ownerId !== currentUserId && team.ownerId !== 'system' && team.ownerId !== 'legacy') {
+      throw new ApiError(404, 'TEAM_VERSION_NOT_FOUND', `Agent team version "${teamVersionId}" was not found`)
+    }
+    return record
+  }
+
+  async function publicTeamSummary(team: AgentTeam) {
+    const [storedVersions, bindings] = await Promise.all([
+      options.store.listAgentTeamVersions(team.id),
+      options.store.listProjectTeamBindings(),
+    ])
+    const versions = storedVersions.map(record => record.teamVersion)
+    const latestVersion = versions.at(-1)
+    return agentTeamSchema.parse({
+      id: team.id,
+      ownerId: team.ownerId,
+      name: team.name,
+      purpose: team.purpose,
+      status: team.status,
+      ...(latestVersion === undefined
+        ? {}
+        : { latestVersion: publicTeamVersion(latestVersion) }),
+      versionCount: versions.length,
+      projectUsageCount: new Set(
+        bindings
+          .filter(binding => binding.teamVersion.teamId === team.id)
+          .map(binding => binding.projectId),
+      ).size,
+    })
+  }
+
+  function publicTeamVersion(team: AgentTeamVersion) {
+    return publicAgentTeamVersionSchema.parse({
+      id: team.id,
+      teamId: team.teamId,
+      ownerId: team.ownerId,
+      name: team.name,
+      version: team.version,
+      purpose: team.purpose,
+      status: team.status,
+      members: team.members.map(member => ({
+        instanceId: member.instanceId,
+        displayName: member.displayName,
+        role: member.version.role,
+        definitionId: member.definition.id,
+        agentVersionId: member.version.id,
+        departmentKey: member.departmentKey,
+        position: member.position,
+      })),
+      requiredCapabilities: team.requiredCapabilities,
+      requiredConcurrency: team.requiredConcurrency,
+      concurrencyCapacity: team.concurrencyCapacity,
+      capabilityCoverage: [],
+    })
   }
 
   async function requireSnapshot(projectId: string): Promise<PlatformProjectSnapshot> {
@@ -735,6 +970,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       if (!(error instanceof AgentRegistryError)) throw error
       const status = error.code === 'DEFINITION_NOT_FOUND'
         || error.code === 'VERSION_NOT_FOUND'
+        || error.code === 'TEAM_NOT_FOUND'
         || error.code === 'TEAM_VERSION_NOT_FOUND'
         ? 404
         : error.code === 'PROJECT_ALREADY_BOUND'
@@ -742,6 +978,10 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           || error.code === 'DUPLICATE_VERSION'
           || error.code === 'DUPLICATE_VERSION_NUMBER'
           || error.code === 'DUPLICATE_TEAM_VERSION'
+          || error.code === 'DUPLICATE_TEAM_NAME'
+          || error.code === 'TEAM_ARCHIVED'
+          || error.code === 'TEAM_VERSION_NOT_DRAFT'
+          || error.code === 'TEAM_VERSION_NOT_PUBLISHED'
           ? 409
           : 400
       throw new ApiError(status, error.code, error.message)
@@ -881,6 +1121,9 @@ function assertServerOptions(options: FutureCupServerOptions): void {
     }
   }
   if (options.runRoot.trim() === '') throw new Error('runRoot must not be empty')
+  if (options.currentUserId !== undefined && options.currentUserId.trim() === '') {
+    throw new Error('currentUserId must not be empty')
+  }
   if (options.uiRoot !== undefined && options.uiRoot.trim() === '') {
     throw new Error('uiRoot must not be empty')
   }

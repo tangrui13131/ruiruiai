@@ -66,7 +66,11 @@ repository.close()
 
 ### Agent Registry and workflow control
 
-`PersistentAgentRegistry` persists Agent definitions, immutable versions, publication state, team compositions, project memory, and frozen project bindings through the shared store. `createDefaultAgentTeam()` creates seven controlled definitions, with the Frontend version instantiated twice. Project creation stores a complete member snapshot, so later Registry changes cannot modify a started project.
+`PersistentAgentRegistry` persists Agent definitions, immutable versions, publication state, logical Team ownership, Team versions, project memory, and frozen project bindings through the shared store. `createDefaultAgentTeam()` seeds seven controlled Agent definitions; the deterministic Verifier remains system-owned and is not a runtime Team member. The default Team has seven runtime instances: the Frontend definition is instantiated twice and the remaining executable roles once. Project creation stores a complete one-row-per-instance member snapshot, so later Registry changes cannot modify a started project.
+
+### My Team library
+
+`AgentTeam` is the user-owned logical parent. Every `AgentTeamVersion` belongs to one Team, is immutable after creation, and contains one `runtimeMember` row per schedulable Agent instance. A Team version accepts 1–7 runtime instances, allows the same published Agent version to appear more than once, and requires stable `instanceId`, `displayName`, `departmentKey`, and `position` values. Draft versions may be empty; publishing and project freezing require a complete capability, concurrency, tool, memory, output-contract, department, and publication-state validation.
 
 `WorkflowControlCoordinator` persists a versioned control graph and execution snapshot. The fixed graph starts with independent verification, routes `PASS` to delivery and `FAIL` or `INCOMPLETE` into the Repair subworkflow, then returns Repair to verification. The loop permits three rounds and a repeated failure signature first switches to an unused strategy before escalation. Node entry, edge selection, loop rounds, and subworkflow entry and exit all have durable Journal entries and can resume deterministically from one snapshot.
 
@@ -82,7 +86,7 @@ Tasks use `PENDING`, `READY`, `RUNNING`, `COMPLETED`, `FAILED`, `BLOCKED`, and `
 
 ### Durable records
 
-The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, strategy-decision, workflow, product-event, Outbox, workflow-lease, Agent Registry, team-binding, project-memory, and workflow-control records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1-v6 databases migrate in place to v7 without deleting existing verification evidence.
+The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, strategy-decision, workflow, product-event, Outbox, workflow-lease, Agent Registry, logical Team, runtime-member, team-binding, project-memory, and workflow-control records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1-v7 databases migrate in place to v8 without deleting existing verification evidence or expanding legacy member counts into empty runtime identities.
 
 ### Scheduling
 
@@ -139,7 +143,7 @@ The M4.0 gate verified this envelope against real PostgreSQL sequencing and the 
 | `src/workspace-diff.ts` | Source snapshot and real unified repair diff generation |
 | `src/product-events.ts` | Zod product event contract and reconnect cursor |
 | `src/agent-registry.ts` | Agent definitions, immutable versions, team validation, and project freezing |
-| `src/agent-registry-service.ts` | Durable Registry replay and project-profile projection |
+| `src/agent-registry-service.ts` | Durable Registry replay, logical Team persistence, and project-profile projection |
 | `src/default-agent-team.ts` | Seven controlled default Agent definitions and team seed |
 | `src/team-recommender.ts` | Project profiles, clarification, complete-team recommendation, controlled adjustment, and Registry conversion |
 | `src/workflow-control.ts` | Versioned control graph, conditions, loops, subworkflows, and recovery |

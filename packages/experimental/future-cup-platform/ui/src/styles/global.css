@@ -676,6 +676,85 @@ textarea {
   margin: 0 auto;
 }
 
+.my-teams-page {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.my-teams-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.my-teams-list-panel,
+.my-teams-detail-panel {
+  min-width: 0;
+}
+
+.my-team-row {
+  gap: 12px;
+  padding: 12px 8px;
+  border-radius: 6px;
+}
+
+.my-team-row.selected {
+  background: #f0f7f3;
+}
+
+.my-team-row .ant-list-item-meta {
+  min-width: 0;
+}
+
+.my-team-row .ant-list-item-meta-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-teams-purpose {
+  margin: 0 0 14px;
+  color: #5c6b64;
+  line-height: 1.6;
+}
+
+.my-teams-summary,
+.my-team-editor-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.my-teams-summary {
+  margin-bottom: 16px;
+  color: #6c7b74;
+  font-size: 12px;
+}
+
+.my-team-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-team-editor-heading {
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.my-team-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.9fr) 80px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-team-editor-row .ant-select,
+.my-team-editor-row .ant-input-number {
+  width: 100%;
+}
+
 .team-builder-label {
   display: block;
   margin-bottom: 8px;
@@ -828,6 +907,10 @@ textarea {
 }
 
 @media (max-width: 1024px) {
+  .my-teams-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .scheduler-layout {
     grid-template-columns: 1fr;
   }
@@ -844,6 +927,15 @@ textarea {
 }
 
 @media (max-width: 760px) {
+  .my-team-editor-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .my-team-editor-row > :nth-child(3),
+  .my-team-editor-row > :nth-child(4) {
+    grid-column: span 1;
+  }
+
   .app-header {
     min-height: 58px;
     padding: 0 12px;
@@ -918,6 +1010,17 @@ textarea {
   .team-builder-adopt-controls {
     display: flex;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 520px) {
+  .my-team-editor-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .my-team-editor-row > :nth-child(1),
+  .my-team-editor-row > :nth-child(2) {
+    grid-column: span 2;
   }
 }
 

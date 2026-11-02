@@ -3,9 +3,10 @@
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { parseStoredAgentTeamVersion } from './agent-registry.ts'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 7
+export const ORCHESTRATION_SCHEMA_VERSION = 8
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -35,6 +36,7 @@ export function openOrchestrationDatabase(
       && version !== 4
       && version !== 5
       && version !== 6
+      && version !== 7
       && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
@@ -50,6 +52,8 @@ export function openOrchestrationDatabase(
       migrateVersionFour(database)
       migrateVersionFive(database)
       migrateVersionSix(database)
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 2) {
       migrateVersionTwo(database)
@@ -57,24 +61,38 @@ export function openOrchestrationDatabase(
       migrateVersionFour(database)
       migrateVersionFive(database)
       migrateVersionSix(database)
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 3) {
       migrateVersionThree(database)
       migrateVersionFour(database)
       migrateVersionFive(database)
       migrateVersionSix(database)
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 4) {
       migrateVersionFour(database)
       migrateVersionFive(database)
       migrateVersionSix(database)
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 5) {
       migrateVersionFive(database)
       migrateVersionSix(database)
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 6) {
       migrateVersionSix(database)
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 7) {
+      migrateVersionSeven(database)
+      migrateVersionEight(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     }
     return database
@@ -474,6 +492,205 @@ function migrateVersionSix(database: DatabaseSync): void {
   }
 }
 
+/** Add logical Team ownership and one-row-per-runtime-instance member storage. */
+function migrateVersionSeven(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS agent_teams (
+        id         TEXT PRIMARY KEY,
+        owner_id   TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        purpose    TEXT NOT NULL,
+        status     TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (owner_id, name)
+      ) STRICT;
+    `)
+    if (!hasColumn(database, 'agent_team_versions', 'team_id')) {
+      database.exec('ALTER TABLE agent_team_versions ADD COLUMN team_id TEXT;')
+    }
+    database.exec(`
+      INSERT OR IGNORE INTO agent_teams (
+        id, owner_id, name, purpose, status, created_at, updated_at
+      )
+      SELECT
+        'legacy-team:' || grouped.min_id,
+        'legacy',
+        grouped.name,
+        COALESCE(json_extract(canonical.spec_json, '$.purpose'), 'Legacy Agent team'),
+        'ACTIVE',
+        grouped.min_created_at,
+        grouped.max_updated_at
+      FROM (
+        SELECT
+          name,
+          MIN(id) AS min_id,
+          MIN(created_at) AS min_created_at,
+          MAX(COALESCE(published_at, created_at)) AS max_updated_at
+        FROM agent_team_versions
+        GROUP BY name
+      ) AS grouped
+      JOIN agent_team_versions AS canonical
+        ON canonical.name = grouped.name AND canonical.id = grouped.min_id;
+
+      UPDATE agent_team_versions
+      SET team_id = (
+        SELECT 'legacy-team:' || MIN(peer.id)
+        FROM agent_team_versions AS peer
+        WHERE peer.name = agent_team_versions.name
+      )
+      WHERE team_id IS NULL;
+
+      CREATE INDEX IF NOT EXISTS agent_team_versions_team
+        ON agent_team_versions(team_id);
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v7 migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
+/**
+ * Collapse the legacy aggregate and duplicate runtime member tables into one
+ * per-instance table, and enforce the Team ordinal and HQ placement keys.
+ */
+function migrateVersionEight(database: DatabaseSync): void {
+  database.exec('PRAGMA foreign_keys = OFF')
+  try {
+    database.exec('BEGIN IMMEDIATE')
+    const needsMemberRebuild = hasColumn(database, 'agent_team_members', 'instance_count')
+      || !hasIndex(database, 'agent_team_members', 'agent_team_members_department_position')
+    database.exec(`
+      DROP TABLE IF EXISTS agent_team_runtime_members;
+      DROP INDEX IF EXISTS agent_team_runtime_members_definition_version;
+      DROP INDEX IF EXISTS agent_team_members_department_position;
+    `)
+
+    if (needsMemberRebuild) {
+      database.exec(`
+        CREATE TABLE agent_team_members_next (
+          team_version_id            TEXT NOT NULL,
+          member_id                  TEXT NOT NULL,
+          agent_definition_version_id TEXT NOT NULL,
+          display_name               TEXT NOT NULL,
+          department_key             TEXT NOT NULL,
+          position                   INTEGER NOT NULL,
+          PRIMARY KEY (team_version_id, member_id),
+          UNIQUE (team_version_id, department_key, position),
+          FOREIGN KEY (team_version_id)
+            REFERENCES agent_team_versions(id) ON DELETE CASCADE,
+          FOREIGN KEY (agent_definition_version_id)
+            REFERENCES agent_definition_versions(id) ON DELETE RESTRICT
+        ) STRICT;
+      `)
+
+      const memberStatement = database.prepare(`
+        INSERT INTO agent_team_members_next (
+          team_version_id, member_id, agent_definition_version_id,
+          display_name, department_key, position
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      const versionRows = database.prepare(`
+        SELECT id, spec_json
+        FROM agent_team_versions
+      `).all() as Array<{ id: string; spec_json: string }>
+      for (const row of versionRows) {
+        const teamVersion = parseStoredAgentTeamVersion(JSON.parse(row.spec_json))
+        for (const member of teamVersion.members) {
+          memberStatement.run(
+            row.id,
+            member.instanceId,
+            member.version.id,
+            member.displayName,
+            member.departmentKey,
+            member.position,
+          )
+        }
+      }
+
+      database.exec(`
+        DROP TABLE agent_team_members;
+        ALTER TABLE agent_team_members_next RENAME TO agent_team_members;
+      `)
+    }
+
+    database.exec(`
+      CREATE INDEX IF NOT EXISTS agent_team_members_definition_version
+        ON agent_team_members(agent_definition_version_id);
+      CREATE INDEX IF NOT EXISTS agent_team_members_department_position
+        ON agent_team_members(team_version_id, department_key, position);
+    `)
+
+    // Replace the legacy (name, version) key with the logical Team ordinal.
+    database.exec(`
+      DROP INDEX IF EXISTS agent_team_versions_team;
+      CREATE TABLE agent_team_versions_next (
+        id           TEXT PRIMARY KEY,
+        team_id      TEXT NOT NULL REFERENCES agent_teams(id) ON DELETE RESTRICT,
+        name         TEXT NOT NULL,
+        version      INTEGER NOT NULL,
+        spec_json    TEXT NOT NULL,
+        checksum     TEXT NOT NULL,
+        status       TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        published_at TEXT,
+        UNIQUE (team_id, version)
+      ) STRICT;
+
+      INSERT INTO agent_team_versions_next (
+        id, team_id, name, version, spec_json, checksum, status, created_at, published_at
+      )
+      SELECT id, team_id, name, version, spec_json, checksum, status, created_at, published_at
+      FROM agent_team_versions;
+
+      DROP TABLE agent_team_versions;
+      ALTER TABLE agent_team_versions_next RENAME TO agent_team_versions;
+
+      CREATE INDEX IF NOT EXISTS agent_team_versions_team
+        ON agent_team_versions(team_id);
+      CREATE INDEX IF NOT EXISTS agent_team_versions_status
+        ON agent_team_versions(status);
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v8 migration and rollback both failed')
+    }
+    throw error
+  } finally {
+    database.exec('PRAGMA foreign_keys = ON')
+  }
+}
+
+function hasColumn(database: DatabaseSync, table: string, column: string): boolean {
+  return database.prepare(`PRAGMA table_info(${table})`).all()
+    .some(row => (
+      typeof row === 'object'
+      && row !== null
+      && 'name' in row
+      && row.name === column
+    ))
+}
+
+function hasIndex(database: DatabaseSync, table: string, index: string): boolean {
+  return database.prepare(`PRAGMA index_list(${table})`).all()
+    .some(row => (
+      typeof row === 'object'
+      && row !== null
+      && 'name' in row
+      && row.name === index
+    ))
+}
+
 /**
  * Build the v6 table and index DDL for a fresh database or an in-place upgrade.
  * @param mode - whether repeated objects should be ignored or treated as corruption.
@@ -506,8 +723,20 @@ function agentRegistryWorkflowSchemaSql(mode: 'fresh' | 'migration'): string {
       UNIQUE (agent_definition_id, version)
     ) STRICT;
 
+    CREATE TABLE ${guard}agent_teams (
+      id         TEXT PRIMARY KEY,
+      owner_id   TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      purpose    TEXT NOT NULL,
+      status     TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (owner_id, name)
+    ) STRICT;
+
     CREATE TABLE ${guard}agent_team_versions (
       id           TEXT PRIMARY KEY,
+      team_id      TEXT NOT NULL REFERENCES agent_teams(id) ON DELETE RESTRICT,
       name         TEXT NOT NULL,
       version      INTEGER NOT NULL,
       spec_json    TEXT NOT NULL,
@@ -515,7 +744,7 @@ function agentRegistryWorkflowSchemaSql(mode: 'fresh' | 'migration'): string {
       status       TEXT NOT NULL,
       created_at   TEXT NOT NULL,
       published_at TEXT,
-      UNIQUE (name, version)
+      UNIQUE (team_id, version)
     ) STRICT;
 
     CREATE TABLE ${guard}agent_team_members (
@@ -524,9 +753,11 @@ function agentRegistryWorkflowSchemaSql(mode: 'fresh' | 'migration'): string {
       member_id                 TEXT NOT NULL,
       agent_definition_version_id TEXT NOT NULL
         REFERENCES agent_definition_versions(id) ON DELETE RESTRICT,
-      instance_count            INTEGER NOT NULL,
+      display_name              TEXT NOT NULL,
+      department_key            TEXT NOT NULL,
       position                  INTEGER NOT NULL,
-      PRIMARY KEY (team_version_id, member_id)
+      PRIMARY KEY (team_version_id, member_id),
+      UNIQUE (team_version_id, department_key, position)
     ) STRICT;
 
     CREATE TABLE ${guard}project_team_bindings (
@@ -591,8 +822,12 @@ function agentRegistryWorkflowSchemaSql(mode: 'fresh' | 'migration'): string {
       ON agent_definition_versions(status);
     CREATE INDEX ${guard}agent_team_versions_status
       ON agent_team_versions(status);
+    CREATE INDEX ${guard}agent_team_versions_team
+      ON agent_team_versions(team_id);
     CREATE INDEX ${guard}agent_team_members_definition_version
       ON agent_team_members(agent_definition_version_id);
+    CREATE INDEX ${guard}agent_team_members_department_position
+      ON agent_team_members(team_version_id, department_key, position);
     CREATE INDEX ${guard}project_team_bindings_team_version
       ON project_team_bindings(team_version_id);
     CREATE INDEX ${guard}workflow_definitions_status

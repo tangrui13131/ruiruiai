@@ -78,6 +78,15 @@ The server binds only to a loopback host. Its current routes are:
 | `POST` | `/api/v1/agent-definitions/discover` | discover published versions by capability, role, and tag |
 | `GET` | `/api/v1/agent-teams` | list team versions |
 | `POST` | `/api/v1/agent-teams` | validate and create an immutable team version |
+| `GET` | `/api/v1/teams` | paginate the current user's logical Teams |
+| `POST` | `/api/v1/teams` | create a user-owned logical Team |
+| `GET` | `/api/v1/teams/:teamId` | read one Team summary |
+| `GET` | `/api/v1/teams/:teamId/versions` | list immutable Team versions |
+| `POST` | `/api/v1/teams/:teamId/versions` | create an editable Team draft |
+| `POST` | `/api/v1/teams/:teamId/versions/:versionId/publish` | validate and publish a Team draft |
+| `POST` | `/api/v1/teams/:teamId/clone` | clone a published Team into a new draft |
+| `POST` | `/api/v1/teams/:teamId/archive` | archive a logical Team |
+| `GET` | `/api/v1/teams/:teamId/usage` | list projects frozen to a Team |
 | `GET` | `/api/v1/projects/:projectId/agents` | project-scoped Agent capacity, live load, and observed success rates |
 | `GET` | `/api/v1/projects/:projectId/team` | complete frozen team snapshot for one project |
 | `POST` | `/api/v1/projects/:projectId/team-binding` | freeze a team version for an unbound project |
@@ -132,6 +141,7 @@ The HQ display validates events against the shared discriminated union. It appli
 | `ui/src/hq/` | HQ state projection and REST/Socket.IO bridge |
 | `ui/src/hq/animation.ts` | pure product-event to scene-action mapping |
 | `ui/src/pages/TeamBuilderPage.tsx` | novice requirement, clarification, recommendation, adjustment, and adoption flow |
+| `ui/src/pages/MyTeamsPage.tsx` | user-owned Team library and 1–7 runtime-member editor |
 | `ui/public/hq/` | PolyForm-licensed 3D scene, license, and upstream notice |
 | `prisma/schema.prisma` | PostgreSQL tables, indexes, foreign keys, and JSONB fields |
 | `prisma/migrations/` | Checked-in PostgreSQL migration |
@@ -145,6 +155,8 @@ At startup, the platform replays persisted definitions, versions, teams, and pro
 `repair_strategy_decisions` stores candidate strategies, score terms, selection reasons, context scope, and reverification scope before the Repair Agent edits source. Strategies may change prompts and read context only; verification remains the complete structure, build, and browser pipeline. A repeated failure signature first selects an unused strategy, then escalates when no alternative remains or the three-round bound is exhausted.
 
 The novice team-builder entry recommends complete teams only from published Agent versions and published team templates, with deterministic checks for capability coverage, concurrency, tools, memory, and output contracts. Users answer at most three clarification questions, apply controlled natural-language adjustments, and save an immutable team version frozen to a new project.
+
+The My Teams entry manages logical Teams independently of the recommendation flow. A Team version contains 1–7 runtime instances; duplicate published Agent versions count as separate members, and each instance owns a stable display name, department, and workstation position. Drafts can be empty, but publishing validates the same capability and policy rules used by recommendation. Project creation freezes the selected version, and the project Agent endpoint projects that frozen roster so the HQ scene displays the same member count and department assignments.
 
 Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease.
 
@@ -181,4 +193,4 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 <a id="dev-note"></a>
 ### Dev Note
 
-The PostgreSQL client is generated into ignored `src/generated/` during package installation. Run `prisma generate` after schema edits and `prisma migrate deploy` against a reachable PostgreSQL database before starting the bundle. The M5 `20261101160000`, `20261101173000`, and `20261101200000` migrations jointly create Registry, team, project-memory, workflow-control, and adaptive-repair-strategy tables.
+The PostgreSQL client is generated into ignored `src/generated/` during package installation. Run `prisma generate` after schema edits and `prisma migrate deploy` against a reachable PostgreSQL database before starting the bundle. The M5 `20261101160000`, `20261101173000`, `20261101200000`, and `20261102130000` migrations jointly create Registry, logical Team ownership, one-row-per-instance runtime members, project-memory, workflow-control, and adaptive-repair-strategy tables.

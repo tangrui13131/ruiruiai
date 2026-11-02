@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   AGENT_REGISTRY_ROLES,
   createAgentTeamVersionInputSchema,
+  MAX_AGENT_TEAM_MEMBERS,
   type AgentMemoryPolicy,
   type AgentRegistryRole,
   type AgentTeamVersion,
@@ -407,11 +408,23 @@ export interface CreateTeamInputMetadata {
 }
 
 const ROLE_ORDER: readonly AgentRegistryRole[] = Object.freeze([...AGENT_REGISTRY_ROLES])
+const RUNTIME_ROLE_ORDER: readonly AgentRegistryRole[] = Object.freeze(
+  ROLE_ORDER.filter(role => role !== 'verifier'),
+)
 const SCALING_ORDER: readonly AgentRegistryRole[] = Object.freeze([
   'frontend',
   'tester',
   'verifier',
   'repair',
+  'ui-designer',
+  'integration',
+  'planner',
+])
+const CAPACITY_TRIM_ORDER: readonly AgentRegistryRole[] = Object.freeze([
+  'tester',
+  'verifier',
+  'repair',
+  'frontend',
   'ui-designer',
   'integration',
   'planner',
@@ -659,7 +672,7 @@ export function recommendAgentTeam(
   const catalog = publishedCatalog(input.publishedAgents)
   const templateMatch = findTemplateSelection(input.teamTemplates ?? [], catalog)
   const selected = new Map<AgentRegistryRole, PublishedAgent>()
-  for (const role of ROLE_ORDER) {
+  for (const role of RUNTIME_ROLE_ORDER) {
     const fromTemplate = templateMatch?.byRole.get(role)
     const selectedAgent = fromTemplate ?? bestAgentForRole(role, catalog)
     if (selectedAgent !== undefined) selected.set(role, selectedAgent)
@@ -777,6 +790,13 @@ export function applyTeamAdjustment(
           'INSTANCE_LIMIT',
         )
       }
+      const totalInstances = [...instanceCounts.values()].reduce((total, value) => total + value, 0)
+      if (totalInstances >= MAX_AGENT_TEAM_MEMBERS) {
+        throw new TeamRecommenderError(
+          `Teams support at most ${String(MAX_AGENT_TEAM_MEMBERS)} runtime instances`,
+          'INSTANCE_LIMIT',
+        )
+      }
       instanceCounts.set(intent.role, current + 1)
       changes.push({
         kind: 'instance-count',
@@ -835,7 +855,14 @@ export function applyTeamAdjustment(
     case 'reduce-concurrency': {
       const requested = intent.maximum
         ?? Math.max(1, recommendation.concurrency.estimatedParallelism - 1)
-      maximumParallelism = Math.max(1, Math.min(requested, maximumParallelism))
+      maximumParallelism = Math.max(
+        1,
+        Math.min(
+          requested,
+          maximumParallelism,
+          recommendation.concurrency.estimatedParallelism,
+        ),
+      )
       break
     }
     case 'reduce-scale': {
@@ -897,12 +924,18 @@ export function createAgentTeamVersionInputFromRecommendation(
   metadata: CreateTeamInputMetadata = {},
 ): CreateAgentTeamVersionInput {
   if (
-    recommendation.members.length !== ROLE_ORDER.length
+    recommendation.members.length !== RUNTIME_ROLE_ORDER.length
     || recommendation.missingCapabilities.length > 0
   ) {
     throw new TeamRecommenderError(
       'The recommendation is incomplete and cannot be saved as a team version',
       'INCOMPLETE_TEAM',
+    )
+  }
+  if (recommendation.concurrency.instanceCount > MAX_AGENT_TEAM_MEMBERS) {
+    throw new TeamRecommenderError(
+      `The recommendation exceeds the ${String(MAX_AGENT_TEAM_MEMBERS)}-instance Team limit`,
+      'INSTANCE_LIMIT',
     )
   }
   const input = {
@@ -1171,20 +1204,27 @@ function findTemplateSelection(
   const ordered = [...templates].sort((left, right) => compareStrings(left.id, right.id))
   for (const template of ordered) {
     const byRole = new Map<AgentRegistryRole, PublishedAgent>()
+    const seenInstanceIds = new Set<string>()
     let valid = true
     for (const member of template.members) {
       const live = byVersion.get(member.version.id)
       if (
         live === undefined
         || live.definition.id !== member.definition.id
-        || byRole.has(live.version.role)
+        || seenInstanceIds.has(member.instanceId)
       ) {
+        valid = false
+        break
+      }
+      seenInstanceIds.add(member.instanceId)
+      const existing = byRole.get(live.version.role)
+      if (existing !== undefined && existing.version.id !== live.version.id) {
         valid = false
         break
       }
       byRole.set(live.version.role, live)
     }
-    if (valid && ROLE_ORDER.every(role => byRole.has(role))) {
+    if (valid && RUNTIME_ROLE_ORDER.every(role => byRole.has(role))) {
       return {
         template,
         byRole,
@@ -1289,8 +1329,10 @@ function highAssurance(profile: ProjectProfile): boolean {
 function buildRecommendation(
   input: BuildRecommendationInput,
 ): AgentTeamRecommendation {
+  const requestedInstanceCounts = new Map(input.instanceCounts)
+  const instanceCounts = trimToRuntimeLimit(input.instanceCounts, input.profile)
   const members: RecommendedTeamMember[] = []
-  for (const role of ROLE_ORDER) {
+  for (const role of RUNTIME_ROLE_ORDER) {
     const source = input.sources.get(role)
     if (source === undefined) continue
     members.push(Object.freeze({
@@ -1299,7 +1341,7 @@ function buildRecommendation(
       definitionId: source.definitionId,
       agentVersionId: source.agentVersionId,
       definitionVersion: source.definitionVersion,
-      instanceCount: input.instanceCounts.get(role) ?? 1,
+      instanceCount: instanceCounts.get(role) ?? 1,
       capabilities: source.capabilities,
       maxConcurrency: source.maxConcurrency,
       toolAllowlist: source.toolAllowlist,
@@ -1324,12 +1366,18 @@ function buildRecommendation(
     (total, member) => total + member.maxConcurrency * member.instanceCount,
     0,
   )
+  const requestedFrontendCount = requestedInstanceCounts.get('frontend') ?? 0
   const frontendCount = members.find(member => member.role === 'frontend')?.instanceCount ?? 0
   const expectedParallelism = Math.max(
     1,
-    frontendCount > 0 ? frontendCount : Math.min(members.length, input.maximumParallelism),
+    requestedFrontendCount > 0
+      ? requestedFrontendCount
+      : Math.min(members.length, input.maximumParallelism),
   )
-  const estimatedParallelism = Math.min(expectedParallelism, input.maximumParallelism)
+  const estimatedParallelism = Math.min(
+    Math.max(1, frontendCount > 0 ? frontendCount : members.length),
+    input.maximumParallelism,
+  )
   const requiredConcurrency = Math.max(1, Math.min(estimatedParallelism, aggregateCapacity || 1))
   const toolPolicy = deriveToolPolicy(members)
   const memoryPolicy = deriveMemoryPolicy(members)
@@ -1368,10 +1416,29 @@ function buildRecommendation(
   })
 }
 
+function trimToRuntimeLimit(
+  counts: ReadonlyMap<AgentRegistryRole, number>,
+  profile: ProjectProfile,
+): ReadonlyMap<AgentRegistryRole, number> {
+  const next = new Map(counts)
+  let total = [...next.values()].reduce((sum, value) => sum + value, 0)
+  const order = highAssurance(profile)
+    ? ['frontend', ...CAPACITY_TRIM_ORDER] as const
+    : CAPACITY_TRIM_ORDER
+  for (const role of order) {
+    while (total > MAX_AGENT_TEAM_MEMBERS && (next.get(role) ?? 0) > 1) {
+      next.set(role, (next.get(role) ?? 1) - 1)
+      total -= 1
+    }
+    if (total <= MAX_AGENT_TEAM_MEMBERS) break
+  }
+  return next
+}
+
 function capabilityCoverageFor(
   members: readonly RecommendedTeamMember[],
 ): readonly TeamCapabilityCoverage[] {
-  const coverage = ROLE_ORDER.map((role) => {
+  const coverage = RUNTIME_ROLE_ORDER.map((role) => {
     const capability = capabilityForRole(role)
     const contributors = members
       .filter(member => member.capabilities[capability] !== undefined)
@@ -1458,7 +1525,7 @@ function recommendationRisks(input: {
 }): readonly TeamRecommendationRisk[] {
   const risks: TeamRecommendationRisk[] = []
   const selectedRoles = new Set(input.members.map(member => member.role))
-  for (const role of ROLE_ORDER) {
+  for (const role of RUNTIME_ROLE_ORDER) {
     if (!selectedRoles.has(role)) {
       risks.push({
         kind: 'missing-role',

@@ -351,6 +351,103 @@ export const savedAgentTeamVersionSchema = z.object({
   memberCount: z.number().int().positive(),
 }).strict()
 
+/** Logical Team lifecycle exposed to the management client. */
+export const agentTeamStatusSchema = z.enum(['ACTIVE', 'ARCHIVED'])
+
+/** Immutable Team version publication state exposed to the management client. */
+export const agentTeamVersionStatusSchema = z.enum(['DRAFT', 'PUBLISHED'])
+
+/** Canonical HQ departments accepted for one runtime Team member. */
+export const agentTeamDepartmentKeySchema = z.enum([
+  'planning',
+  'design',
+  'frontend-a',
+  'frontend-b',
+  'integration',
+  'verification',
+  'repair',
+])
+
+/** Browser-safe identity and placement of one runtime Agent instance. */
+export const publicTeamRuntimeMemberSchema = z.object({
+  instanceId: z.string(),
+  displayName: z.string(),
+  role: agentRoleSchema,
+  definitionId: z.string(),
+  agentVersionId: z.string(),
+  departmentKey: agentTeamDepartmentKeySchema,
+  position: z.number().int().positive(),
+}).strict()
+
+/** Browser-safe immutable Team version. */
+export const publicAgentTeamVersionSchema = z.object({
+  id: z.string(),
+  teamId: z.string(),
+  ownerId: z.string(),
+  name: z.string(),
+  version: z.string(),
+  purpose: z.string(),
+  status: agentTeamVersionStatusSchema,
+  members: z.array(publicTeamRuntimeMemberSchema),
+  requiredCapabilities: z.record(z.string(), z.number()),
+  requiredConcurrency: z.number().int().positive(),
+  concurrencyCapacity: z.number().int().nonnegative(),
+  capabilityCoverage: z.array(teamCapabilityCoverageSchema).default([]),
+}).strict()
+
+/** Logical Team summary with its latest immutable version. */
+export const agentTeamSchema = z.object({
+  id: z.string(),
+  ownerId: z.string(),
+  name: z.string(),
+  purpose: z.string(),
+  status: agentTeamStatusSchema,
+  latestVersion: publicAgentTeamVersionSchema.optional(),
+  versionCount: z.number().int().nonnegative(),
+  projectUsageCount: z.number().int().nonnegative(),
+}).strict()
+
+/** One paginated user-owned Team library page. */
+export const agentTeamPageSchema = z.object({
+  items: z.array(agentTeamSchema),
+  total: z.number().int().nonnegative(),
+  offset: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+}).strict()
+
+/** Create one user-owned logical Team. */
+export const createAgentTeamRequestSchema = z.object({
+  id: z.string().trim().min(1).max(160).optional(),
+  name: z.string().trim().min(1).max(160),
+  purpose: z.string().trim().min(1).max(4_000),
+}).strict()
+
+/** One runtime instance selected for a custom Team draft. */
+export const createTeamRuntimeMemberRequestSchema = z.object({
+  agentVersionId: z.string().trim().min(1).max(160),
+  instanceId: z.string().trim().min(1).max(160).optional(),
+  displayName: z.string().trim().min(1).max(160).optional(),
+  departmentKey: agentTeamDepartmentKeySchema,
+  position: z.number().int().positive().max(64),
+}).strict()
+
+/** Create or replace one editable Team draft. */
+export const createTeamDraftRequestSchema = z.object({
+  version: z.string().trim().min(1).max(160),
+  members: z.array(createTeamRuntimeMemberRequestSchema).max(7),
+  requiredCapabilities: z.record(z.string(), z.number().min(0)).optional(),
+  requiredConcurrency: z.number().int().positive().max(1_000_000).optional(),
+  toolPolicy: teamToolPolicySchema.optional(),
+  memoryPolicy: teamMemoryPolicySchema.optional(),
+  inputSchema: jsonSchemaDescriptorSchema.optional(),
+  requiredOutputSchemas: z.array(jsonSchemaDescriptorSchema).max(64).optional(),
+}).strict()
+
+/** Result of publishing one Team draft. */
+export const publicTeamVersionResponseSchema = z.object({
+  teamVersion: publicAgentTeamVersionSchema,
+}).strict()
+
 /** Result of saving a recommended team without creating a project. */
 export const teamRecommendationSaveResponseSchema = z.object({
   teamVersion: savedAgentTeamVersionSchema,

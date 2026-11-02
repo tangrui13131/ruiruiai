@@ -145,7 +145,7 @@ MCP, A2A, external API plugins, RAG, vector databases, arbitrary tool installati
 
 - Agent Registry now persists definitions, independent version states, publication and deprecation, capability discovery, team compositions, project memory, and complete frozen project bindings. Published definitions can receive new versions while old versions remain immutable; deprecated definitions leave discovery, while already frozen projects retain their member snapshots.
 - SQLite schema v6 and PostgreSQL migrations store Registry, team, project-memory, and workflow-control records. Project creation writes the frozen team and initial requirement memory in one transaction; both stores pass recovery, version, foreign-key, and uniqueness tests.
-- The default team contains seven controlled definitions: Planner, UI Designer, Tester, Frontend, Integration, Verifier, and Repair, with two Frontend instances. Startup restores the registry or repairs an interrupted default seed into the complete team.
+- The default team contains seven controlled definitions: Planner, UI Designer, Tester, Frontend, Integration, Verifier, and Repair, with two Frontend instances. The deterministic Verifier is system-owned and is not a runtime member or HQ person. Startup restores the registry or repairs an interrupted default seed into the complete team.
 - The project launcher derives scheduler profiles from the project's frozen snapshot. Model, prompt, capabilities, tool allowlist, memory policy, and output contracts come from immutable Agent versions; Bash and PowerShell remain disabled.
 - The versioned workflow-control graph supports sequencing, parallelism, conditions, bounded loops, Repair subworkflows, and terminal states. Node entry and completion, edge selection, loop evaluation, and subworkflow entry and exit are journaled; snapshot revisions reject stale overwrites.
 - The self-loop now drives the control graph: PASS advances to delivery, FAIL or INCOMPLETE enters the Repair subworkflow, and Repair returns to verification. Repeated failure, three-round exhaustion, Repair failure, or incomplete verification produces a visible escalation. The management UI renders the control graph and recent control events below the task DAG.
@@ -160,6 +160,15 @@ MCP, A2A, external API plugins, RAG, vector databases, arbitrary tool installati
 - Users can apply controlled natural-language adjustments, save an immutable team version, or adopt a team and create a frozen project. The management frontend adds a `Build a team` entry, project profile, members and capability coverage, risks, adjustment history, and adoption flow.
 - New modules reach per-file 100% coverage: `adaptive-repair.ts`, `self-healer.ts`, `team-recommender.ts`, `TeamBuilderPage.tsx`, `TeamRecommendationDetails.tsx`, `recommendation-labels.ts`, and `RepairsPage.tsx`.
 - Current aggregate results pass 169/169 orchestration tests, 26/26 platform tests, and 73/73 UI tests. Package TypeScript, Prisma schema validation, targeted Oxlint, and `git diff --check` pass.
+
+### M5.5 team library results
+
+- SQLite schema v8 and PostgreSQL migration `20261102130000` add logical Team ownership, one-row-per-instance runtime members, immutable version status, and stable HQ placement fields.
+- Users can create multiple Teams, save empty drafts, publish 1–7 runtime instances, clone published Teams, archive Teams, and inspect project usage. The same published Agent version may appear more than once and each instance counts toward the Team limit.
+- Team publication and recommendation share capability, concurrency, tool, memory, output-contract, department, and publication-state validation. The deterministic Verifier remains system-owned and is not a Team member.
+- Project creation freezes the selected Team version. The project Agent API derives the roster from that snapshot, and HQ reads the frozen department and position values instead of guessing from role names.
+- The `My Teams` management page provides the Team list, version history, capacity and usage summary, and a 1–7 instance editor. The existing `Build a team` flow remains the intelligent-recommendation entry.
+- Current focused results pass 181/181 orchestration tests, 27/27 platform tests, and 76/76 UI tests. SQLite v1–v7 migration tests, Prisma schema validation, TypeScript checks, and artifact builds pass.
 
 ### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, and M5.4 results
 

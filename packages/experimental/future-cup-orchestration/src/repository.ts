@@ -24,6 +24,7 @@ import {
 import {
   parseProjectTeamBinding,
   parseStoredAgentDefinition,
+  parseStoredAgentTeam,
   parseStoredAgentTeamVersion,
   parseStoredAgentVersion,
 } from './agent-registry.ts'
@@ -49,6 +50,7 @@ import type {
   ProjectMemoryEntry,
   RepairStrategyDecisionRecord,
   StoredAgentDefinition,
+  StoredAgentTeam,
   StoredAgentTeamVersion,
   StoredAgentVersion,
   StoredWorkflowDefinition,
@@ -256,8 +258,19 @@ const agentVersionRowSchema = z.object({
   deprecated_at: z.string().nullable(),
 }).strict()
 
+const agentTeamRowSchema = z.object({
+  id: z.string(),
+  owner_id: z.string(),
+  name: z.string(),
+  purpose: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).strict()
+
 const agentTeamVersionRowSchema = z.object({
   id: z.string(),
+  team_id: z.string().nullable(),
   name: z.string(),
   version: z.number(),
   spec_json: z.string(),
@@ -1673,20 +1686,95 @@ export class OrchestrationRepository implements OrchestrationStore {
     })
   }
 
+  /** {@inheritDoc PlatformStore.listAgentTeams} */
+  listAgentTeams(ownerId?: string): StoredAgentTeam[] {
+    const statement = ownerId === undefined
+      ? this.database.prepare(`
+        SELECT id, owner_id, name, purpose, status, created_at, updated_at
+        FROM agent_teams
+        ORDER BY created_at, id
+      `)
+      : this.database.prepare(`
+        SELECT id, owner_id, name, purpose, status, created_at, updated_at
+        FROM agent_teams
+        WHERE owner_id = ?
+        ORDER BY created_at, id
+      `)
+    const rows = agentTeamRowSchema.array().parse(
+      ownerId === undefined ? statement.all() : statement.all(ownerId),
+    )
+    return rows.map(row => ({
+      team: parseStoredAgentTeam({
+        id: row.id,
+        ownerId: row.owner_id,
+        name: row.name,
+        purpose: row.purpose,
+        status: row.status,
+      }),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
+  /** {@inheritDoc PlatformStore.getAgentTeam} */
+  getAgentTeam(teamId: string): StoredAgentTeam | undefined {
+    return this.listAgentTeams().find(record => record.team.id === teamId)
+  }
+
+  /** {@inheritDoc PlatformStore.saveAgentTeam} */
+  saveAgentTeam(record: StoredAgentTeam): void {
+    this.transaction(() => {
+      const existing = this.getAgentTeam(record.team.id)
+      if (existing !== undefined && existing.team.ownerId !== record.team.ownerId) {
+        throw new Error(`Agent team "${record.team.id}" owner is immutable`)
+      }
+      this.database.prepare(`
+        INSERT INTO agent_teams (
+          id, owner_id, name, purpose, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          purpose = excluded.purpose,
+          status = excluded.status,
+          updated_at = excluded.updated_at
+      `).run(
+        record.team.id,
+        record.team.ownerId,
+        record.team.name,
+        record.team.purpose,
+        record.team.status,
+        record.createdAt,
+        record.updatedAt,
+      )
+    })
+  }
+
   /** {@inheritDoc PlatformStore.listAgentTeamVersions} */
-  listAgentTeamVersions(): StoredAgentTeamVersion[] {
-    const rows = agentTeamVersionRowSchema.array().parse(this.database.prepare(`
-      SELECT id, name, version, spec_json, checksum, status, created_at, published_at
-      FROM agent_team_versions
-      ORDER BY created_at, id
-    `).all())
+  listAgentTeamVersions(teamId?: string): StoredAgentTeamVersion[] {
+    const statement = teamId === undefined
+      ? this.database.prepare(`
+        SELECT id, team_id, name, version, spec_json, checksum, status,
+          created_at, published_at
+        FROM agent_team_versions
+        ORDER BY created_at, id
+      `)
+      : this.database.prepare(`
+        SELECT id, team_id, name, version, spec_json, checksum, status,
+          created_at, published_at
+        FROM agent_team_versions
+        WHERE team_id = ?
+        ORDER BY created_at, id
+      `)
+    const rows = agentTeamVersionRowSchema.array().parse(
+      teamId === undefined ? statement.all() : statement.all(teamId),
+    )
     return rows.map(row => ({
       teamVersion: parseStoredAgentTeamVersion(JSON.parse(row.spec_json)),
       ordinal: row.version,
       checksum: row.checksum,
       status: decodeTeamStatus(row.status),
       createdAt: row.created_at,
-      publishedAt: row.published_at ?? row.created_at,
+      publishedAt: row.published_at ?? undefined,
     }))
   }
 
@@ -1700,45 +1788,91 @@ export class OrchestrationRepository implements OrchestrationStore {
     const specJson = JSON.stringify(record.teamVersion)
     this.transaction(() => {
       const existing = this.database.prepare(`
-        SELECT id, name, version, spec_json, checksum, status, created_at, published_at
+        SELECT id, team_id, name, version, spec_json, checksum, status,
+          created_at, published_at
         FROM agent_team_versions
         WHERE id = ?
       `).get(record.teamVersion.id)
       if (existing !== undefined) {
         const row = agentTeamVersionRowSchema.parse(existing)
-        if (row.spec_json !== specJson || row.checksum !== record.checksum) {
+        const current = parseStoredAgentTeamVersion(JSON.parse(row.spec_json))
+        const currentContent = JSON.stringify({ ...current, status: 'PUBLISHED' })
+        const nextContent = JSON.stringify({ ...record.teamVersion, status: 'PUBLISHED' })
+        if (currentContent !== nextContent || row.checksum !== record.checksum) {
           throw new Error(`Agent team version "${record.teamVersion.id}" is immutable`)
         }
+        this.database.prepare(`
+          UPDATE agent_team_versions
+          SET spec_json = ?, checksum = ?, status = ?, published_at = ?
+          WHERE id = ?
+        `).run(
+          specJson,
+          record.checksum,
+          record.status,
+          record.publishedAt ?? null,
+          record.teamVersion.id,
+        )
         return
+      }
+      const team = this.getAgentTeam(record.teamVersion.teamId)
+      if (team === undefined) {
+        throw new Error(`Agent team "${record.teamVersion.teamId}" is not persisted`)
       }
       this.database.prepare(`
         INSERT INTO agent_team_versions (
-          id, name, version, spec_json, checksum, status, created_at, published_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          id, team_id, name, version, spec_json, checksum, status,
+          created_at, published_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         record.teamVersion.id,
+        record.teamVersion.teamId,
         record.teamVersion.name,
         record.ordinal,
         specJson,
         record.checksum,
         record.status,
         record.createdAt,
-        record.publishedAt,
+        record.publishedAt ?? null,
       )
       const memberStatement = this.database.prepare(`
         INSERT INTO agent_team_members (
-          team_version_id, member_id, agent_definition_version_id, instance_count, position
-        ) VALUES (?, ?, ?, ?, ?)
+          team_version_id, member_id, agent_definition_version_id,
+          display_name, department_key, position
+        ) VALUES (?, ?, ?, ?, ?, ?)
       `)
-      for (const [position, member] of record.teamVersion.members.entries()) {
+      for (const member of record.teamVersion.members) {
         memberStatement.run(
           record.teamVersion.id,
+          member.instanceId,
           member.version.id,
-          member.version.id,
-          member.instanceCount,
-          position,
+          member.displayName,
+          member.departmentKey,
+          member.position,
         )
       }
+    })
+  }
+
+  /**
+   * Atomically publish one DRAFT team version so concurrent writers cannot
+   * both transition the same draft to PUBLISHED.
+   * @param record - complete PUBLISHED team version state.
+   * @returns whether this call performed the DRAFT to PUBLISHED transition.
+   */
+  publishAgentTeamVersion(record: StoredAgentTeamVersion): boolean {
+    const specJson = JSON.stringify(record.teamVersion)
+    return this.transaction(() => {
+      const result = this.database.prepare(`
+        UPDATE agent_team_versions
+        SET spec_json = ?, checksum = ?, status = 'PUBLISHED', published_at = ?
+        WHERE id = ? AND status = 'DRAFT'
+      `).run(
+        specJson,
+        record.checksum,
+        record.publishedAt ?? this.timestamp(),
+        record.teamVersion.id,
+      )
+      return result.changes === 1
     })
   }
 
@@ -2213,8 +2347,15 @@ function decodeAgentLifecycleStatus(value: string): AgentLifecycleStatus {
   }
 }
 
-function decodeTeamStatus(value: string): 'PUBLISHED' {
-  return parsePublishedStatus(value, 'Agent team')
+function decodeTeamStatus(value: string): StoredAgentTeamVersion['status'] {
+  switch (value) {
+    case 'DRAFT':
+      return 'DRAFT'
+    case 'PUBLISHED':
+      return 'PUBLISHED'
+    default:
+      throw new Error(`unknown Agent team version status "${value}"`)
+  }
 }
 
 function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {

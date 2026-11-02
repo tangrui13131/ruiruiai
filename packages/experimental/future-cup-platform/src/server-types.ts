@@ -28,6 +28,8 @@ export interface FutureCupServerOptions {
   readonly store: PlatformStore
   readonly profiles: readonly AgentProfile[]
   readonly agentRegistry?: PersistentAgentRegistry | undefined
+  /** Stable user identity used to scope Team ownership in this profile. */
+  readonly currentUserId?: string | undefined
   readonly defaultTeamVersionId?: string | undefined
   readonly host: string
   readonly port: number

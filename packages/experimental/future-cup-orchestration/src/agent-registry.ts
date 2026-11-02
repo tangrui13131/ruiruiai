@@ -43,6 +43,18 @@ export function AgentTeamVersionId(value: string): AgentTeamVersionId {
   return brandString<AgentTeamVersionId>(value)
 }
 
+/** Identifies one user-owned logical Agent team. */
+export type AgentTeamId = Branded<'FutureCupAgentTeamId'>
+
+/**
+ * Brand a logical team id admitted by the registry parser.
+ * @param value - validated team id.
+ * @returns the branded team id.
+ */
+export function AgentTeamId(value: string): AgentTeamId {
+  return brandString<AgentTeamId>(value)
+}
+
 /** Identifies one project's frozen team binding. */
 export type ProjectTeamBindingId = Branded<'FutureCupProjectTeamBindingId'>
 
@@ -68,6 +80,43 @@ export const AGENT_REGISTRY_ROLES = [
 
 /** One controlled Agent role. */
 export type AgentRegistryRole = typeof AGENT_REGISTRY_ROLES[number]
+
+/** Logical Team lifecycle independent of immutable version publication. */
+export const AGENT_TEAM_STATUSES = ['ACTIVE', 'ARCHIVED'] as const
+
+/** Lifecycle of one logical user-owned Team. */
+export type AgentTeamStatus = typeof AGENT_TEAM_STATUSES[number]
+
+/** Publication state of one immutable Team version. */
+export const AGENT_TEAM_VERSION_STATUSES = ['DRAFT', 'PUBLISHED'] as const
+
+/** Publication state of one immutable Team version. */
+export type AgentTeamVersionStatus = typeof AGENT_TEAM_VERSION_STATUSES[number]
+
+/** HQ departments configured by the Future Cup workstation scene. */
+export const AGENT_TEAM_DEPARTMENTS = [
+  'planning',
+  'design',
+  'frontend-a',
+  'frontend-b',
+  'integration',
+  'verification',
+  'repair',
+] as const
+
+/** Stable HQ department identity carried by every runtime Team member. */
+export type AgentTeamDepartmentKey = typeof AGENT_TEAM_DEPARTMENTS[number]
+
+/** Hard upper bound for runtime Agent instances in one Team version. */
+export const MAX_AGENT_TEAM_MEMBERS = 7
+
+/** Minimum capabilities required to publish a frontend delivery Team. */
+export const FRONTEND_TEAM_REQUIRED_CAPABILITIES: Readonly<Record<string, number>> = Object.freeze({
+  planning: 1,
+  frontend: 1,
+  testing: 1,
+  repair: 1,
+})
 
 /** JSON Schema dialect accepted for Agent and team input/output descriptors. */
 export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema' as const
@@ -249,7 +298,41 @@ export interface TeamMemoryPolicy {
   readonly requiredKinds: readonly ProjectMemoryKind[]
 }
 
-/** One immutable Agent version reference and instance count in a team. */
+/** One logical Team owned by a platform user. */
+export interface AgentTeam {
+  /** Stable logical Team identity shared by all immutable versions. */
+  readonly id: AgentTeamId
+  /** User who owns this Team. */
+  readonly ownerId: string
+  /** User-visible Team name, unique within the owner account. */
+  readonly name: string
+  /** Plain-language Team responsibility. */
+  readonly purpose: string
+  /** Whether the Team can receive new versions and project bindings. */
+  readonly status: AgentTeamStatus
+}
+
+/** Input needed to create one logical Team. */
+export interface CreateAgentTeamInput {
+  /** Stable logical Team identity. */
+  readonly id: string
+  /** User who owns the Team. */
+  readonly ownerId: string
+  /** User-visible Team name. */
+  readonly name: string
+  /** Plain-language Team responsibility. */
+  readonly purpose: string
+}
+
+/** Mutable Team metadata accepted while the Team remains active. */
+export interface UpdateAgentTeamInput {
+  /** Replacement user-visible name. */
+  readonly name?: string | undefined
+  /** Replacement plain-language responsibility. */
+  readonly purpose?: string | undefined
+}
+
+/** One immutable Agent version reference and instance count in a Team. */
 export interface TeamMemberComposition {
   /** Published Agent version selected for the team. */
   readonly agentVersionId: string
@@ -261,6 +344,10 @@ export interface TeamMemberComposition {
 export interface CreateAgentTeamVersionInput {
   /** Optional explicit team version identity; defaults to a stable composition key. */
   readonly id?: string | undefined
+  /** Optional logical Team parent; defaults to a Team derived from the name. */
+  readonly teamId?: string | undefined
+  /** Optional Team owner; defaults to the system owner for legacy calls. */
+  readonly ownerId?: string | undefined
   /** Human-readable team template name. */
   readonly name: string
   /** Caller-owned team semantic version. */
@@ -283,10 +370,55 @@ export interface CreateAgentTeamVersionInput {
   readonly requiredOutputSchemas: readonly JsonSchemaDescriptor[]
 }
 
-/** Complete Agent definition and version snapshot retained by a team version. */
+/** One runtime Agent instance requested for a Team draft. */
+export interface CreateTeamLibraryMemberInput {
+  /** Published Agent version selected for this instance. */
+  readonly agentVersionId: string
+  /** Optional stable instance identity; defaults to `<agentVersionId>:instance-<n>`. */
+  readonly instanceId?: string | undefined
+  /** User-visible instance name; defaults to the Agent definition name. */
+  readonly displayName?: string | undefined
+  /** Stable HQ department for this instance. */
+  readonly departmentKey: AgentTeamDepartmentKey
+  /** One-based workstation position within the department. */
+  readonly position: number
+}
+
+/** Input needed to create one mutable Team draft version. */
+export interface CreateTeamLibraryDraftInput {
+  /** Optional explicit immutable Team version identity. */
+  readonly id?: string | undefined
+  /** Caller-owned Team semantic version. */
+  readonly version: string
+  /** Zero to seven runtime Agent instances. */
+  readonly members: readonly CreateTeamLibraryMemberInput[]
+  /** Optional capability thresholds; frontend delivery defaults apply on publish. */
+  readonly requiredCapabilities?: Readonly<Record<string, number>> | undefined
+  /** Minimum aggregate concurrency. */
+  readonly requiredConcurrency?: number | undefined
+  /** Optional Team tool ceiling and required tools. */
+  readonly toolPolicy?: TeamToolPolicy | undefined
+  /** Optional Team memory ceiling and required memory access. */
+  readonly memoryPolicy?: TeamMemoryPolicy | undefined
+  /** Optional Team input contract. */
+  readonly inputSchema?: JsonSchemaDescriptor | undefined
+  /** Optional required output contracts. */
+  readonly requiredOutputSchemas?: readonly JsonSchemaDescriptor[] | undefined
+}
+
+/** Complete Agent definition and version snapshot retained for one runtime instance. */
 export interface AgentTeamMemberSnapshot {
+  /** Stable identity of this runtime Agent instance. */
+  readonly instanceId: string
+  /** Number of instances represented by this row; always one. */
+  readonly instanceCount: 1
+  /** User-visible instance name shown in management and HQ. */
+  readonly displayName: string
+  /** Stable HQ department. */
+  readonly departmentKey: AgentTeamDepartmentKey
+  /** One-based workstation position within the department. */
+  readonly position: number
   /** Number of independently schedulable instances. */
-  readonly instanceCount: number
   /** Logical Agent metadata at team creation time. */
   readonly definition: AgentDefinition
   /** Exact immutable Agent version at team creation time. */
@@ -297,13 +429,19 @@ export interface AgentTeamMemberSnapshot {
 export interface AgentTeamVersion {
   /** Stable immutable team version identity. */
   readonly id: AgentTeamVersionId
+  /** Logical Team that owns this immutable version. */
+  readonly teamId: AgentTeamId
+  /** User who owned the Team when this version was created. */
+  readonly ownerId: string
   /** Human-readable team template name. */
   readonly name: string
   /** Caller-owned team semantic version. */
   readonly version: string
   /** Plain-language team responsibility. */
   readonly purpose: string
-  /** Complete member definition and version snapshots. */
+  /** Publication state used by project binding and recommendation. */
+  readonly status: AgentTeamVersionStatus
+  /** One row per runtime Agent instance. */
   readonly members: readonly AgentTeamMemberSnapshot[]
   /** Capability thresholds validated against every member instance. */
   readonly requiredCapabilities: Readonly<Record<string, number>>
@@ -327,9 +465,11 @@ export interface ProjectTeamBinding {
   readonly id: ProjectTeamBindingId
   /** Future Cup project frozen to this team. */
   readonly projectId: ProjectIdType
+  /** Frozen JSON generation; version 1 expands legacy instance counts to runtime rows. */
+  readonly schemaVersion: 1 | 2
   /** Exact team version selected at project start. */
   readonly teamVersion: AgentTeamVersion
-  /** Direct member snapshot retained even if registry state later changes. */
+  /** Direct one-row-per-instance snapshot retained even if registry state later changes. */
   readonly members: readonly AgentTeamMemberSnapshot[]
 }
 
@@ -347,6 +487,13 @@ export type AgentRegistryErrorCode =
   | 'VERSION_VALIDATION_FAILED'
   | 'VERSION_NOT_VALIDATED'
   | 'VERSION_NOT_PUBLISHED'
+  | 'TEAM_NOT_FOUND'
+  | 'TEAM_ARCHIVED'
+  | 'DUPLICATE_TEAM_NAME'
+  | 'TEAM_MEMBER_COUNT_INVALID'
+  | 'TEAM_POSITION_DUPLICATE'
+  | 'TEAM_VERSION_NOT_DRAFT'
+  | 'TEAM_VERSION_NOT_PUBLISHED'
   | 'DUPLICATE_TEAM_VERSION'
   | 'TEAM_VERSION_NOT_FOUND'
   | 'DUPLICATE_TEAM_MEMBER'
@@ -412,6 +559,9 @@ const projectMemoryKindSchema = z.enum([
   'accepted-artifact-summary',
 ])
 const agentRoleSchema = z.enum(AGENT_REGISTRY_ROLES)
+const agentTeamStatusSchema = z.enum(AGENT_TEAM_STATUSES)
+const agentTeamDepartmentSchema = z.enum(AGENT_TEAM_DEPARTMENTS)
+const agentTeamVersionStatusSchema = z.enum(AGENT_TEAM_VERSION_STATUSES)
 
 const capabilityMapSchema = z.record(
   capabilityNameSchema,
@@ -419,6 +569,14 @@ const capabilityMapSchema = z.record(
 ).refine(
   value => Object.keys(value).length <= 64,
   'an Agent supports at most 64 capabilities',
+)
+
+const teamRequiredCapabilityMapSchema = z.record(
+  capabilityNameSchema,
+  z.number().min(0).max(1_000_000),
+).refine(
+  value => Object.keys(value).length <= 64,
+  'a Team supports at most 64 required capabilities',
 )
 
 const agentMemoryPolicySchema = z.object({
@@ -545,6 +703,8 @@ const teamMemoryPolicySchema = z.object({
 
 export const createAgentTeamVersionInputSchema = z.object({
   id: identifierSchema.optional(),
+  teamId: identifierSchema.optional(),
+  ownerId: identifierSchema.optional(),
   name: z.string().trim().min(1).max(160),
   version: identifierSchema,
   purpose: z.string().trim().min(1).max(4_000),
@@ -552,12 +712,42 @@ export const createAgentTeamVersionInputSchema = z.object({
     agentVersionId: identifierSchema,
     instanceCount: z.number().int().positive().max(100),
   }).strict()).min(1).max(64),
-  requiredCapabilities: capabilityMapSchema,
+  requiredCapabilities: teamRequiredCapabilityMapSchema,
   requiredConcurrency: z.number().int().positive().max(1_000_000),
   toolPolicy: teamToolPolicySchema,
   memoryPolicy: teamMemoryPolicySchema,
   inputSchema: jsonSchemaDescriptorSchema,
   requiredOutputSchemas: z.array(jsonSchemaDescriptorSchema).min(1).max(64),
+}).strict()
+
+export const createAgentTeamInputSchema = z.object({
+  id: identifierSchema,
+  ownerId: identifierSchema,
+  name: z.string().trim().min(1).max(160),
+  purpose: z.string().trim().min(1).max(4_000),
+}).strict()
+
+export const updateAgentTeamInputSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  purpose: z.string().trim().min(1).max(4_000).optional(),
+}).strict()
+
+export const createTeamLibraryDraftInputSchema = z.object({
+  id: identifierSchema.optional(),
+  version: identifierSchema,
+  members: z.array(z.object({
+    agentVersionId: identifierSchema,
+    instanceId: identifierSchema.optional(),
+    displayName: z.string().trim().min(1).max(160).optional(),
+    departmentKey: agentTeamDepartmentSchema,
+    position: z.number().int().positive().max(64),
+  }).strict()).max(100),
+  requiredCapabilities: teamRequiredCapabilityMapSchema.optional(),
+  requiredConcurrency: z.number().int().positive().max(1_000_000).optional(),
+  toolPolicy: teamToolPolicySchema.optional(),
+  memoryPolicy: teamMemoryPolicySchema.optional(),
+  inputSchema: jsonSchemaDescriptorSchema.optional(),
+  requiredOutputSchemas: z.array(jsonSchemaDescriptorSchema).max(64).optional(),
 }).strict()
 
 const agentDefinitionSchema = z.object({
@@ -584,21 +774,55 @@ const agentVersionSchema = z.object({
   outputSchema: jsonSchemaDescriptorSchema,
 }).strict()
 
+const agentTeamSchema = z.object({
+  id: identifierSchema,
+  ownerId: identifierSchema,
+  name: z.string().trim().min(1).max(160),
+  purpose: z.string().trim().min(1).max(4_000),
+  status: agentTeamStatusSchema,
+}).strict()
+
 const agentTeamMemberSnapshotSchema = z.object({
-  instanceCount: z.number().int().positive().max(100),
+  instanceId: identifierSchema,
+  instanceCount: z.literal(1),
+  displayName: z.string().trim().min(1).max(160),
+  departmentKey: agentTeamDepartmentSchema,
+  position: z.number().int().positive().max(64),
   definition: agentDefinitionSchema,
   version: agentVersionSchema,
 }).strict()
 
-const agentTeamVersionSchema = z.object({
+const agentTeamVersionV2Schema = z.object({
+  id: identifierSchema,
+  teamId: identifierSchema,
+  ownerId: identifierSchema,
+  name: z.string().trim().min(1).max(160),
+  version: identifierSchema,
+  purpose: z.string().trim().min(1).max(4_000),
+  status: agentTeamVersionStatusSchema,
+  members: z.array(agentTeamMemberSnapshotSchema).max(64),
+  requiredCapabilities: teamRequiredCapabilityMapSchema,
+  requiredConcurrency: z.number().int().positive().max(1_000_000),
+  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
+  toolPolicy: teamToolPolicySchema,
+  memoryPolicy: teamMemoryPolicySchema,
+  inputSchema: jsonSchemaDescriptorSchema,
+  outputSchemas: z.array(jsonSchemaDescriptorSchema).max(64),
+}).strict()
+
+const legacyAgentTeamVersionSchema = z.object({
   id: identifierSchema,
   name: z.string().trim().min(1).max(160),
   version: identifierSchema,
   purpose: z.string().trim().min(1).max(4_000),
-  members: z.array(agentTeamMemberSnapshotSchema).min(1).max(64),
-  requiredCapabilities: capabilityMapSchema,
+  members: z.array(z.object({
+    instanceCount: z.number().int().positive().max(100),
+    definition: agentDefinitionSchema,
+    version: agentVersionSchema,
+  }).strict()).min(1).max(64),
+  requiredCapabilities: teamRequiredCapabilityMapSchema,
   requiredConcurrency: z.number().int().positive().max(1_000_000),
-  concurrencyCapacity: z.number().int().positive().max(100_000_000),
+  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
   toolPolicy: teamToolPolicySchema,
   memoryPolicy: teamMemoryPolicySchema,
   inputSchema: jsonSchemaDescriptorSchema,
@@ -608,8 +832,9 @@ const agentTeamVersionSchema = z.object({
 const projectTeamBindingSchema = z.object({
   id: identifierSchema,
   projectId: identifierSchema,
-  teamVersion: agentTeamVersionSchema,
-  members: z.array(agentTeamMemberSnapshotSchema).min(1).max(64),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]).optional(),
+  teamVersion: z.unknown(),
+  members: z.array(z.unknown()).min(1).max(64),
 }).strict()
 
 /**
@@ -622,6 +847,22 @@ export function parseStoredAgentDefinition(value: unknown): AgentDefinition {
   return freezeAgentDefinition({
     ...parsed,
     id: AgentDefinitionId(parsed.id),
+  })
+}
+
+/**
+ * Validate one durable logical Team.
+ * @param value - decoded SQLite or PostgreSQL value.
+ * @returns a frozen logical Team.
+ */
+export function parseStoredAgentTeam(value: unknown): AgentTeam {
+  const parsed = agentTeamSchema.parse(value)
+  return Object.freeze({
+    id: AgentTeamId(parsed.id),
+    ownerId: parsed.ownerId,
+    name: parsed.name,
+    purpose: parsed.purpose,
+    status: parsed.status,
   })
 }
 
@@ -645,15 +886,32 @@ export function parseStoredAgentVersion(value: unknown): AgentVersion {
  * @returns a frozen team version.
  */
 export function parseStoredAgentTeamVersion(value: unknown): AgentTeamVersion {
-  const parsed = agentTeamVersionSchema.parse(value)
+  const v2 = agentTeamVersionV2Schema.safeParse(value)
+  if (v2.success) {
+    return freezeAgentTeamVersion({
+      ...v2.data,
+      id: AgentTeamVersionId(v2.data.id),
+      teamId: AgentTeamId(v2.data.teamId),
+      members: v2.data.members.map(member => freezeTeamMember({
+        ...member,
+        definition: parseStoredAgentDefinition(member.definition),
+        version: parseStoredAgentVersion(member.version),
+      })),
+    })
+  }
+  const legacy = legacyAgentTeamVersionSchema.parse(value)
+  const legacyMembers = legacy.members.map(member => ({
+    ...member,
+    definition: parseStoredAgentDefinition(member.definition),
+    version: parseStoredAgentVersion(member.version),
+  }))
   return freezeAgentTeamVersion({
-    ...parsed,
-    id: AgentTeamVersionId(parsed.id),
-    members: parsed.members.map(member => freezeTeamMember({
-      ...member,
-      definition: parseStoredAgentDefinition(member.definition),
-      version: parseStoredAgentVersion(member.version),
-    })),
+    ...legacy,
+    id: AgentTeamVersionId(legacy.id),
+    teamId: AgentTeamId(`legacy-team:${legacy.id}`),
+    ownerId: 'legacy',
+    status: 'PUBLISHED',
+    members: expandLegacyTeamMembers(legacyMembers),
   })
 }
 
@@ -664,16 +922,95 @@ export function parseStoredAgentTeamVersion(value: unknown): AgentTeamVersion {
  */
 export function parseProjectTeamBinding(value: unknown): ProjectTeamBinding {
   const parsed = projectTeamBindingSchema.parse(value)
+  const teamVersion = parseStoredAgentTeamVersion(parsed.teamVersion)
+  const members = parsed.members.every(isRuntimeMemberValue)
+    ? parsed.members.map((member) => {
+      const parsedMember = agentTeamMemberSnapshotSchema.parse(member)
+      return freezeTeamMember({
+        ...parsedMember,
+        definition: parseStoredAgentDefinition(parsedMember.definition),
+        version: parseStoredAgentVersion(parsedMember.version),
+      })
+    })
+    : expandLegacyTeamMembers(parsed.members.map((member) => {
+      const parsedMember = legacyAgentTeamVersionSchema.shape.members.element.parse(member)
+      return {
+        ...parsedMember,
+        definition: parseStoredAgentDefinition(parsedMember.definition),
+        version: parseStoredAgentVersion(parsedMember.version),
+      }
+    }))
   return Object.freeze({
     id: ProjectTeamBindingId(parsed.id),
     projectId: ProjectId(parsed.projectId),
-    teamVersion: parseStoredAgentTeamVersion(parsed.teamVersion),
-    members: parsed.members.map(member => freezeTeamMember({
-      ...member,
-      definition: parseStoredAgentDefinition(member.definition),
-      version: parseStoredAgentVersion(member.version),
-    })),
+    schemaVersion: parsed.schemaVersion ?? 1,
+    teamVersion,
+    members,
   })
+}
+
+function isRuntimeMemberValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object'
+    && value !== null
+    && 'instanceId' in value
+    && 'departmentKey' in value
+    && 'position' in value
+}
+
+function expandLegacyTeamMembers(
+  members: readonly {
+    readonly instanceCount: number
+    readonly definition: AgentDefinition
+    readonly version: AgentVersion
+  }[],
+): readonly AgentTeamMemberSnapshot[] {
+  const expanded: AgentTeamMemberSnapshot[] = []
+  const nextInstanceByVersion = new Map<string, number>()
+  const nextPositionByDepartment = new Map<AgentTeamDepartmentKey, number>()
+  for (const member of members) {
+    for (let instance = 1; instance <= member.instanceCount; instance += 1) {
+      const instanceNumber = nextInstanceByVersion.get(member.version.id) ?? 1
+      nextInstanceByVersion.set(member.version.id, instanceNumber + 1)
+      const departmentKey = legacyDepartmentFor(member.version.role, instance)
+      const position = nextPositionByDepartment.get(departmentKey) ?? 1
+      nextPositionByDepartment.set(departmentKey, position + 1)
+      expanded.push(Object.freeze({
+        instanceId: `${member.version.id}:instance-${String(instanceNumber)}`,
+        instanceCount: 1 as const,
+        displayName: member.instanceCount === 1
+          ? member.definition.name
+          : `${member.definition.name} ${String(instance)}`,
+        departmentKey,
+        position,
+        definition: freezeAgentDefinition(member.definition),
+        version: freezeAgentVersion(member.version),
+      }))
+    }
+  }
+  return Object.freeze(expanded)
+}
+
+function legacyDepartmentFor(
+  role: AgentRegistryRole,
+  instance: number,
+): AgentTeamDepartmentKey {
+  switch (role) {
+    case 'planner':
+      return 'planning'
+    case 'ui-designer':
+      return 'design'
+    case 'frontend':
+      return instance % 2 === 0 ? 'frontend-b' : 'frontend-a'
+    case 'integration':
+      return 'integration'
+    case 'tester':
+    case 'verifier':
+      return 'verification'
+    case 'repair':
+      return 'repair'
+    default:
+      return 'planning'
+  }
 }
 
 const MEMORY_ACCESS_RANK: Readonly<Record<MemoryAccess, number>> = Object.freeze({
@@ -681,6 +1018,26 @@ const MEMORY_ACCESS_RANK: Readonly<Record<MemoryAccess, number>> = Object.freeze
   READ: 1,
   WRITE: 2,
 })
+
+const DEFAULT_TEAM_INPUT_SCHEMA: JsonSchemaDescriptor = Object.freeze({
+  id: 'future-cup.team-input',
+  version: '1.0.0',
+  dialect: JSON_SCHEMA_DIALECT,
+  schema: Object.freeze({
+    type: 'object',
+    additionalProperties: true,
+  }),
+})
+
+function orderedUniqueDescriptors(
+  values: readonly JsonSchemaDescriptor[],
+): readonly JsonSchemaDescriptor[] {
+  const unique = new Map<string, JsonSchemaDescriptor>()
+  for (const value of values) {
+    unique.set(`${value.id}@${value.version}`, freezeJsonSchemaDescriptor(value))
+  }
+  return Object.freeze([...unique.values()].sort(compareSchemaDescriptors))
+}
 
 const ALLOWED_TRANSITIONS: Readonly<
   Record<AgentLifecycleStatus, readonly AgentLifecycleStatus[]>
@@ -784,7 +1141,11 @@ function freezeTeamMemoryPolicy(value: TeamMemoryPolicy): TeamMemoryPolicy {
 
 function freezeTeamMember(value: AgentTeamMemberSnapshot): AgentTeamMemberSnapshot {
   return Object.freeze({
+    instanceId: value.instanceId,
     instanceCount: value.instanceCount,
+    displayName: value.displayName,
+    departmentKey: value.departmentKey,
+    position: value.position,
     definition: freezeAgentDefinition(value.definition),
     version: freezeAgentVersion(value.version),
   })
@@ -798,20 +1159,18 @@ function compareSchemaDescriptors(
 }
 
 function freezeAgentTeamVersion(value: AgentTeamVersion): AgentTeamVersion {
-  const members = value.members.map(freezeTeamMember).sort((left, right) => (
-    compareStrings(
-      `${left.definition.id}@${left.version.version}`,
-      `${right.definition.id}@${right.version.version}`,
-    )
-  ))
+  const members = value.members.map(freezeTeamMember).sort(compareTeamMembers)
   const outputSchemas = value.outputSchemas
     .map(freezeJsonSchemaDescriptor)
     .sort(compareSchemaDescriptors)
   return Object.freeze({
     id: AgentTeamVersionId(value.id),
+    teamId: AgentTeamId(value.teamId),
+    ownerId: value.ownerId,
     name: value.name,
     version: value.version,
     purpose: value.purpose,
+    status: value.status,
     members: Object.freeze(members),
     requiredCapabilities: freezeCapabilityMap(value.requiredCapabilities),
     requiredConcurrency: value.requiredConcurrency,
@@ -821,6 +1180,16 @@ function freezeAgentTeamVersion(value: AgentTeamVersion): AgentTeamVersion {
     inputSchema: freezeJsonSchemaDescriptor(value.inputSchema),
     outputSchemas: Object.freeze(outputSchemas),
   })
+}
+
+function compareTeamMembers(
+  left: AgentTeamMemberSnapshot,
+  right: AgentTeamMemberSnapshot,
+): number {
+  return AGENT_TEAM_DEPARTMENTS.indexOf(left.departmentKey)
+    - AGENT_TEAM_DEPARTMENTS.indexOf(right.departmentKey)
+    || left.position - right.position
+    || compareStrings(left.instanceId, right.instanceId)
 }
 
 function formatZodIssues(error: z.ZodError): string {
@@ -868,6 +1237,7 @@ export class AgentRegistry {
   private readonly versions = new Map<AgentVersionId, AgentVersion>()
   private readonly versionsByDefinition = new Map<AgentDefinitionId, Map<AgentVersionId, AgentVersion>>()
   private readonly versionStatuses = new Map<AgentVersionId, AgentLifecycleStatus>()
+  private readonly teams = new Map<AgentTeamId, AgentTeam>()
   private readonly teamVersions = new Map<AgentTeamVersionId, AgentTeamVersion>()
   private readonly projectBindings = new Map<ProjectIdType, ProjectTeamBinding>()
 
@@ -1171,6 +1541,412 @@ export class AgentRegistry {
   }
 
   /**
+   * Create one logical Team owned by a platform user.
+   * @param input - stable Team identity, owner, name, and responsibility.
+   * @returns the frozen active Team.
+   */
+  createTeam(input: CreateAgentTeamInput): AgentTeam {
+    const parsed = parseInput(createAgentTeamInputSchema, input, 'Agent team')
+    const id = AgentTeamId(parsed.id)
+    if (this.teams.has(id)) {
+      throw new AgentRegistryError(
+        `Agent team "${id}" is already registered`,
+        'DUPLICATE_TEAM_VERSION',
+      )
+    }
+    if ([...this.teams.values()].some(team => (
+      team.ownerId === parsed.ownerId && team.name === parsed.name
+    ))) {
+      throw new AgentRegistryError(
+        `Agent team name "${parsed.name}" is already used by this owner`,
+        'DUPLICATE_TEAM_NAME',
+      )
+    }
+    const team = Object.freeze({
+      id,
+      ownerId: parsed.ownerId,
+      name: parsed.name,
+      purpose: parsed.purpose,
+      status: 'ACTIVE' as const,
+    })
+    this.teams.set(team.id, team)
+    return team
+  }
+
+  /**
+   * Restore one durable logical Team without changing its identity.
+   * @param team - persisted Team value.
+   * @returns the frozen Team.
+   */
+  restoreTeam(team: AgentTeam): AgentTeam {
+    const parsed = parseStoredAgentTeam(team)
+    this.teams.set(parsed.id, parsed)
+    return parsed
+  }
+
+  /**
+   * Read one logical Team.
+   * @param teamId - requested logical Team.
+   * @returns the frozen Team.
+   */
+  getTeam(teamId: string): AgentTeam {
+    return this.requireTeam(teamId)
+  }
+
+  /**
+   * List logical Teams, optionally narrowed to one owner.
+   * @param ownerId - optional owner filter.
+   * @returns Teams in stable identity order.
+   */
+  listTeams(ownerId?: string): readonly AgentTeam[] {
+    return Object.freeze([...this.teams.values()]
+      .filter(team => ownerId === undefined || team.ownerId === ownerId)
+      .sort((left, right) => compareStrings(left.id, right.id)))
+  }
+
+  /**
+   * Archive one logical Team and block new versions or project bindings.
+   * @param teamId - logical Team to archive.
+   * @returns the frozen archived Team.
+   */
+  archiveTeam(teamId: string): AgentTeam {
+    const current = this.requireTeam(teamId)
+    if (current.status === 'ARCHIVED') return current
+    const archived = Object.freeze({ ...current, status: 'ARCHIVED' as const })
+    this.teams.set(archived.id, archived)
+    return archived
+  }
+
+  /**
+   * Create a zero-to-seven-member draft version under one logical Team.
+   * @param teamId - owning logical Team.
+   * @param input - runtime instances and optional policy requirements.
+   * @returns the frozen DRAFT Team version.
+   */
+  createTeamVersionDraft(
+    teamId: string,
+    input: CreateTeamLibraryDraftInput,
+  ): AgentTeamVersion {
+    const team = this.requireTeam(teamId)
+    if (team.status === 'ARCHIVED') {
+      throw new AgentRegistryError(
+        `Agent team "${team.id}" is archived`,
+        'TEAM_ARCHIVED',
+      )
+    }
+    const parsed = parseInput(createTeamLibraryDraftInputSchema, input, 'Agent team draft')
+    if (parsed.members.length > MAX_AGENT_TEAM_MEMBERS) {
+      throw new AgentRegistryError(
+        `Agent team drafts support at most ${String(MAX_AGENT_TEAM_MEMBERS)} runtime members`,
+        'TEAM_MEMBER_COUNT_INVALID',
+      )
+    }
+    const versionId = AgentTeamVersionId(parsed.id ?? `${team.id}:${parsed.version}`)
+    if (this.teamVersions.has(versionId)) {
+      throw new AgentRegistryError(
+        `Agent team version "${versionId}" is already registered`,
+        'DUPLICATE_TEAM_VERSION',
+      )
+    }
+    const members = this.runtimeMembersFromDraft(parsed.members)
+    const policies = this.deriveDraftPolicies(members, parsed)
+    const draft = freezeAgentTeamVersion({
+      id: versionId,
+      teamId: team.id,
+      ownerId: team.ownerId,
+      name: team.name,
+      version: parsed.version,
+      purpose: team.purpose,
+      status: 'DRAFT',
+      members,
+      requiredCapabilities: parsed.requiredCapabilities
+        ?? FRONTEND_TEAM_REQUIRED_CAPABILITIES,
+      requiredConcurrency: parsed.requiredConcurrency ?? 1,
+      concurrencyCapacity: policies.concurrencyCapacity,
+      toolPolicy: policies.toolPolicy,
+      memoryPolicy: policies.memoryPolicy,
+      inputSchema: policies.inputSchema,
+      outputSchemas: policies.outputSchemas,
+    })
+    this.teamVersions.set(draft.id, draft)
+    return draft
+  }
+
+  /**
+   * Publish one validated Team draft and make it available to project launches.
+   * @param teamId - owning logical Team.
+   * @param teamVersionId - draft version to validate and publish.
+   * @returns the frozen PUBLISHED Team version.
+   */
+  publishTeamVersion(teamId: string, teamVersionId: string): AgentTeamVersion {
+    const team = this.requireTeam(teamId)
+    if (team.status === 'ARCHIVED') {
+      throw new AgentRegistryError(
+        `Agent team "${team.id}" is archived`,
+        'TEAM_ARCHIVED',
+      )
+    }
+    const current = this.requireTeamVersion(teamVersionId)
+    if (current.teamId !== team.id) {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
+        'TEAM_VERSION_NOT_FOUND',
+      )
+    }
+    if (current.status !== 'DRAFT') {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" is not a draft`,
+        'TEAM_VERSION_NOT_DRAFT',
+      )
+    }
+    if (current.members.length < 1 || current.members.length > MAX_AGENT_TEAM_MEMBERS) {
+      throw new AgentRegistryError(
+        `Published Agent teams require 1-${String(MAX_AGENT_TEAM_MEMBERS)} runtime members`,
+        'TEAM_MEMBER_COUNT_INVALID',
+      )
+    }
+    this.validateTeamMembers(current.members)
+    const requiredCapabilities = freezeCapabilityMap(current.requiredCapabilities)
+    const concurrencyCapacity = this.validateTeamConcurrency(
+      current.members,
+      current.requiredConcurrency,
+    )
+    this.validateTeamTools(current.members, current.toolPolicy)
+    this.validateTeamMemory(current.members, current.memoryPolicy)
+    this.validateTeamOutputs(current.members, current.inputSchema, current.outputSchemas)
+    this.validateTeamCapabilities(current.members, requiredCapabilities)
+    const published = freezeAgentTeamVersion({
+      ...current,
+      status: 'PUBLISHED',
+      concurrencyCapacity,
+    })
+    this.teamVersions.set(published.id, published)
+    return published
+  }
+
+  /**
+   * Clone one published Team into a new active logical Team and draft version.
+   * @param sourceTeamVersionId - immutable source version.
+   * @param options - new Team identity and optional metadata.
+   * @returns the cloned Team and draft version.
+   */
+  cloneTeam(
+    sourceTeamVersionId: string,
+    options: {
+      readonly id: string
+      readonly ownerId: string
+      readonly name?: string | undefined
+      readonly purpose?: string | undefined
+      readonly version?: string | undefined
+    },
+  ): { readonly team: AgentTeam; readonly version: AgentTeamVersion } {
+    const source = this.requireTeamVersion(sourceTeamVersionId)
+    if (source.status !== 'PUBLISHED') {
+      throw new AgentRegistryError(
+        `Agent team version "${source.id}" is not published`,
+        'TEAM_VERSION_NOT_PUBLISHED',
+      )
+    }
+    const team = this.createTeam({
+      id: options.id,
+      ownerId: options.ownerId,
+      name: options.name ?? `${source.name} copy`,
+      purpose: options.purpose ?? source.purpose,
+    })
+    const version = this.createTeamVersionDraft(team.id, {
+      version: options.version ?? '1.0.0',
+      members: source.members.map(member => ({
+        agentVersionId: member.version.id,
+        displayName: member.displayName,
+        departmentKey: member.departmentKey,
+        position: member.position,
+      })),
+      requiredCapabilities: source.requiredCapabilities,
+      requiredConcurrency: source.requiredConcurrency,
+      toolPolicy: source.toolPolicy,
+      memoryPolicy: source.memoryPolicy,
+      inputSchema: source.inputSchema,
+      requiredOutputSchemas: source.outputSchemas,
+    })
+    return { team, version }
+  }
+
+  private createLegacyTeam(
+    teamId: string,
+    ownerId: string,
+    name: string,
+    purpose: string,
+  ): AgentTeam {
+    const id = AgentTeamId(teamId)
+    const existing = this.teams.get(id)
+    if (existing !== undefined) return existing
+    return this.createTeam({ id, ownerId, name, purpose })
+  }
+
+  private runtimeMembersFromDraft(
+    input: readonly CreateTeamLibraryMemberInput[],
+  ): readonly AgentTeamMemberSnapshot[] {
+    const members: AgentTeamMemberSnapshot[] = []
+    const ids = new Set<string>()
+    const positions = new Set<string>()
+    const duplicateCounts = new Map<string, number>()
+    for (const requested of input) {
+      const version = this.requireVersion(requested.agentVersionId)
+      const definition = this.requirePublishedVersion(version)
+      const count = (duplicateCounts.get(version.id) ?? 0) + 1
+      duplicateCounts.set(version.id, count)
+      const instanceId = requested.instanceId ?? `${version.id}:instance-${String(count)}`
+      if (ids.has(instanceId)) {
+        throw new AgentRegistryError(
+          `Agent team runtime instance "${instanceId}" is duplicated`,
+          'DUPLICATE_TEAM_MEMBER',
+          definition.id,
+          version.id,
+        )
+      }
+      ids.add(instanceId)
+      const positionKey = `${requested.departmentKey}:${String(requested.position)}`
+      if (positions.has(positionKey)) {
+        throw new AgentRegistryError(
+          `Agent team department position "${positionKey}" is duplicated`,
+          'TEAM_POSITION_DUPLICATE',
+        )
+      }
+      positions.add(positionKey)
+      members.push(freezeTeamMember({
+        instanceId,
+        instanceCount: 1,
+        displayName: requested.displayName ?? (
+          count === 1 ? definition.name : `${definition.name} ${String(count)}`
+        ),
+        departmentKey: requested.departmentKey,
+        position: requested.position,
+        definition,
+        version,
+      }))
+    }
+    if (members.length > MAX_AGENT_TEAM_MEMBERS) {
+      throw new AgentRegistryError(
+        `Published Agent teams require 1-${String(MAX_AGENT_TEAM_MEMBERS)} runtime members`,
+        'TEAM_MEMBER_COUNT_INVALID',
+      )
+    }
+    return Object.freeze(members)
+  }
+
+  private deriveDraftPolicies(
+    members: readonly AgentTeamMemberSnapshot[],
+    input: CreateTeamLibraryDraftInput,
+  ): {
+    readonly concurrencyCapacity: number
+    readonly toolPolicy: TeamToolPolicy
+    readonly memoryPolicy: TeamMemoryPolicy
+    readonly inputSchema: JsonSchemaDescriptor
+    readonly outputSchemas: readonly JsonSchemaDescriptor[]
+  } {
+    const allowedTools = orderedUniqueStrings(members.flatMap(member => member.version.toolAllowlist))
+    const sharedTools = members.length === 0
+      ? []
+      : members.slice(1).reduce(
+        (shared, member) => shared.filter(tool => member.version.toolAllowlist.includes(tool)),
+        [...members[0]?.version.toolAllowlist ?? []],
+      )
+    const maxMemory = members.reduce<MemoryAccess>(
+      (highest, member) => memoryRank(member.version.memoryPolicy.access) > memoryRank(highest)
+        ? member.version.memoryPolicy.access
+        : highest,
+      'NONE',
+    )
+    const allowedKinds = Object.freeze([...new Set<ProjectMemoryKind>(members.flatMap(
+      member => member.version.memoryPolicy.kinds,
+    ))].sort(compareStrings))
+    const requiredMemory = members.some(member => memoryRank(member.version.memoryPolicy.access) >= 1)
+      ? 'READ'
+      : 'NONE'
+    const outputSchemas = input.requiredOutputSchemas === undefined
+      ? orderedUniqueDescriptors(members.map(member => member.version.outputSchema))
+      : Object.freeze(input.requiredOutputSchemas.map(freezeJsonSchemaDescriptor))
+    return {
+      concurrencyCapacity: members.reduce(
+        (total, member) => total + member.version.maxConcurrency,
+        0,
+      ),
+      toolPolicy: freezeTeamToolPolicy(input.toolPolicy ?? {
+        allowedTools,
+        requiredTools: sharedTools,
+      }),
+      memoryPolicy: freezeTeamMemoryPolicy(input.memoryPolicy ?? {
+        allowedAccess: maxMemory,
+        requiredAccess: requiredMemory,
+        allowedKinds,
+        requiredKinds: requiredMemory === 'NONE' ? [] : [...allowedKinds],
+      }),
+      inputSchema: freezeJsonSchemaDescriptor(input.inputSchema ?? DEFAULT_TEAM_INPUT_SCHEMA),
+      outputSchemas,
+    }
+  }
+
+  private requirePublishedVersion(version: AgentVersion): AgentDefinition {
+    const definition = this.requireDefinition(version.definitionId)
+    if (
+      definition.status !== 'PUBLISHED'
+      || this.requireVersionStatus(version.id) !== 'PUBLISHED'
+    ) {
+      throw new AgentRegistryError(
+        `Agent version "${version.id}" is not currently published`,
+        'VERSION_NOT_PUBLISHED',
+        definition.id,
+        version.id,
+      )
+    }
+    return definition
+  }
+
+  private requireTeam(teamId: string): AgentTeam {
+    const id = AgentTeamId(teamId)
+    const team = this.teams.get(id)
+    if (team === undefined) {
+      throw new AgentRegistryError(`Agent team "${id}" is not registered`, 'TEAM_NOT_FOUND')
+    }
+    return team
+  }
+
+  private requireTeamVersion(teamVersionId: string): AgentTeamVersion {
+    const id = AgentTeamVersionId(teamVersionId)
+    const version = this.teamVersions.get(id)
+    if (version === undefined) {
+      throw new AgentRegistryError(
+        `Agent team version "${id}" is not registered`,
+        'TEAM_VERSION_NOT_FOUND',
+      )
+    }
+    return version
+  }
+
+  private validateTeamMembers(members: readonly AgentTeamMemberSnapshot[]): void {
+    const instanceIds = new Set<string>()
+    const positions = new Set<string>()
+    for (const member of members) {
+      if (instanceIds.has(member.instanceId)) {
+        throw new AgentRegistryError(
+          `Agent team runtime instance "${member.instanceId}" is duplicated`,
+          'DUPLICATE_TEAM_MEMBER',
+        )
+      }
+      instanceIds.add(member.instanceId)
+      const positionKey = `${member.departmentKey}:${String(member.position)}`
+      if (positions.has(positionKey)) {
+        throw new AgentRegistryError(
+          `Agent team department position "${positionKey}" is duplicated`,
+          'TEAM_POSITION_DUPLICATE',
+        )
+      }
+      positions.add(positionKey)
+      this.requirePublishedVersion(member.version)
+    }
+  }
+
+  /**
    * Validate one composition and create its immutable team version.
    * @param input - published member references, requirements, and policies.
    * @returns the frozen validated team version.
@@ -1188,42 +1964,41 @@ export class AgentRegistry {
         undefined,
       )
     }
-    const members: AgentTeamMemberSnapshot[] = []
-    const seenVersionIds = new Set<AgentVersionId>()
+    const team = this.createLegacyTeam(
+      parsed.teamId ?? `team:${parsed.name}`,
+      parsed.ownerId ?? 'system',
+      parsed.name,
+      parsed.purpose,
+    )
+    const members: CreateTeamLibraryMemberInput[] = []
     for (const member of parsed.members) {
       const version = this.requireVersion(member.agentVersionId)
-      if (seenVersionIds.has(version.id)) {
-        throw new AgentRegistryError(
-          `Agent version "${version.id}" appears more than once in the team`,
-          'DUPLICATE_TEAM_MEMBER',
-          version.definitionId,
-          version.id,
-        )
+      const definition = this.requirePublishedVersion(version)
+      for (let instance = 1; instance <= member.instanceCount; instance += 1) {
+        members.push({
+          agentVersionId: version.id,
+          instanceId: `${version.id}:instance-${String(instance)}`,
+          displayName: member.instanceCount === 1
+            ? definition.name
+            : `${definition.name} ${String(instance)}`,
+          departmentKey: legacyDepartmentFor(version.role, instance),
+          position: instance,
+        })
       }
-      const definition = this.requireDefinition(version.definitionId)
-      if (
-        definition.status !== 'PUBLISHED'
-        || this.requireVersionStatus(version.id) !== 'PUBLISHED'
-      ) {
-        throw new AgentRegistryError(
-          `Agent version "${version.id}" is not currently published`,
-          'VERSION_NOT_PUBLISHED',
-          definition.id,
-          version.id,
-        )
-      }
-      seenVersionIds.add(version.id)
-      members.push(freezeTeamMember({
-        instanceCount: member.instanceCount,
-        definition,
-        version,
-      }))
     }
-    members.sort((left, right) => (
-      compareStrings(left.definition.id, right.definition.id)
-      || compareStrings(left.version.version, right.version.version)
-    ))
-    const frozenMembers = Object.freeze(members)
+    if (members.length < 1 || members.length > MAX_AGENT_TEAM_MEMBERS) {
+      throw new AgentRegistryError(
+        `Published Agent teams require 1-${String(MAX_AGENT_TEAM_MEMBERS)} runtime members`,
+        'TEAM_MEMBER_COUNT_INVALID',
+      )
+    }
+    const frozenMembers = Object.freeze(
+      [...this.runtimeMembersFromDraft(members)].sort((left, right) => (
+        compareStrings(left.definition.id, right.definition.id)
+        || compareStrings(left.version.version, right.version.version)
+        || compareStrings(left.instanceId, right.instanceId)
+      )),
+    )
     const requiredCapabilities = freezeCapabilityMap(parsed.requiredCapabilities)
     const toolPolicy = freezeTeamToolPolicy(parsed.toolPolicy)
     const memoryPolicy = freezeTeamMemoryPolicy(parsed.memoryPolicy)
@@ -1244,9 +2019,12 @@ export class AgentRegistry {
 
     const teamVersion = freezeAgentTeamVersion({
       id: teamVersionId,
+      teamId: team.id,
+      ownerId: team.ownerId,
       name: parsed.name,
       version: parsed.version,
       purpose: parsed.purpose,
+      status: 'PUBLISHED',
       members: frozenMembers,
       requiredCapabilities,
       requiredConcurrency: parsed.requiredConcurrency,
@@ -1286,11 +2064,18 @@ export class AgentRegistry {
         'TEAM_VERSION_NOT_FOUND',
       )
     }
+    if (teamVersion.status !== 'PUBLISHED') {
+      throw new AgentRegistryError(
+        `Agent team version "${teamVersion.id}" is not published`,
+        'TEAM_VERSION_NOT_PUBLISHED',
+      )
+    }
     this.assertTeamMembersPublished(teamVersion)
     const frozenTeamVersion = freezeAgentTeamVersion(teamVersion)
     const binding = Object.freeze({
       id: ProjectTeamBindingId(`${brandedProjectId}:${frozenTeamVersion.id}`),
       projectId: brandedProjectId,
+      schemaVersion: 2 as const,
       teamVersion: frozenTeamVersion,
       members: frozenTeamVersion.members,
     })
@@ -1319,10 +2104,23 @@ export class AgentRegistry {
    * List every immutable team version in stable identity order.
    * @returns frozen team versions.
    */
-  listTeamVersions(): readonly AgentTeamVersion[] {
+  listTeamVersions(teamId?: string): readonly AgentTeamVersion[] {
+    const parsedTeamId = teamId === undefined ? undefined : AgentTeamId(teamId)
     const teamVersions = [...this.teamVersions.values()]
+      .filter(version => parsedTeamId === undefined || version.teamId === parsedTeamId)
       .sort((left, right) => compareStrings(left.id, right.id))
     return Object.freeze(teamVersions)
+  }
+
+  /**
+   * Restore one durable Team version without replaying publication transitions.
+   * @param value - persisted canonical or legacy Team version.
+   * @returns the frozen Team version.
+   */
+  restoreTeamVersion(value: unknown): AgentTeamVersion {
+    const teamVersion = parseStoredAgentTeamVersion(value)
+    this.teamVersions.set(teamVersion.id, teamVersion)
+    return teamVersion
   }
 
   /**

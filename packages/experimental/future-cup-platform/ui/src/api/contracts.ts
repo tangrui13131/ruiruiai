@@ -1,9 +1,15 @@
 import { z } from 'zod'
 import {
+  agentTeamPageSchema,
+  agentTeamSchema,
+  createAgentTeamRequestSchema,
+  createTeamDraftRequestSchema,
   projectDeliverySchema,
+  publicAgentTeamVersionSchema,
   projectRunCancelSchema,
   projectRunStartSchema,
   publicProjectRunSchema,
+  publicTeamVersionResponseSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationAdoptRequestSchema,
@@ -19,6 +25,12 @@ import {
 
 export { productEventSchema }
 export {
+  agentTeamPageSchema,
+  agentTeamSchema,
+  createAgentTeamRequestSchema,
+  createTeamDraftRequestSchema,
+  publicAgentTeamVersionSchema,
+  publicTeamVersionResponseSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationAdoptRequestSchema,
@@ -103,6 +115,34 @@ export const agentSchema = z.looseObject({
   definitionVersionId: z.string().optional(),
   model: z.string().optional(),
   toolAllowlist: z.array(z.string()).optional(),
+  departmentKey: z.enum([
+    'planning',
+    'design',
+    'frontend-a',
+    'frontend-b',
+    'integration',
+    'verification',
+    'repair',
+  ]).optional(),
+  position: z.number().int().positive().optional(),
+})
+
+/** Registry definition and its immutable versions exposed for custom Team editing. */
+export const agentDefinitionViewSchema = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  purpose: z.string(),
+  discoveryTags: z.array(z.string()),
+  status: z.string(),
+  versions: z.array(z.looseObject({
+    id: z.string(),
+    version: z.string(),
+    role: z.string(),
+    model: z.string(),
+    capabilities: z.record(z.string(), z.number()),
+    toolAllowlist: z.array(z.string()),
+    status: z.string(),
+  })),
 })
 
 export const schedulerScoreTermsSchema = z.looseObject({
@@ -361,6 +401,7 @@ export type TaskView = z.infer<typeof taskSchema>
 export type TaskStatus = z.infer<typeof taskStatusSchema>
 export type ProjectView = z.infer<typeof projectSchema>
 export type AgentView = z.infer<typeof agentSchema>
+export type AgentDefinitionView = z.infer<typeof agentDefinitionViewSchema>
 export type SchedulerDecisionView = z.infer<typeof schedulerDecisionSchema>
 export type ExecutionView = z.infer<typeof executionSchema>
 export type VerificationStatus = z.infer<typeof verificationStatusSchema>
@@ -372,6 +413,9 @@ export type WorkflowControlStateView = z.infer<typeof workflowControlStateSchema
 export type WorkflowControlEventView = z.infer<typeof workflowControlEventSchema>
 export type WorkflowControlNodeView = z.infer<typeof workflowControlNodeSchema>
 export type WorkflowControlEdgeView = z.infer<typeof workflowControlEdgeSchema>
+export type AgentTeamView = z.infer<typeof agentTeamSchema>
+export type AgentTeamPageView = z.infer<typeof agentTeamPageSchema>
+export type AgentTeamVersionView = z.infer<typeof publicAgentTeamVersionSchema>
 type ProductEventInput = z.input<typeof productEventSchema>
 type OptionalUndefined<T> = T extends unknown
   ? {

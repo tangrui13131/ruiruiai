@@ -286,8 +286,8 @@ describe('AgentRegistry', () => {
 
     expect(team.concurrencyCapacity).toBe(2)
     expect(team.members.map(member => member.definition.name)).toEqual([
-      'frontend agent',
       'planner agent',
+      'frontend agent',
     ])
     expect(Object.isFrozen(team)).toBe(true)
     expect(Object.isFrozen(team.members)).toBe(true)

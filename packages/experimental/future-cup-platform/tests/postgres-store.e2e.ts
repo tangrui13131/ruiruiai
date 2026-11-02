@@ -82,6 +82,34 @@ describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL pla
     try {
       const registry = new PersistentAgentRegistry(store)
       expect(await registry.ensureDefaultTeam()).toBe(DEFAULT_AGENT_TEAM_ID)
+      const cloned = await registry.cloneTeam(DEFAULT_AGENT_TEAM_ID, {
+        id: `team-pg-${randomUUID()}`,
+        ownerId: 'postgres-owner',
+        name: `Postgres Team ${randomUUID()}`,
+        version: '1.0.0',
+      })
+      expect(cloned.version.members).toHaveLength(7)
+      const publishedClone = await registry.publishTeamVersion(
+        cloned.team.id,
+        cloned.version.id,
+      )
+      expect(publishedClone.status).toBe('PUBLISHED')
+      const persistedMembers = await (store as unknown as {
+        prisma: {
+          $queryRaw: <T>(strings: TemplateStringsArray, ...values: unknown[]) => Promise<T>
+        }
+      }).prisma.$queryRaw<Array<{ memberId: string; position: number }>>`
+        SELECT "member_id" AS "memberId", "position"
+        FROM "agent_team_members"
+        WHERE "team_version_id" = ${cloned.version.id}
+        ORDER BY "member_id"
+      `
+      expect(persistedMembers.map(row => row.position).sort((a, b) => a - b)).toEqual(
+        publishedClone.members.map(member => member.position).sort((a, b) => a - b),
+      )
+      const reloadedRegistry = new PersistentAgentRegistry(store)
+      expect(await reloadedRegistry.listTeams('postgres-owner')).toHaveLength(1)
+      expect(await reloadedRegistry.listTeamVersions(cloned.team.id)).toHaveLength(1)
       const binding = await registry.freezeProject(projectId, DEFAULT_AGENT_TEAM_ID)
       const createdAt = new Date().toISOString()
       await store.createProject({
