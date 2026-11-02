@@ -257,6 +257,17 @@ export class PostgresPlatformStore implements OrchestrationStore {
     })
   }
 
+  /** {@inheritDoc PlatformStore.deleteProject} */
+  async deleteProject(projectId: string): Promise<boolean> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await tx.repairStrategyDecision.deleteMany({ where: { projectId } })
+      await tx.repairRecord.deleteMany({ where: { projectId } })
+      await tx.verificationReport.deleteMany({ where: { projectId } })
+      const result = await tx.project.deleteMany({ where: { id: projectId } })
+      return result.count === 1
+    }, M5_TRANSACTION_OPTIONS))
+  }
+
   /** {@inheritDoc PlatformStore.getProjectSnapshot} */
   async getProjectSnapshot(
     projectId: string,
@@ -779,6 +790,25 @@ export class PostgresPlatformStore implements OrchestrationStore {
       })
       return result.count === 1
     })
+  }
+
+  /** {@inheritDoc PlatformStore.deleteAgentTeamVersion} */
+  async deleteAgentTeamVersion(teamVersionId: string): Promise<boolean> {
+    return await retrySerializable(async () => {
+      const result = await this.prisma.agentTeamVersion.deleteMany({
+        where: { id: teamVersionId, status: 'DRAFT' },
+      })
+      return result.count === 1
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.deleteAgentTeam} */
+  async deleteAgentTeam(teamId: string): Promise<boolean> {
+    return await retrySerializable(async () => await this.prisma.$transaction(async (tx) => {
+      await tx.agentTeamVersion.deleteMany({ where: { teamId } })
+      const result = await tx.agentTeam.deleteMany({ where: { id: teamId } })
+      return result.count === 1
+    }, M5_TRANSACTION_OPTIONS))
   }
 
   /** {@inheritDoc PlatformStore.listProjectTeamBindings} */

@@ -118,4 +118,56 @@ describe('MyTeamsPage', () => {
       })
     })
   })
+
+  it('selects another team row and deletes draft versions and unused teams', async () => {
+    const draftVersion: AgentTeamVersionView = {
+      ...teamVersion,
+      id: 'team-2:1.0.0',
+      teamId: 'team-2',
+      name: 'frontend-team',
+      version: '1.0.0',
+      status: 'DRAFT',
+    }
+    const multiTeamPage: AgentTeamPageView = {
+      items: [
+        teamPage.items[0] as AgentTeamPageView['items'][number],
+        {
+          id: 'team-2',
+          ownerId: 'user-1',
+          name: 'frontend-team',
+          purpose: 'Deliver frontend pages.',
+          status: 'ACTIVE',
+          latestVersion: draftVersion,
+          versionCount: 1,
+          projectUsageCount: 0,
+        },
+      ],
+      total: 2,
+      offset: 0,
+      limit: 24,
+    }
+    vi.spyOn(api, 'listTeams').mockResolvedValue(multiTeamPage)
+    vi.spyOn(api, 'listAgentDefinitions').mockResolvedValue(definitions)
+    vi.spyOn(api, 'listTeamVersions').mockImplementation(async (teamId: string) => (
+      teamId === 'team-2' ? [draftVersion] : [teamVersion]
+    ))
+    const deleteDraft = vi.spyOn(api, 'deleteTeamVersion').mockResolvedValue(true)
+    const deleteTeam = vi.spyOn(api, 'deleteTeam').mockResolvedValue(true)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByText('frontend-team'))
+    expect(await screen.findByRole('button', { name: /删除草稿 1.0.0/ })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /删除草稿 1.0.0/ }))
+    await waitFor(() => {
+      expect(deleteDraft).toHaveBeenCalledWith('team-2', 'team-2:1.0.0')
+    })
+
+    const deleteTeamButtons = screen.getAllByRole('button', { name: '删除团队' })
+    fireEvent.click(deleteTeamButtons.at(-1) as HTMLElement)
+    await waitFor(() => {
+      expect(deleteTeam).toHaveBeenCalledWith('team-2')
+    })
+  })
 })

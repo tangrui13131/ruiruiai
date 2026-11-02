@@ -1,4 +1,5 @@
 import {
+  DeleteOutlined,
   FolderOpenOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
@@ -13,15 +14,16 @@ import {
   Input,
   Modal,
   Result,
+  Select,
   Skeleton,
   Space,
   Tooltip,
 } from 'antd'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client.ts'
 import { localizedApiError } from '../api/errors.ts'
-import type { ProjectView } from '../api/contracts.ts'
+import type { AgentTeamView, ProjectView } from '../api/contracts.ts'
 import { PageHeading } from '../components/PageHeading.tsx'
 import { StatusBadge } from '../components/StatusBadge.tsx'
 import { useProjectCommands } from '../hooks/useProjectCommands.ts'
@@ -30,6 +32,7 @@ import { useLocale } from '../locale/LocaleProvider.tsx'
 interface CreateProjectValues {
   readonly name: string
   readonly requirement: string
+  readonly teamVersionId?: string
 }
 
 function ProjectCard({
@@ -40,11 +43,31 @@ function ProjectCard({
   readonly onChanged: () => Promise<void>
 }) {
   const { dictionary, locale } = useLocale()
+  const { message } = App.useApp()
   const navigate = useNavigate()
   const commands = useProjectCommands(project.id, onChanged)
+  const [deleting, setDeleting] = useState(false)
   const status = project.latestRunStatus ?? project.workflowStatus ?? 'PENDING'
   const running = status === 'RUNNING'
   const canRun = project.latestRunStatus === undefined
+
+  async function remove(): Promise<void> {
+    setDeleting(true)
+    try {
+      await api.deleteProject(project.id)
+      message.success(dictionary.projects.deleted)
+      await onChanged()
+    } catch (deleteError: unknown) {
+      message.error(localizedApiError(
+        deleteError,
+        dictionary.errors,
+        dictionary.errors.deleteProject,
+      ))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <article className="project-card">
       <div className="project-card-body">
@@ -91,6 +114,17 @@ function ProjectCard({
               />
             </Tooltip>
           )}
+          <Tooltip title={dictionary.projects.deleteProject}>
+            <Button
+              danger
+              type="text"
+              icon={<DeleteOutlined />}
+              loading={deleting}
+              disabled={running}
+              aria-label={dictionary.projects.deleteProject}
+              onClick={() => { void remove() }}
+            />
+          </Tooltip>
         </Space>
         <Button
           type="link"
@@ -110,16 +144,23 @@ export function ProjectsPage() {
   const { message } = App.useApp()
   const [form] = Form.useForm<CreateProjectValues>()
   const [projects, setProjects] = useState<readonly ProjectView[]>([])
+  const [teams, setTeams] = useState<readonly AgentTeamView[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   async function load(): Promise<void> {
     setLoading(true)
     try {
-      setProjects(await api.listProjects())
+      const [nextProjects, nextTeams] = await Promise.all([
+        api.listProjects(),
+        api.listTeams().then(page => page.items).catch(() => [] as AgentTeamView[]),
+      ])
+      setProjects(nextProjects)
+      setTeams(nextTeams)
       setError(undefined)
     } catch (loadError: unknown) {
       setError(localizedApiError(loadError, dictionary.errors, dictionary.errors.loadProjects))
@@ -130,10 +171,37 @@ export function ProjectsPage() {
 
   useEffect(() => { void load() }, [])
 
+  useEffect(() => {
+    const requestedTeamVersionId = searchParams.get('teamVersionId')
+    if (requestedTeamVersionId !== null && requestedTeamVersionId.trim() !== '') {
+      form.setFieldValue('teamVersionId', requestedTeamVersionId)
+      setCreateOpen(true)
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('teamVersionId')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [form, searchParams, setSearchParams])
+
+  const teamOptions = [
+    { value: '', label: dictionary.projects.defaultTeam },
+    ...teams
+      .filter(team => team.status === 'ACTIVE' && team.latestVersion?.status === 'PUBLISHED')
+      .map(team => ({
+        value: team.latestVersion?.id ?? '',
+        label: `${team.name} · ${team.latestVersion?.version ?? ''}`,
+      })),
+  ]
+
   async function create(values: CreateProjectValues): Promise<void> {
     setCreating(true)
     try {
-      const project = await api.createProject(values)
+      const project = await api.createProject({
+        name: values.name,
+        requirement: values.requirement,
+        ...(values.teamVersionId === undefined || values.teamVersionId === ''
+          ? {}
+          : { teamVersionId: values.teamVersionId }),
+      })
       message.success(dictionary.projects.created)
       setCreateOpen(false)
       form.resetFields()
@@ -220,6 +288,13 @@ export function ProjectsPage() {
             rules={[{ required: true, whitespace: true }]}
           >
             <Input maxLength={120} placeholder={dictionary.projects.namePlaceholder} />
+          </Form.Item>
+          <Form.Item
+            name="teamVersionId"
+            label={dictionary.projects.team}
+            initialValue=""
+          >
+            <Select options={teamOptions} aria-label={dictionary.projects.team} />
           </Form.Item>
           <Form.Item
             name="requirement"

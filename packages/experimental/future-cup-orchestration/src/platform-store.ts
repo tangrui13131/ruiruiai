@@ -273,6 +273,12 @@ export interface PlatformStore {
   /** List projects in creation order. */
   listProjects(): Awaitable<PlatformProjectSummary[]>
   /**
+   * Delete one project and all of its durable runs, tasks, events, and bindings.
+   * @param projectId - project identity.
+   * @returns whether a project was deleted.
+   */
+  deleteProject(projectId: string): Awaitable<boolean>
+  /**
    * Read one complete project snapshot.
    * @param projectId - owning project.
    * @param afterSeq - event cursor; only greater sequence values are returned.
@@ -464,6 +470,18 @@ export interface PlatformStore {
    * @returns whether this call performed the DRAFT to PUBLISHED transition.
    */
   publishAgentTeamVersion(record: StoredAgentTeamVersion): Awaitable<boolean>
+  /**
+   * Delete one DRAFT team version and its runtime member rows.
+   * @param teamVersionId - draft version identity.
+   * @returns whether a draft version was deleted.
+   */
+  deleteAgentTeamVersion(teamVersionId: string): Awaitable<boolean>
+  /**
+   * Delete one logical Team and its versions when no project binding references them.
+   * @param teamId - logical Team identity.
+   * @returns whether the Team was deleted.
+   */
+  deleteAgentTeam(teamId: string): Awaitable<boolean>
   /** List every frozen project team binding. */
   listProjectTeamBindings(): Awaitable<ProjectTeamBinding[]>
   /**

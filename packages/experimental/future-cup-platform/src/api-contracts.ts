@@ -532,6 +532,11 @@ export const projectRunCancelSchema = z.object({
   cancelled: z.boolean(),
 }).strict()
 
+/** Deletion response. */
+export const deleteResponseSchema = z.object({
+  deleted: z.boolean(),
+}).strict()
+
 /** Stable REST error response. */
 export const apiErrorSchema = z.object({
   code: z.string(),

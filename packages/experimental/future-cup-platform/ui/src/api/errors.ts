@@ -23,6 +23,8 @@ const CODE_TO_KEY: Readonly<Record<string, keyof ErrorDictionary>> = {
   TOOL_POLICY_INVALID: 'teamIncomplete',
   MEMORY_POLICY_INVALID: 'teamIncomplete',
   OUTPUT_CONTRACT_INVALID: 'teamIncomplete',
+  TEAM_IN_USE: 'teamInUse',
+  DUPLICATE_TEAM_VERSION: 'duplicateTeamVersion',
   REALTIME_CONNECTION_FAILED: 'realtimeConnection',
   INVALID_REALTIME_DATA: 'realtimeData',
   INVALID_CURSOR: 'realtimeData',

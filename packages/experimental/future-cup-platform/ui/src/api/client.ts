@@ -4,6 +4,7 @@ import {
   agentDefinitionViewSchema,
   createAgentTeamRequestSchema,
   createTeamDraftRequestSchema,
+  deleteResponseSchema,
   agentSchema,
   apiErrorSchema,
   deliverySchema,
@@ -78,11 +79,23 @@ export const api = {
     return projectSchema.array().parse(await request('/api/v1/projects'))
   },
 
-  async createProject(input: { name: string; requirement: string }): Promise<ProjectView> {
+  async createProject(input: {
+    name: string
+    requirement: string
+    teamVersionId?: string
+  }): Promise<ProjectView> {
     return projectSchema.parse(await request('/api/v1/projects', {
       method: 'POST',
       body: JSON.stringify(input),
     }))
+  },
+
+  async deleteProject(projectId: string): Promise<boolean> {
+    const value = deleteResponseSchema.parse(await request(
+      `/api/v1/projects/${encodeURIComponent(projectId)}`,
+      { method: 'DELETE' },
+    ))
+    return value.deleted
   },
 
   async listTeams(): Promise<AgentTeamPageView> {
@@ -121,6 +134,22 @@ export const api = {
       { method: 'POST', body: '{}' },
     ))
     return value.teamVersion
+  },
+
+  async deleteTeamVersion(teamId: string, versionId: string): Promise<boolean> {
+    const value = deleteResponseSchema.parse(await request(
+      `/api/v1/teams/${encodeURIComponent(teamId)}/versions/${encodeURIComponent(versionId)}`,
+      { method: 'DELETE' },
+    ))
+    return value.deleted
+  },
+
+  async deleteTeam(teamId: string): Promise<boolean> {
+    const value = deleteResponseSchema.parse(await request(
+      `/api/v1/teams/${encodeURIComponent(teamId)}`,
+      { method: 'DELETE' },
+    ))
+    return value.deleted
   },
 
   async listAgents(): Promise<AgentView[]> {

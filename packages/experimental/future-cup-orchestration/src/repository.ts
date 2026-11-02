@@ -518,6 +518,20 @@ export class OrchestrationRepository implements OrchestrationStore {
     }))
   }
 
+  /** {@inheritDoc PlatformStore.deleteProject} */
+  deleteProject(projectId: string): boolean {
+    return this.transaction(() => {
+      this.database.prepare('DELETE FROM repair_strategy_decisions WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM repair_records WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM verification_reports WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM executions WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM scheduler_decisions WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM task_journal WHERE project_id = ?').run(projectId)
+      const result = this.database.prepare('DELETE FROM projects WHERE id = ?').run(projectId)
+      return result.changes === 1
+    })
+  }
+
   /**
    * Read the complete project state needed by an API snapshot.
    * @param projectId - owning project.
@@ -1872,6 +1886,26 @@ export class OrchestrationRepository implements OrchestrationStore {
         record.publishedAt ?? this.timestamp(),
         record.teamVersion.id,
       )
+      return result.changes === 1
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.deleteAgentTeamVersion} */
+  deleteAgentTeamVersion(teamVersionId: string): boolean {
+    return this.transaction(() => {
+      const result = this.database.prepare(`
+        DELETE FROM agent_team_versions
+        WHERE id = ? AND status = 'DRAFT'
+      `).run(teamVersionId)
+      return result.changes === 1
+    })
+  }
+
+  /** {@inheritDoc PlatformStore.deleteAgentTeam} */
+  deleteAgentTeam(teamId: string): boolean {
+    return this.transaction(() => {
+      this.database.prepare('DELETE FROM agent_team_versions WHERE team_id = ?').run(teamId)
+      const result = this.database.prepare('DELETE FROM agent_teams WHERE id = ?').run(teamId)
       return result.changes === 1
     })
   }

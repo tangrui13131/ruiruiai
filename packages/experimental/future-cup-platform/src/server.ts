@@ -180,6 +180,20 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     return await reply.code(201).send(created)
   })
 
+  app.delete<{ Params: unknown }>('/api/v1/projects/:projectId', async (request, reply) => {
+    const { projectId } = projectParamsSchema.parse(request.params)
+    const project = await requireProject(projectId)
+    if (project.latestRunStatus === 'RUNNING') {
+      throw new ApiError(409, 'PROJECT_RUN_ACTIVE', `Project "${projectId}" has an active run`)
+    }
+    const deleted = await options.store.deleteProject(projectId)
+    if (!deleted) {
+      throw new ApiError(404, 'PROJECT_NOT_FOUND', `Project "${projectId}" was not found`)
+    }
+    await options.agentRegistry?.unbindProject(projectId)
+    return await reply.send({ deleted: true })
+  })
+
   app.get<{ Params: unknown; Querystring: unknown }>(
     '/api/v1/projects/:projectId/snapshot',
     async (request, reply) => {
@@ -459,6 +473,23 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       }))
     },
   )
+
+  app.delete<{ Params: unknown }>(
+    '/api/v1/teams/:teamId/versions/:versionId',
+    async (request, reply) => {
+      const { teamId, versionId } = logicalTeamVersionParamsSchema.parse(request.params)
+      await requireOwnedTeam(teamId)
+      await registryCall(() => requireAgentRegistry().deleteTeamVersionDraft(teamId, versionId))
+      return await reply.send({ deleted: true })
+    },
+  )
+
+  app.delete<{ Params: unknown }>('/api/v1/teams/:teamId', async (request, reply) => {
+    const { teamId } = logicalTeamParamsSchema.parse(request.params)
+    await requireOwnedTeam(teamId)
+    await registryCall(() => requireAgentRegistry().deleteTeam(teamId))
+    return await reply.send({ deleted: true })
+  })
 
   app.post<{ Params: unknown }>('/api/v1/teams/:teamId/archive', async (request, reply) => {
     const { teamId } = logicalTeamParamsSchema.parse(request.params)
@@ -980,6 +1011,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           || error.code === 'DUPLICATE_TEAM_VERSION'
           || error.code === 'DUPLICATE_TEAM_NAME'
           || error.code === 'TEAM_ARCHIVED'
+          || error.code === 'TEAM_IN_USE'
           || error.code === 'TEAM_VERSION_NOT_DRAFT'
           || error.code === 'TEAM_VERSION_NOT_PUBLISHED'
           ? 409

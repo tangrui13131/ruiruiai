@@ -114,6 +114,10 @@ class FencedOrchestrationStore implements OrchestrationStore {
     return await this.base.listProjects()
   }
 
+  async deleteProject(projectId: string): Promise<boolean> {
+    return await this.base.deleteProject(projectId)
+  }
+
   async getProjectSnapshot(projectId: string, afterSeq: number, limit: number) {
     return await this.base.getProjectSnapshot(projectId, afterSeq, limit)
   }
@@ -247,6 +251,14 @@ class FencedOrchestrationStore implements OrchestrationStore {
 
   async publishAgentTeamVersion(record: StoredAgentTeamVersion): Promise<boolean> {
     return await this.base.publishAgentTeamVersion(record)
+  }
+
+  async deleteAgentTeamVersion(teamVersionId: string): Promise<boolean> {
+    return await this.base.deleteAgentTeamVersion(teamVersionId)
+  }
+
+  async deleteAgentTeam(teamId: string): Promise<boolean> {
+    return await this.base.deleteAgentTeam(teamId)
   }
 
   async listProjectTeamBindings(): Promise<ProjectTeamBinding[]> {

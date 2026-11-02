@@ -696,6 +696,12 @@ textarea {
   gap: 12px;
   padding: 12px 8px;
   border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.my-team-row:hover {
+  background: #f5faf7;
 }
 
 .my-team-row.selected {

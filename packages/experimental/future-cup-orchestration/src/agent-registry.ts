@@ -494,6 +494,7 @@ export type AgentRegistryErrorCode =
   | 'TEAM_POSITION_DUPLICATE'
   | 'TEAM_VERSION_NOT_DRAFT'
   | 'TEAM_VERSION_NOT_PUBLISHED'
+  | 'TEAM_IN_USE'
   | 'DUPLICATE_TEAM_VERSION'
   | 'TEAM_VERSION_NOT_FOUND'
   | 'DUPLICATE_TEAM_MEMBER'
@@ -1615,6 +1616,60 @@ export class AgentRegistry {
     const archived = Object.freeze({ ...current, status: 'ARCHIVED' as const })
     this.teams.set(archived.id, archived)
     return archived
+  }
+
+  /**
+   * Delete one DRAFT version under a logical Team.
+   * @param teamId - owning logical Team.
+   * @param teamVersionId - draft version to remove.
+   */
+  deleteTeamVersionDraft(teamId: string, teamVersionId: string): void {
+    const team = this.requireTeam(teamId)
+    const current = this.requireTeamVersion(teamVersionId)
+    if (current.teamId !== team.id) {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
+        'TEAM_VERSION_NOT_FOUND',
+      )
+    }
+    if (current.status !== 'DRAFT') {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" is not a draft`,
+        'TEAM_VERSION_NOT_DRAFT',
+      )
+    }
+    this.teamVersions.delete(current.id)
+  }
+
+  /**
+   * Delete one logical Team and its versions when no project binding references it.
+   * @param teamId - logical Team to remove.
+   */
+  deleteTeam(teamId: string): void {
+    const team = this.requireTeam(teamId)
+    for (const binding of this.projectBindings.values()) {
+      if (binding.teamVersion.teamId === team.id) {
+        throw new AgentRegistryError(
+          `Agent team "${team.id}" is bound to project "${binding.projectId}"`,
+          'TEAM_IN_USE',
+        )
+      }
+    }
+    for (const [id, version] of this.teamVersions.entries()) {
+      if (version.teamId === team.id) {
+        this.teamVersions.delete(id)
+      }
+    }
+    this.teams.delete(team.id)
+  }
+
+  /**
+   * Remove a project's frozen team binding when the project is deleted.
+   * @param projectId - Future Cup project identity.
+   * @returns whether a binding was removed.
+   */
+  unfreezeProject(projectId: string): boolean {
+    return this.projectBindings.delete(ProjectId(projectId))
   }
 
   /**

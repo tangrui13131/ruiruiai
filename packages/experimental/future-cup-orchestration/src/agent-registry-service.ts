@@ -305,6 +305,36 @@ export class PersistentAgentRegistry {
   }
 
   /**
+   * Delete one DRAFT version under a logical Team.
+   * @param teamId - owning logical Team.
+   * @param teamVersionId - draft version identity.
+   */
+  async deleteTeamVersionDraft(teamId: string, teamVersionId: string): Promise<void> {
+    await this.initialize()
+    this.registry.deleteTeamVersionDraft(teamId, teamVersionId)
+    await this.store.deleteAgentTeamVersion(teamVersionId)
+  }
+
+  /**
+   * Delete one logical Team and its versions when no project binding references them.
+   * @param teamId - logical Team identity.
+   */
+  async deleteTeam(teamId: string): Promise<void> {
+    await this.initialize()
+    this.registry.deleteTeam(teamId)
+    await this.store.deleteAgentTeam(teamId)
+  }
+
+  /**
+   * Remove a project's in-memory frozen team binding when the project is deleted.
+   * @param projectId - Future Cup project identity.
+   */
+  async unbindProject(projectId: string): Promise<void> {
+    await this.initialize()
+    this.registry.unfreezeProject(projectId)
+  }
+
+  /**
    * Clone one published Team into a new active Team draft.
    * @param sourceTeamVersionId - published source version.
    * @param options - new owner, identity, and optional display metadata.
