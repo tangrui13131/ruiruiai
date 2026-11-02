@@ -169,9 +169,12 @@ export function apply(ctx: Context, config: Config): void {
         onError: (error) => { ctx.logger.error(error) },
       })
       const address = await server.start()
-      ctx.logger.info(
-        `future-cup-platform listening on http://${address.host}:${address.port}`,
-      )
+      const platformUrl = `http://${address.host}:${address.port}/`
+      console.log('\n======================================================')
+      console.log(`Future Cup Platform: ${platformUrl}`)
+      console.log('======================================================\n')
+      ctx.logger.info(`future-cup-platform listening on ${platformUrl}`)
+      tryOpenBrowser(platformUrl)
     } catch (error: unknown) {
       await closeFutureCupResources({ launcher, server, store }, error)
       throw error
@@ -180,6 +183,20 @@ export function apply(ctx: Context, config: Config): void {
       await closeFutureCupResources({ launcher, server })
     }
   }, 'future-cup-platform.listen')
+}
+
+function tryOpenBrowser(url: string): void {
+  if (process.env.DSH_NO_OPEN === '1' || process.env.CI !== undefined || process.argv.includes('--no-open')) {
+    return
+  }
+  const cmd = process.platform === 'win32'
+    ? `start "" "${url}"`
+    : process.platform === 'darwin'
+      ? `open "${url}"`
+      : `xdg-open "${url}"`
+  import('node:child_process').then(({ exec }) => {
+    exec(cmd, () => {})
+  }).catch(() => {})
 }
 
 function createPostgresStore(databaseUrl: string | undefined): PostgresPlatformStore {
