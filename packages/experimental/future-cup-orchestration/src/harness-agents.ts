@@ -114,7 +114,7 @@ export class HarnessAgentInvoker implements AgentInvoker {
    * @param options - shared workspace, model, and isolated Harness home root.
    */
   constructor(readonly profile: AgentProfile, options: HarnessAgentOptions) {
-    const dshHome = resolve(options.homeRoot, profile.id)
+    const dshHome = resolve(options.homeRoot, safePathSegment(profile.id))
     mkdirSync(dshHome, { recursive: true })
     const patchPath = resolve(dshHome, 'artifact-only.cordis.patch.yml')
     writeFileSync(patchPath, artifactOnlyPatch(profile), { encoding: 'utf8', mode: 0o600 })
@@ -209,4 +209,8 @@ export function requireAgentInvoker(
   const invoker = invokers.get(agentId)
   if (invoker === undefined) throw new Error(`Agent invoker "${agentId}" is not configured`)
   return invoker
+}
+
+function safePathSegment(segment: string): string {
+  return segment.replace(/[:*?"<>|\\]/g, '_')
 }
