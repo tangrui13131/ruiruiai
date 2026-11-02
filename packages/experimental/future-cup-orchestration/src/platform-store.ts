@@ -434,6 +434,12 @@ export interface PlatformStore {
    */
   saveAgentDefinition(record: StoredAgentDefinition): Awaitable<void>
   /**
+   * Delete one custom Agent definition and its versions when unreferenced.
+   * @param definitionId - definition identity.
+   * @returns whether the definition was deleted.
+   */
+  deleteAgentDefinition(definitionId: string): Awaitable<boolean>
+  /**
    * List immutable Agent versions, optionally narrowed to one definition.
    * @param definitionId - optional owning definition.
    */

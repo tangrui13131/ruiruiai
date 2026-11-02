@@ -8,11 +8,15 @@ import { z } from 'zod'
 import {
   agentDiscoveryQuerySchema,
   AgentRegistryError,
+  BUILTIN_AGENT_DEFINITION_IDS,
+  getAgentRoleTemplate,
+  listAgentRoleTemplates,
   ProjectId,
   projectReplayCursorSchema,
   createAgentTeamVersionInputSchema,
   registerAgentDefinitionInputSchema,
   registerAgentVersionInputSchema,
+  updateAgentDefinitionInputSchema,
   TeamRecommenderError,
   applyTeamAdjustment,
   createAgentTeamVersionInputFromRecommendation,
@@ -316,13 +320,20 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     available: profile.available,
   })))
 
+  app.get('/api/v1/agent-role-templates', () => listAgentRoleTemplates())
+
   app.get('/api/v1/agent-definitions', async () => {
     const registry = requireAgentRegistry()
     const definitions = await registry.listDefinitions()
     return await Promise.all(definitions.map(async (definition) => {
-      const versions = await registry.listVersions(definition.id)
+      const [versions, usageCount] = await Promise.all([
+        registry.listVersions(definition.id),
+        registry.definitionUsageCount(definition.id),
+      ])
       return {
         ...definition,
+        builtin: BUILTIN_AGENT_DEFINITION_IDS.has(definition.id),
+        usageCount,
         versions: await Promise.all(versions.map(async version => ({
           ...version,
           status: await registry.getVersionStatus(version.id),
@@ -332,11 +343,42 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
   })
 
   app.post<{ Body: unknown }>('/api/v1/agent-definitions', async (request, reply) => {
-    const input = registerAgentDefinitionInputSchema.parse(request.body)
+    const body = z.object({
+      id: z.string().trim().min(1).max(160).optional(),
+      name: z.string().trim().min(1).max(160),
+      purpose: z.string().trim().min(1).max(4_000),
+      discoveryTags: z.array(z.string().trim().min(1).max(80)).max(64).default([]),
+    }).strict().parse(request.body)
+    const input = registerAgentDefinitionInputSchema.parse({
+      id: body.id ?? `agent-${randomUUID().slice(0, 8)}`,
+      name: body.name,
+      purpose: body.purpose,
+      discoveryTags: body.discoveryTags,
+    })
     return await reply.code(201).send(
       await registryCall(() => requireAgentRegistry().registerDefinition(input)),
     )
   })
+
+  app.patch<{ Params: unknown; Body: unknown }>(
+    '/api/v1/agent-definitions/:definitionId',
+    async (request) => {
+      const { definitionId } = definitionParamsSchema.parse(request.params)
+      const input = updateAgentDefinitionInputSchema.parse(request.body)
+      return await registryCall(
+        () => requireAgentRegistry().updateDefinition(definitionId, input),
+      )
+    },
+  )
+
+  app.delete<{ Params: unknown }>(
+    '/api/v1/agent-definitions/:definitionId',
+    async (request, reply) => {
+      const { definitionId } = definitionParamsSchema.parse(request.params)
+      await registryCall(() => requireAgentRegistry().deleteDefinition(definitionId))
+      return await reply.send({ deleted: true })
+    },
+  )
 
   app.post<{ Body: unknown }>('/api/v1/agent-definitions/discover', async (request) => {
     const query = agentDiscoveryQuerySchema.parse(request.body)
@@ -347,10 +389,34 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     '/api/v1/agent-definitions/:definitionId/versions',
     async (request, reply) => {
       const { definitionId } = definitionParamsSchema.parse(request.params)
-      const input = registerAgentVersionInputSchema.parse(request.body)
-      return await reply.code(201).send(
-        await registryCall(() => requireAgentRegistry().registerVersion(definitionId, input)),
-      )
+      const rawBody = z.looseObject({
+        role: registerAgentVersionInputSchema.shape.role,
+        autoPublish: z.boolean().optional(),
+      }).parse(request.body)
+      const template = getAgentRoleTemplate(rawBody.role)
+      const { autoPublish, ...restBody } = rawBody
+      const input = registerAgentVersionInputSchema.parse({
+        version: '1.0.0',
+        model: template.defaultModel,
+        prompt: template.defaultPrompt,
+        promptVersion: template.defaultPromptVersion,
+        capabilities: template.defaultCapabilities,
+        toolAllowlist: template.defaultToolAllowlist,
+        memoryPolicy: template.defaultMemoryPolicy,
+        maxConcurrency: template.defaultMaxConcurrency,
+        inputSchema: template.inputSchema,
+        outputSchema: template.outputSchema,
+        ...restBody,
+      })
+      const registry = requireAgentRegistry()
+      const version = await registryCall(() => registry.registerVersion(definitionId, input))
+      if (autoPublish === true) {
+        await registryCall(async () => {
+          await registry.validateVersion(definitionId, version.id)
+          await registry.publishVersion(definitionId, version.id)
+        })
+      }
+      return await reply.code(201).send(version)
     },
   )
 
@@ -1010,6 +1076,8 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           || error.code === 'DUPLICATE_VERSION_NUMBER'
           || error.code === 'DUPLICATE_TEAM_VERSION'
           || error.code === 'DUPLICATE_TEAM_NAME'
+          || error.code === 'BUILTIN_DEFINITION_PROTECTED'
+          || error.code === 'DEFINITION_IN_USE'
           || error.code === 'TEAM_ARCHIVED'
           || error.code === 'TEAM_IN_USE'
           || error.code === 'TEAM_VERSION_NOT_DRAFT'

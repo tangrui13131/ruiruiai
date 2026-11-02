@@ -479,6 +479,8 @@ export type AgentRegistryErrorCode =
   | 'DUPLICATE_DEFINITION'
   | 'DEFINITION_NOT_FOUND'
   | 'DEFINITION_IMMUTABLE'
+  | 'BUILTIN_DEFINITION_PROTECTED'
+  | 'DEFINITION_IN_USE'
   | 'INVALID_TRANSITION'
   | 'DUPLICATE_VERSION'
   | 'DUPLICATE_VERSION_NUMBER'
@@ -1433,6 +1435,57 @@ export class AgentRegistry {
       }
     }
     return deprecated
+  }
+
+  /**
+   * Count how many team versions or project bindings reference any version of one definition.
+   * @param definitionId - logical Agent to inspect.
+   * @returns number of distinct team versions and project bindings referencing the definition.
+   */
+  definitionUsageCount(definitionId: string): number {
+    const definition = this.requireDefinition(definitionId)
+    let count = 0
+    for (const teamVersion of this.teamVersions.values()) {
+      if (teamVersion.members.some(member => member.definition.id === definition.id)) {
+        count += 1
+      }
+    }
+    for (const binding of this.projectBindings.values()) {
+      if (binding.members.some(member => member.definition.id === definition.id)) {
+        count += 1
+      }
+    }
+    return count
+  }
+
+  /**
+   * Delete one custom Agent definition and its versions when not referenced by any team or project.
+   * @param definitionId - logical Agent to delete.
+   * @param builtinIds - protected built-in Agent definition ids.
+   */
+  deleteDefinition(definitionId: string, builtinIds: ReadonlySet<string> = new Set()): void {
+    const definition = this.requireDefinition(definitionId)
+    if (builtinIds.has(definition.id)) {
+      throw new AgentRegistryError(
+        `Built-in Agent definition "${definition.id}" cannot be deleted`,
+        'BUILTIN_DEFINITION_PROTECTED',
+        definition.id,
+      )
+    }
+    if (this.definitionUsageCount(definition.id) > 0) {
+      throw new AgentRegistryError(
+        `Agent definition "${definition.id}" is referenced by a team or project`,
+        'DEFINITION_IN_USE',
+        definition.id,
+      )
+    }
+    const versions = this.versionsByDefinition.get(definition.id)
+    for (const versionId of versions?.keys() ?? []) {
+      this.versions.delete(versionId)
+      this.versionStatuses.delete(versionId)
+    }
+    this.versionsByDefinition.delete(definition.id)
+    this.definitions.delete(definition.id)
   }
 
   /**

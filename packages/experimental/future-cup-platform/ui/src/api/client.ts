@@ -2,6 +2,8 @@ import {
   agentTeamPageSchema,
   agentTeamSchema,
   agentDefinitionViewSchema,
+  agentRoleTemplateSchema,
+  agentVersionViewSchema,
   createAgentTeamRequestSchema,
   createTeamDraftRequestSchema,
   deleteResponseSchema,
@@ -27,6 +29,8 @@ import type {
   AgentTeamView,
   AgentTeamVersionView,
   AgentDefinitionView,
+  AgentRoleTemplateView,
+  AgentVersionView,
   AgentView,
   DeliveryView,
   ProjectRunView,
@@ -158,6 +162,106 @@ export const api = {
 
   async listAgentDefinitions(): Promise<AgentDefinitionView[]> {
     return agentDefinitionViewSchema.array().parse(await request('/api/v1/agent-definitions'))
+  },
+
+  async listAgentRoleTemplates(): Promise<AgentRoleTemplateView[]> {
+    return agentRoleTemplateSchema.array().parse(await request('/api/v1/agent-role-templates'))
+  },
+
+  async createAgentDefinition(input: {
+    readonly id?: string
+    readonly name: string
+    readonly purpose: string
+    readonly discoveryTags?: readonly string[]
+  }): Promise<AgentDefinitionView> {
+    return agentDefinitionViewSchema.parse(await request('/api/v1/agent-definitions', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }))
+  },
+
+  async updateAgentDefinition(
+    definitionId: string,
+    input: {
+      readonly name?: string
+      readonly purpose?: string
+      readonly discoveryTags?: readonly string[]
+    },
+  ): Promise<AgentDefinitionView> {
+    return agentDefinitionViewSchema.parse(await request(
+      `/api/v1/agent-definitions/${encodeURIComponent(definitionId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      },
+    ))
+  },
+
+  async deleteAgentDefinition(definitionId: string): Promise<boolean> {
+    const value = deleteResponseSchema.parse(await request(
+      `/api/v1/agent-definitions/${encodeURIComponent(definitionId)}`,
+      { method: 'DELETE' },
+    ))
+    return value.deleted
+  },
+
+  async createAgentVersion(
+    definitionId: string,
+    input: {
+      readonly version: string
+      readonly role: string
+      readonly model: string
+      readonly prompt: string
+      readonly promptVersion?: string
+      readonly capabilities: Readonly<Record<string, number>>
+      readonly toolAllowlist?: readonly string[]
+      readonly memoryPolicy?: {
+        readonly access: 'NONE' | 'READ' | 'WRITE'
+        readonly kinds: readonly (
+          | 'requirement'
+          | 'design-decision'
+          | 'failure-signature'
+          | 'accepted-artifact-summary'
+        )[]
+      }
+      readonly maxConcurrency?: number
+      readonly autoPublish?: boolean
+    },
+  ): Promise<AgentVersionView> {
+    return agentVersionViewSchema.parse(await request(
+      `/api/v1/agent-definitions/${encodeURIComponent(definitionId)}/versions`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    ))
+  },
+
+  async validateAgentVersion(
+    definitionId: string,
+    versionId: string,
+  ): Promise<AgentDefinitionView> {
+    return agentDefinitionViewSchema.parse(await request(
+      `/api/v1/agent-definitions/${encodeURIComponent(definitionId)}/versions/${encodeURIComponent(versionId)}/validate`,
+      { method: 'POST', body: '{}' },
+    ))
+  },
+
+  async publishAgentVersion(
+    definitionId: string,
+    versionId: string,
+  ): Promise<AgentDefinitionView> {
+    return agentDefinitionViewSchema.parse(await request(
+      `/api/v1/agent-definitions/${encodeURIComponent(definitionId)}/versions/${encodeURIComponent(versionId)}/publish`,
+      { method: 'POST', body: '{}' },
+    ))
+  },
+
+  async deprecateAgentDefinition(definitionId: string): Promise<AgentDefinitionView> {
+    return agentDefinitionViewSchema.parse(await request(
+      `/api/v1/agent-definitions/${encodeURIComponent(definitionId)}/deprecate`,
+      { method: 'POST', body: '{}' },
+    ))
   },
 
   async listProjectAgents(projectId: string): Promise<AgentView[]> {

@@ -19,7 +19,11 @@ import {
   type RegisterAgentVersionInput,
   type UpdateAgentDefinitionInput,
 } from './agent-registry.ts'
-import { DEFAULT_AGENT_TEAM_ID, createDefaultAgentTeam } from './default-agent-team.ts'
+import {
+  BUILTIN_AGENT_DEFINITION_IDS,
+  DEFAULT_AGENT_TEAM_ID,
+  createDefaultAgentTeam,
+} from './default-agent-team.ts'
 import { checksumJson } from './content-checksum.ts'
 import type {
   PlatformStore,
@@ -173,6 +177,32 @@ export class PersistentAgentRegistry {
     await this.persistDefinition(definition)
     await Promise.all(versions.map(version => this.persistVersion(version)))
     return definition
+  }
+
+  /**
+   * Count how many team versions or project bindings reference one logical Agent.
+   * @param definitionId - logical Agent.
+   * @returns number of team versions and project bindings referencing the definition.
+   */
+  async definitionUsageCount(definitionId: string): Promise<number> {
+    await this.initialize()
+    return this.registry.definitionUsageCount(definitionId)
+  }
+
+  /**
+   * Delete one custom Agent definition and its versions when unreferenced.
+   * @param definitionId - logical Agent.
+   */
+  async deleteDefinition(definitionId: string): Promise<void> {
+    await this.initialize()
+    this.registry.deleteDefinition(definitionId, BUILTIN_AGENT_DEFINITION_IDS)
+    const deleted = await this.store.deleteAgentDefinition(definitionId)
+    if (!deleted) {
+      throw new AgentRegistryError(
+        `Agent definition "${definitionId}" is referenced by a team or project`,
+        'DEFINITION_IN_USE',
+      )
+    }
   }
 
   /**

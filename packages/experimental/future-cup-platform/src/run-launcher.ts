@@ -217,6 +217,10 @@ class FencedOrchestrationStore implements OrchestrationStore {
     await this.base.saveAgentDefinition(record)
   }
 
+  async deleteAgentDefinition(definitionId: string): Promise<boolean> {
+    return await this.base.deleteAgentDefinition(definitionId)
+  }
+
   async listAgentVersions(definitionId?: string): Promise<StoredAgentVersion[]> {
     return await this.base.listAgentVersions(definitionId)
   }

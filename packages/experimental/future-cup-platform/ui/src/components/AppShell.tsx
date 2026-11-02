@@ -6,6 +6,7 @@ import {
   FundProjectionScreenOutlined,
   MenuOutlined,
   ProjectOutlined,
+  RobotOutlined,
   RocketOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
@@ -43,6 +44,11 @@ function useNavigation(projectId?: string): MenuProps['items'] {
         key: 'projects',
         icon: <ProjectOutlined />,
         label: <Link to="/">{dictionary.nav.projects}</Link>,
+      },
+      {
+        key: 'agents',
+        icon: <RobotOutlined />,
+        label: <Link to="/agents">{dictionary.nav.agents}</Link>,
       },
       {
         key: 'teams',
@@ -156,7 +162,9 @@ export function AppShell({
   const activeKey = projectId === undefined
     ? location.pathname === '/team-builder'
       ? 'team-builder'
-      : location.pathname === '/teams' ? 'teams' : 'projects'
+      : location.pathname === '/agents'
+        ? 'agents'
+        : location.pathname === '/teams' ? 'teams' : 'projects'
     : selectedKey(location.pathname)
   const menu = (
     <Menu

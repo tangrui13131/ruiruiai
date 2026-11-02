@@ -1623,6 +1623,27 @@ export class OrchestrationRepository implements OrchestrationStore {
     })
   }
 
+  /** {@inheritDoc PlatformStore.deleteAgentDefinition} */
+  deleteAgentDefinition(definitionId: string): boolean {
+    return this.transaction(() => {
+      const referenced = this.database.prepare(`
+        SELECT 1
+        FROM agent_team_members m
+        JOIN agent_definition_versions v ON v.id = m.agent_definition_version_id
+        WHERE v.agent_definition_id = ?
+        LIMIT 1
+      `).get(definitionId)
+      if (referenced !== undefined) return false
+      this.database.prepare(`
+        DELETE FROM agent_definition_versions WHERE agent_definition_id = ?
+      `).run(definitionId)
+      const result = this.database.prepare(`
+        DELETE FROM agent_definitions WHERE id = ?
+      `).run(definitionId)
+      return result.changes > 0
+    })
+  }
+
   /** {@inheritDoc PlatformStore.listAgentVersions} */
   listAgentVersions(definitionId?: string): StoredAgentVersion[] {
     const statement = definitionId === undefined

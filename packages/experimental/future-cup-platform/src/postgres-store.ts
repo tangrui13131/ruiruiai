@@ -570,6 +570,30 @@ export class PostgresPlatformStore implements OrchestrationStore {
     })
   }
 
+  /** {@inheritDoc PlatformStore.deleteAgentDefinition} */
+  async deleteAgentDefinition(definitionId: string): Promise<boolean> {
+    return await this.prisma.$transaction(async (tx) => {
+      const versions = await tx.agentDefinitionVersion.findMany({
+        where: { agentDefinitionId: definitionId },
+        select: { id: true },
+      })
+      const versionIds = versions.map(version => version.id)
+      if (versionIds.length > 0) {
+        const referenced = await tx.agentTeamMember.count({
+          where: { agentDefinitionVersionId: { in: versionIds } },
+        })
+        if (referenced > 0) return false
+        await tx.agentDefinitionVersion.deleteMany({
+          where: { agentDefinitionId: definitionId },
+        })
+      }
+      const deleted = await tx.agentDefinition.deleteMany({
+        where: { id: definitionId },
+      })
+      return deleted.count > 0
+    }, M5_TRANSACTION_OPTIONS)
+  }
+
   /** {@inheritDoc PlatformStore.listAgentVersions} */
   async listAgentVersions(definitionId?: string): Promise<StoredAgentVersion[]> {
     const rows = await this.prisma.agentDefinitionVersion.findMany({

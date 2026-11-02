@@ -803,4 +803,85 @@ describe('Future Cup platform server', () => {
     await expect(event<{ code: string }>(socket, 'sync.error'))
       .resolves.toMatchObject({ code: 'INVALID_CURSOR' })
   })
+
+  it('supports custom Agent role templates, auto-published versions, metadata updates, and safe deletion', async () => {
+    const { baseUrl } = await startServer(undefined, true)
+
+    const templatesRes = await fetch(`${baseUrl}/api/v1/agent-role-templates`)
+    expect(templatesRes.status).toBe(200)
+    const templates = z.array(z.looseObject({ role: z.string() })).parse(await templatesRes.json())
+    expect(templates.length).toBe(7)
+
+    // Built-in definitions cannot be deleted
+    const deleteBuiltinRes = await fetch(`${baseUrl}/api/v1/agent-definitions/frontend`, {
+      method: 'DELETE',
+    })
+    expect(deleteBuiltinRes.status).toBe(409)
+    expect(await deleteBuiltinRes.json()).toMatchObject({ code: 'BUILTIN_DEFINITION_PROTECTED' })
+
+    // Create a custom Agent definition without explicit id
+    const createDefRes = await fetch(`${baseUrl}/api/v1/agent-definitions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Custom Chart Frontend',
+        purpose: 'Build data visualization pages',
+        discoveryTags: ['frontend', 'chart'],
+      }),
+    })
+    expect(createDefRes.status).toBe(201)
+    const createdDef = z.looseObject({ id: z.string(), status: z.string() }).parse(await createDefRes.json())
+    expect(createdDef.status).toBe('DRAFT')
+
+    // Update metadata while still mutable
+    const patchRes = await fetch(`${baseUrl}/api/v1/agent-definitions/${encodeURIComponent(createdDef.id)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Custom Chart Frontend Pro' }),
+    })
+    expect(patchRes.status).toBe(200)
+    expect(await patchRes.json()).toMatchObject({ name: 'Custom Chart Frontend Pro' })
+
+    // Create a version using role template defaults + autoPublish
+    const createVerRes = await fetch(
+      `${baseUrl}/api/v1/agent-definitions/${encodeURIComponent(createdDef.id)}/versions`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          version: '1.0.0',
+          role: 'frontend',
+          model: 'deepseek-flash',
+          prompt: 'Implement chart pages with strict responsive layout.',
+          capabilities: { frontend: 1 },
+          autoPublish: true,
+        }),
+      },
+    )
+    expect(createVerRes.status).toBe(201)
+
+    // Verify definition is now PUBLISHED and discoverable
+    const listRes = await fetch(`${baseUrl}/api/v1/agent-definitions`)
+    const list = z.array(z.looseObject({
+      id: z.string(),
+      status: z.string(),
+      builtin: z.boolean(),
+      usageCount: z.number(),
+    })).parse(await listRes.json())
+    const found = list.find(item => item.id === createdDef.id)
+    expect(found).toMatchObject({
+      id: createdDef.id,
+      status: 'PUBLISHED',
+      builtin: false,
+      usageCount: 0,
+    })
+
+    // Delete unreferenced custom Agent definition
+    const deleteCustomRes = await fetch(
+      `${baseUrl}/api/v1/agent-definitions/${encodeURIComponent(createdDef.id)}`,
+      { method: 'DELETE' },
+    )
+    expect(deleteCustomRes.status).toBe(200)
+    expect(await deleteCustomRes.json()).toEqual({ deleted: true })
+  })
 })

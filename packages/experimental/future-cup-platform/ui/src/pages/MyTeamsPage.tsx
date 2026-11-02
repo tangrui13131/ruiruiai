@@ -404,13 +404,18 @@ export function MyTeamsPage() {
         title={dictionary.myTeams.title}
         description={dictionary.myTeams.description}
         actions={(
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => { setCreateOpen(true) }}
-          >
-            {dictionary.myTeams.create}
-          </Button>
+          <Space>
+            <Button onClick={() => { navigate('/agents') }}>
+              {dictionary.nav.agents}
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => { setCreateOpen(true) }}
+            >
+              {dictionary.myTeams.create}
+            </Button>
+          </Space>
         )}
       />
       {error === undefined ? null : (
@@ -712,6 +717,16 @@ export function MyTeamsPage() {
           <div className="my-team-editor-heading">
             <span>{dictionary.myTeams.members} ({members.length}/7)</span>
             <Space size={4}>
+              <Button
+                size="small"
+                type="link"
+                onClick={() => {
+                  setEditorOpen(false)
+                  navigate('/agents')
+                }}
+              >
+                {dictionary.agents.create}
+              </Button>
               {publishedAgents.length >= STARTER_ROLE_LAYOUT.length && members.length < 7 ? (
                 <Button size="small" onClick={fillStarterTeam}>
                   {dictionary.myTeams.fillStarterTeam}

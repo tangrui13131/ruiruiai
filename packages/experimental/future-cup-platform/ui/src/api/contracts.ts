@@ -129,22 +129,56 @@ export const agentSchema = z.looseObject({
   position: z.number().int().positive().optional(),
 })
 
-/** Registry definition and its immutable versions exposed for custom Team editing. */
+export const agentMemoryPolicySchema = z.looseObject({
+  access: z.enum(['NONE', 'READ', 'WRITE']),
+  kinds: z.array(z.enum([
+    'requirement',
+    'design-decision',
+    'failure-signature',
+    'accepted-artifact-summary',
+  ])),
+})
+
+export const agentVersionViewSchema = z.looseObject({
+  id: z.string(),
+  definitionId: z.string().optional(),
+  version: z.string(),
+  role: z.string(),
+  model: z.string(),
+  prompt: z.string().optional(),
+  promptVersion: z.string().optional(),
+  capabilities: z.record(z.string(), z.number()),
+  toolAllowlist: z.array(z.string()),
+  memoryPolicy: agentMemoryPolicySchema.optional(),
+  maxConcurrency: z.number().optional(),
+  status: z.string().default('DRAFT'),
+})
+
+/** Registry definition and its immutable versions exposed for custom Team and Agent editing. */
 export const agentDefinitionViewSchema = z.looseObject({
   id: z.string(),
   name: z.string(),
   purpose: z.string(),
   discoveryTags: z.array(z.string()),
   status: z.string(),
-  versions: z.array(z.looseObject({
-    id: z.string(),
-    version: z.string(),
-    role: z.string(),
-    model: z.string(),
-    capabilities: z.record(z.string(), z.number()),
-    toolAllowlist: z.array(z.string()),
-    status: z.string(),
-  })),
+  builtin: z.boolean().optional(),
+  usageCount: z.number().optional(),
+  versions: z.array(agentVersionViewSchema).default([]),
+})
+
+/** Canonical role template returned by the platform API for custom Agent creation. */
+export const agentRoleTemplateSchema = z.looseObject({
+  role: z.string(),
+  defaultName: z.string(),
+  defaultPurpose: z.string(),
+  defaultTags: z.array(z.string()),
+  defaultModel: z.string(),
+  defaultPrompt: z.string(),
+  defaultPromptVersion: z.string(),
+  defaultCapabilities: z.record(z.string(), z.number()),
+  defaultToolAllowlist: z.array(z.string()),
+  defaultMemoryPolicy: agentMemoryPolicySchema,
+  defaultMaxConcurrency: z.number(),
 })
 
 export const schedulerScoreTermsSchema = z.looseObject({
@@ -403,7 +437,9 @@ export type TaskView = z.infer<typeof taskSchema>
 export type TaskStatus = z.infer<typeof taskStatusSchema>
 export type ProjectView = z.infer<typeof projectSchema>
 export type AgentView = z.infer<typeof agentSchema>
+export type AgentVersionView = z.infer<typeof agentVersionViewSchema>
 export type AgentDefinitionView = z.infer<typeof agentDefinitionViewSchema>
+export type AgentRoleTemplateView = z.infer<typeof agentRoleTemplateSchema>
 export type SchedulerDecisionView = z.infer<typeof schedulerDecisionSchema>
 export type ExecutionView = z.infer<typeof executionSchema>
 export type VerificationStatus = z.infer<typeof verificationStatusSchema>

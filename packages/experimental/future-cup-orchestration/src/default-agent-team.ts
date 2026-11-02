@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import {
   AgentRegistry,
+  AGENT_REGISTRY_ROLES,
   JSON_SCHEMA_DIALECT,
   type AgentMemoryPolicy,
   type AgentRegistryRole,
@@ -97,6 +98,73 @@ const DEFINITIONS = {
   readonly purpose: string
   readonly discoveryTags: readonly string[]
 }>>
+
+/** Built-in system Agent definition identities protected from deletion. */
+export const BUILTIN_AGENT_DEFINITION_IDS: ReadonlySet<string> = new Set(
+  Object.values(DEFINITIONS).map(definition => definition.id),
+)
+
+/** Role-aligned template used when creating or customizing an Agent version. */
+export interface AgentRoleTemplate {
+  /** Controlled Agent role. */
+  readonly role: AgentRegistryRole
+  /** Default human-readable role title. */
+  readonly defaultName: string
+  /** Default plain-language responsibility. */
+  readonly defaultPurpose: string
+  /** Default discovery tags. */
+  readonly defaultTags: readonly string[]
+  /** Default model route. */
+  readonly defaultModel: string
+  /** Default system prompt instructions. */
+  readonly defaultPrompt: string
+  /** Default prompt version identifier. */
+  readonly defaultPromptVersion: string
+  /** Default capability weights. */
+  readonly defaultCapabilities: Readonly<Record<string, number>>
+  /** Default tool allowlist. */
+  readonly defaultToolAllowlist: readonly string[]
+  /** Default project-memory permissions. */
+  readonly defaultMemoryPolicy: AgentMemoryPolicy
+  /** Default max concurrent runs per instance. */
+  readonly defaultMaxConcurrency: number
+  /** Canonical input JSON Schema descriptor for this role. */
+  readonly inputSchema: JsonSchemaDescriptor
+  /** Canonical output JSON Schema descriptor for this role. */
+  readonly outputSchema: JsonSchemaDescriptor
+}
+
+/**
+ * Return the canonical role template for a controlled Agent role.
+ * @param role - controlled Agent role.
+ * @returns role defaults and canonical input/output schemas.
+ */
+export function getAgentRoleTemplate(role: AgentRegistryRole): AgentRoleTemplate {
+  const definition = DEFINITIONS[role]
+  return {
+    role,
+    defaultName: definition.name,
+    defaultPurpose: definition.purpose,
+    defaultTags: definition.discoveryTags,
+    defaultModel: MODEL,
+    defaultPrompt: PROMPTS[role],
+    defaultPromptVersion: 'm5.1-v1',
+    defaultCapabilities: { [capability(role)]: 1 },
+    defaultToolAllowlist: ['fs-read'],
+    defaultMemoryPolicy: MEMORY[role],
+    defaultMaxConcurrency: 1,
+    inputSchema: commonInputSchema,
+    outputSchema: OUTPUT_SCHEMAS[role],
+  }
+}
+
+/**
+ * List canonical role templates for all controlled Future Cup Agent roles.
+ * @returns frozen role templates in controlled role order.
+ */
+export function listAgentRoleTemplates(): readonly AgentRoleTemplate[] {
+  return Object.freeze(AGENT_REGISTRY_ROLES.map(role => getAgentRoleTemplate(role)))
+}
 
 /**
  * Create or repair the fixed seven-definition team in a registry.
