@@ -45,15 +45,15 @@ export function buildDagGraph(tasks: readonly TaskView[]): DagGraph {
       .map((task, index): Node<TaskNodeData> => ({
         id: task.id,
         type: 'task',
-        position: { x: index * 250, y: depth * 160 },
+        position: { x: (index - (group.length - 1) / 2) * 260, y: depth * 160 },
         data: { task, label: task.title, status: task.status },
       })))
   const edges = tasks.flatMap(task => task.dependencies.map((dependency): Edge => ({
     id: `${dependency}->${task.id}`,
     source: dependency,
     target: task.id,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    style: { stroke: '#7a8d84', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#0f766e' },
+    style: { stroke: '#0f766e', strokeWidth: 2 },
   })))
   return { nodes, edges }
 }

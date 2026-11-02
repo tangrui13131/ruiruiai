@@ -52,19 +52,22 @@ function ControlCanvas({
         </Space>
       </div>
       <div className="dag-frame">
-        <ReactFlow
-          nodes={graph.nodes}
-          edges={graph.edges}
-          fitView
-          minZoom={0.3}
-          maxZoom={1.4}
-          nodesDraggable={false}
-          nodesConnectable={false}
-        >
-          <Background color="#cbd7d1" gap={22} size={1} />
-          <MiniMap pannable zoomable />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+        <ReactFlowProvider>
+          <ReactFlow
+            id="workflow-control-dag"
+            nodes={graph.nodes}
+            edges={graph.edges}
+            fitView
+            minZoom={0.3}
+            maxZoom={1.4}
+            nodesDraggable={false}
+            nodesConnectable={false}
+          >
+            <Background color="#cbd7d1" gap={22} size={1} />
+            <MiniMap pannable zoomable />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </ReactFlowProvider>
       </div>
       <div className="agent-metric-label" style={{ marginTop: 16 }}>
         {dictionary.dag.controlEvents}
@@ -95,6 +98,7 @@ function DagCanvas({ tasks }: { readonly tasks: readonly TaskView[] }) {
     <>
       <div className="dag-frame">
         <ReactFlow
+          id="task-dag"
           nodes={nodes}
           edges={graph.edges}
           nodeTypes={nodeTypes}
@@ -170,10 +174,10 @@ export function DagPage() {
       <PageHeading title={dictionary.dag.title} description={dictionary.dag.description} />
       <ReactFlowProvider>
         <DagCanvas tasks={snapshot.tasks} />
-        {controlState === undefined
-          ? <EmptyPanel text={dictionary.dag.workflowEmpty} />
-          : <ControlCanvas state={controlState} events={controlEvents} />}
       </ReactFlowProvider>
+      {controlState === undefined
+        ? <EmptyPanel text={dictionary.dag.workflowEmpty} />
+        : <ControlCanvas state={controlState} events={controlEvents} />}
     </div>
   )
 }
