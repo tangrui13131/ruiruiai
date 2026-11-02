@@ -16,8 +16,8 @@
     "apps/*"
   ],
   "scripts": {
-    "start": "node --import tsx/esm apps/cli/src/bin.ts web",
-    "start:platform": "node --import tsx/esm apps/cli/src/bin.ts web",
+    "start": "node --env-file-if-exists=.env --import tsx/esm apps/cli/src/bin.ts web",
+    "start:platform": "node --env-file-if-exists=.env --import tsx/esm apps/cli/src/bin.ts web",
     "platform": "node --import tsx/esm apps/cli/src/bin.ts web",
     "prepare:primary-runtime": "tsx scripts/primary-runtime/prepare.ts",
     "build": "tsx scripts/build.ts",
