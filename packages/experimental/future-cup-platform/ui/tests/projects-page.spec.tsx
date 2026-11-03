@@ -71,4 +71,36 @@ describe('ProjectsPage', () => {
       expect(deleteProject).toHaveBeenCalledWith('project-done')
     })
   })
+
+  it('does not report a cancelled run when the server has no active run', async () => {
+    vi.spyOn(api, 'listProjects').mockResolvedValue([{
+      id: 'project-orphaned',
+      name: 'Agent 团队测试',
+      requirement: '生成精美前端',
+      createdAt: '2026-11-03T10:00:00.000Z',
+      lastEventSeq: 3,
+      latestRunStatus: 'RUNNING',
+    }])
+    const cancelRun = vi.spyOn(api, 'cancelRun').mockResolvedValue(false)
+    render(
+      <LocaleProvider>
+        <ConfigProvider locale={zhCN}>
+          <AntApp>
+            <MemoryRouter>
+              <Routes>
+                <Route path="/" element={<ProjectsPage />} />
+              </Routes>
+            </MemoryRouter>
+          </AntApp>
+        </ConfigProvider>
+      </LocaleProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '取消运行' }))
+
+    await waitFor(() => {
+      expect(cancelRun).toHaveBeenCalledWith('project-orphaned')
+    })
+    expect(await screen.findByText('项目取消失败')).toBeTruthy()
+    expect(screen.queryByText('运行已取消')).toBeNull()
+  })
 })

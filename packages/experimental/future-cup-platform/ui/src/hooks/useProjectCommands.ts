@@ -26,7 +26,12 @@ export function useProjectCommands(projectId: string, onChanged: () => void | Pr
   async function cancel(): Promise<void> {
     setPending('cancel')
     try {
-      await api.cancelRun(projectId)
+      const cancelled = await api.cancelRun(projectId)
+      if (!cancelled) {
+        message.error(dictionary.errors.cancelProject)
+        await onChanged()
+        return
+      }
       message.success(dictionary.projects.cancelled)
       await onChanged()
     } catch (error: unknown) {

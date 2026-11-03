@@ -868,18 +868,20 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     const issue = this.settlementFailures.get(projectId)
     if (issue !== undefined) throw new ProjectRunSettlementPendingError([issue])
     const active = this.active.get(projectId)
-    if (active === undefined) return false
-    active.cancelled = true
-    const teamClosed = await waitFor(active.team.close().catch((error: unknown) => {
-      this.options.onError?.(error)
-    }), this.options.settlementWaitMs)
-    if (!teamClosed) throw new ProjectRunSettlementTimeoutError([projectId])
-    const settled = await waitFor(active.job, this.options.settlementWaitMs)
-    if (!settled) throw new ProjectRunSettlementTimeoutError([projectId])
-    if (active.settlementIssue !== undefined) {
-      throw new ProjectRunSettlementPendingError([active.settlementIssue])
+    if (active !== undefined) {
+      active.cancelled = true
+      const teamClosed = await waitFor(active.team.close().catch((error: unknown) => {
+        this.options.onError?.(error)
+      }), this.options.settlementWaitMs)
+      if (!teamClosed) throw new ProjectRunSettlementTimeoutError([projectId])
+      const settled = await waitFor(active.job, this.options.settlementWaitMs)
+      if (!settled) throw new ProjectRunSettlementTimeoutError([projectId])
+      if (active.settlementIssue !== undefined) {
+        throw new ProjectRunSettlementPendingError([active.settlementIssue])
+      }
+      return true
     }
-    return true
+    return await this.cancelOrphanedRun(projectId)
   }
 
   /** Cancel every active run and await their process cleanup. */
@@ -1193,6 +1195,54 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       undefined,
       failure,
     )
+  }
+
+  private async cancelOrphanedRun(projectId: string): Promise<boolean> {
+    const interrupted = (await this.options.store.listProjectRuns(projectId))
+      .find(run => run.status === 'RUNNING')
+    if (interrupted === undefined) return false
+
+    const ownerId = `future-cup-cancel-${randomUUID()}`
+    const resourceId = `workflow:${projectId}`
+    const lease = await this.options.store.acquireWorkflowLease(
+      resourceId,
+      projectId,
+      ownerId,
+      this.options.leaseDurationMs,
+    )
+    if (!lease.acquired || lease.fencingToken === undefined) {
+      throw new ProjectRunSettlementPendingError([{
+        projectId,
+        runId: interrupted.id,
+        code: 'PROJECT_RUN_CANCEL_CONFLICT',
+        message: 'Another worker still owns the active workflow lease',
+        retryable: true,
+        occurredAt: new Date().toISOString(),
+      }])
+    }
+    const write: WorkflowWriteContext = {
+      resourceId,
+      ownerId,
+      fencingToken: lease.fencingToken,
+    }
+    try {
+      const store = new FencedOrchestrationStore(this.options.store, write)
+      const dag = await DagEngine.resume(store, ProjectId(projectId))
+      for (const task of dag.listTasks().filter(task =>
+        task.status !== 'COMPLETED'
+        && task.status !== 'FAILED'
+        && task.status !== 'CANCELLED')) {
+        await dag.cancelTask(task.id)
+      }
+      for (const execution of (await store.listExecutions(projectId))
+        .filter(execution => execution.status === 'RUNNING')) {
+        await store.finishExecution(execution.id, 'CANCELLED')
+      }
+      await store.finishProjectRun(interrupted.id, 'CANCELLED')
+      return true
+    } finally {
+      await this.releaseLease(write)
+    }
   }
 
   private throwIfClosed(): void {

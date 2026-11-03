@@ -420,6 +420,52 @@ describe('FutureCupRunLauncher', () => {
     }
   })
 
+  it('cancels an orphaned RUNNING project after acquiring its expired lease', async () => {
+    const { root, repository, project } = setupProject()
+    const stale = repository.createProjectRun(
+      project.id,
+      'dead-process',
+      1n,
+      join(root, 'stale-workspace'),
+    )
+    const executionId = repository.startExecution(
+      project.id,
+      TaskId('planner'),
+      AgentId('planner'),
+    )
+    repository.acquireWorkflowLease(
+      `workflow:${project.id}`,
+      project.id,
+      'dead-process',
+      1,
+    )
+    await new Promise(resolve => setTimeout(resolve, 10))
+    const launcher = new FutureCupRunLauncher({
+      store: repository,
+      workspaceRoot: join(root, 'runs'),
+      agentHomeRoot: join(root, 'homes'),
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 0, repairTimeoutMs: 1_000 },
+      leaseDurationMs: 1_000,
+      heartbeatIntervalMs: 100,
+      settlementRetryMs: 10,
+      settlementWaitMs: 1_000,
+    })
+    try {
+      expect(await launcher.cancel(project.id)).toBe(true)
+      expect(repository.getProjectRun(stale.id)?.status).toBe('CANCELLED')
+      expect(repository.listExecutions(project.id)).toEqual([
+        expect.objectContaining({ id: executionId, status: 'CANCELLED' }),
+      ])
+      expect(repository.getWorkflowLease(`workflow:${project.id}`))
+        .toMatchObject({ ownerId: undefined })
+      expect(repository.listProductEvents(project.id, 0, 10).at(-1)?.type)
+        .toBe('run.cancelled')
+    } finally {
+      await launcher.close()
+    }
+  })
+
   it('renews the startup lease while interrupted-run recovery exceeds the lease duration', async () => {
     const { root, repository, project } = setupProject()
     const stale = repository.createProjectRun(

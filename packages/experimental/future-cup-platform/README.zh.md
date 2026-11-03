@@ -157,7 +157,7 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 
 智能配队入口只从已发布 Agent 版本和已发布团队模板推荐完整编制，并确定性校验能力覆盖、并发、工具、记忆和输出约定。用户最多回答三个澄清问题，可以用受控自然语言调整，再保存不可变团队版本并冻结到新项目。
 
-工作流租约保存 owner、heartbeat、expiry 与单调 fencing token。租约接管会递增 token，只有当前 owner 与 token 能续期或释放。领域写会在自身事务内校验该 fence。新启动在接管过期租约后会回收遗留 `RUNNING` 行。
+工作流租约保存 owner、heartbeat、expiry 与单调 fencing token。租约接管会递增 token，只有当前 owner 与 token 能续期或释放。领域写会在自身事务内校验该 fence。新启动在接管过期租约后会回收遗留 `RUNNING` 行；没有进程内运行记录的取消请求也会接管过期租约，并把持久任务、执行与运行结算为 `CANCELLED`。
 
 项目级 Agent 状态从 `RUNNING` 执行记录计算实时负载。历史成功率以 `COMPLETED` 为成功，并把 `FAILED` 与 `CANCELLED` 计入执行总数。没有执行记录旧项目会回退到已分配任务和终止状态的修复记录。接口同时返回成功数与终止执行数，管理界面据此区分真实观测值与 Agent 没有历史数据时使用的配置默认值。
 
@@ -187,7 +187,7 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 - **Loopback 传输：** 服务器拒绝非 loopback 主机。带认证的公网部署与 TLS 终止仍属于部署工作。
 - **单一存储生命周期：** 关闭服务器会关闭其拥有的存储。消费者不得在关闭后继续共享该实例。
 - **Outbox 至少一次投递：** Dispatcher 崩溃后，claim 过期会触发重放。客户端必须按 `projectId + seq` 去重。
-- **结算恢复：** 短暂数据库失败期间，工作流租约保持有效并持续重试终态结算。永久失败或有界关闭超时会让持久化运行保留为 `RUNNING`，由下一次启动回收；cancel 与 close 会报告 `PROJECT_RUN_SETTLEMENT_PENDING` 或 `PROJECT_RUN_SETTLEMENT_TIMEOUT`，不能伪装成功。
+- **结算恢复：** 短暂数据库失败期间，工作流租约保持有效并持续重试终态结算。永久失败或有界关闭超时会让持久化运行保留为 `RUNNING`，由下一次启动或取消请求回收。如果其他 worker 仍持有未过期租约，取消会报告 `PROJECT_RUN_SETTLEMENT_PENDING`；没有终态持久记录时不能报告成功。
 - **Ant Design 包较大：** 管理应用当前生成约 1 MB 的 Ant Design chunk。页面已按路由懒加载，组件级拆包仍属于性能工作。
 - **HQ 资产为非商业许可：** HQ 场景继续采用 PolyForm Noncommercial License 1.0.0。每份分发都必须保留许可证与 Required Notice；商业用途需另行取得授权。
 

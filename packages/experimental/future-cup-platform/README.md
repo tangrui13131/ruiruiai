@@ -158,7 +158,7 @@ The novice team-builder entry recommends complete teams only from published Agen
 
 The My Teams entry manages logical Teams independently of the recommendation flow. A Team version contains 1–7 runtime instances; duplicate published Agent versions count as separate members, and each instance owns a stable display name, department, and workstation position. Drafts can be empty, but publishing validates the same capability and policy rules used by recommendation. Project creation freezes the selected version, and the project Agent endpoint projects that frozen roster so the HQ scene displays the same member count and department assignments.
 
-Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease.
+Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease. A cancel request with no in-memory run also takes over an expired lease and settles the durable tasks, executions, and run as `CANCELLED`.
 
 Project-scoped Agent state derives live load from `RUNNING` executions. Historical success uses `COMPLETED` as success and includes `FAILED` and `CANCELLED` in the execution total. Legacy projects without execution rows fall back to their assigned tasks and terminal repair records. The API returns both counts, so the management UI distinguishes observed history from the profile default.
 
@@ -186,7 +186,7 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 - **Loopback transport:** the server rejects non-loopback hosts. Authenticated public deployment and TLS termination remain deployment work.
 - **Single store lifecycle:** closing the server closes its owned store. Consumers must not share that instance after shutdown.
 - **Outbox at-least-once delivery:** a crashed dispatcher can cause replay after its claim expires. Client deduplication by `projectId + seq` is required.
-- **Settlement recovery:** transient database failures keep the workflow lease alive while terminal settlement retries. A permanent failure or bounded shutdown timeout leaves the durable run `RUNNING` for stale-run reconciliation on the next launch; cancel and close report `PROJECT_RUN_SETTLEMENT_PENDING` or `PROJECT_RUN_SETTLEMENT_TIMEOUT` instead of claiming success.
+- **Settlement recovery:** transient database failures keep the workflow lease alive while terminal settlement retries. A permanent failure or bounded shutdown timeout leaves the durable run `RUNNING` for stale-run reconciliation on the next launch or cancel. If another worker still owns an unexpired lease, cancel reports `PROJECT_RUN_SETTLEMENT_PENDING`; it never reports success without a terminal durable run.
 - **Large Ant Design bundle:** the management application currently emits a roughly 1 MB Ant Design chunk. Route-level pages are lazy, but component-level Ant Design splitting remains performance work.
 - **Noncommercial HQ asset:** the HQ scene remains under PolyForm Noncommercial License 1.0.0. Every distribution must retain its license and Required Notice; commercial use requires separate authorization.
 
