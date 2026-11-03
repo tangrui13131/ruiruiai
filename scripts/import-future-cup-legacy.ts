@@ -62,7 +62,11 @@ try {
   target.prepare('ATTACH DATABASE ? AS legacy').run(sourcePath)
   const existingProjects = target.prepare('SELECT COUNT(*) AS count FROM projects').get() as { count: number }
   if (existingProjects.count > 0 && !values.force) {
-    console.log(JSON.stringify({ imported: false, reason: 'target already contains projects', imported }))
+    console.log(JSON.stringify({
+      imported: false,
+      reason: 'target already contains projects',
+      tables: imported,
+    }))
     process.exitCode = 0
   } else {
     target.exec('PRAGMA foreign_keys = OFF')
@@ -89,7 +93,7 @@ try {
     } finally {
       target.exec('PRAGMA foreign_keys = ON')
     }
-    console.log(JSON.stringify({ imported: true, imported }))
+    console.log(JSON.stringify({ imported: true, tables: imported }))
   }
 } finally {
   try {
