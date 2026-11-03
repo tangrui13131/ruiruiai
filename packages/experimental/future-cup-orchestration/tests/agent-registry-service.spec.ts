@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -145,6 +145,72 @@ describe('PersistentAgentRegistry', () => {
         }),
       ])
       expect((await reloaded.archiveTeam(first.id)).status).toBe('ARCHIVED')
+    } finally {
+      repository.close()
+    }
+  })
+
+  it('allocates Team version ordinals after the persisted maximum', async () => {
+    const repository = new OrchestrationRepository(':memory:', { journalMode: 'delete' })
+    try {
+      const registry = new PersistentAgentRegistry(repository)
+      await registry.ensureDefaultTeam()
+      const first = await registry.createTeam({
+        id: 'team-ordinal-a',
+        ownerId: 'user-ordinal',
+        name: 'Ordinal A',
+        purpose: 'Leave an ordinal gap.',
+      })
+      const second = await registry.createTeam({
+        id: 'team-ordinal-b',
+        ownerId: 'user-ordinal',
+        name: 'Ordinal B',
+        purpose: 'Reuse the next Team ordinal.',
+      })
+      const firstDraft = await registry.createTeamVersionDraft(first.id, {
+        version: '1.0.0',
+        members: [],
+      })
+      await registry.createTeamVersionDraft(second.id, {
+        version: '1.0.0',
+        members: [],
+      })
+      expect(repository.deleteAgentTeamVersion(firstDraft.id)).toBe(true)
+
+      const nextDraft = await registry.createTeamVersionDraft(second.id, {
+        version: '1.0.1',
+        members: [],
+      })
+
+      expect(nextDraft.id).toBe(`${second.id}:1.0.1`)
+      const reloaded = new PersistentAgentRegistry(repository)
+      expect((await reloaded.listTeamVersions(second.id)).map(version => version.version))
+        .toEqual(['1.0.0', '1.0.1'])
+    } finally {
+      repository.close()
+    }
+  })
+
+  it('removes an unpersisted Team draft when the store rejects the write', async () => {
+    const repository = new OrchestrationRepository(':memory:', { journalMode: 'delete' })
+    try {
+      const registry = new PersistentAgentRegistry(repository)
+      await registry.ensureDefaultTeam()
+      const team = await registry.createTeam({
+        id: 'team-write-failure',
+        ownerId: 'user-write-failure',
+        name: 'Write failure',
+        purpose: 'Rollback a failed draft write.',
+      })
+      vi.spyOn(repository, 'saveAgentTeamVersion').mockImplementationOnce(() => {
+        throw new Error('simulated Team write failure')
+      })
+
+      await expect(registry.createTeamVersionDraft(team.id, {
+        version: '1.0.0',
+        members: [],
+      })).rejects.toThrow('simulated Team write failure')
+      expect(await registry.listTeamVersions(team.id)).toEqual([])
     } finally {
       repository.close()
     }

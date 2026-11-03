@@ -305,7 +305,12 @@ export class PersistentAgentRegistry {
   ): Promise<AgentTeamVersion> {
     await this.initialize()
     const version = this.registry.createTeamVersionDraft(teamId, input)
-    await this.persistTeam(version)
+    try {
+      await this.persistTeam(version)
+    } catch (error: unknown) {
+      this.registry.deleteTeamVersionDraft(teamId, version.id)
+      throw error
+    }
     return version
   }
 
@@ -317,8 +322,14 @@ export class PersistentAgentRegistry {
    */
   async publishTeamVersion(teamId: string, teamVersionId: string): Promise<AgentTeamVersion> {
     await this.initialize()
+    const draft = this.registry.getTeamVersion(teamVersionId)
     const version = this.registry.publishTeamVersion(teamId, teamVersionId)
-    await this.persistPublishedTeam(version)
+    try {
+      await this.persistPublishedTeam(version)
+    } catch (error: unknown) {
+      this.registry.restoreTeamVersion(draft)
+      throw error
+    }
     return version
   }
 
@@ -534,7 +545,8 @@ export class PersistentAgentRegistry {
     const timestamp = this.timestamp()
     const record: StoredAgentVersion = {
       version,
-      ordinal: existing?.ordinal ?? definitionVersions.length + 1,
+      ordinal: existing?.ordinal
+        ?? Math.max(0, ...definitionVersions.map(value => value.ordinal)) + 1,
       checksum: checksumJson(jsonValueSchema.parse(version)),
       status,
       createdAt: existing?.createdAt ?? timestamp,
@@ -556,7 +568,10 @@ export class PersistentAgentRegistry {
     const timestamp = this.timestamp()
     await this.store.saveAgentTeamVersion({
       teamVersion: team,
-      ordinal: existing?.ordinal ?? teams.length + 1,
+      ordinal: existing?.ordinal
+        ?? Math.max(0, ...teams
+          .filter(record => record.teamVersion.teamId === team.teamId)
+          .map(record => record.ordinal)) + 1,
       checksum: agentTeamVersionChecksum(team),
       status: team.status,
       createdAt: existing?.createdAt ?? timestamp,
