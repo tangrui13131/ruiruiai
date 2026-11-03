@@ -129,23 +129,58 @@ interface AgentExecutionActivity {
   finishedExecutions: number
 }
 
+function activityFor(
+  activities: Map<string, AgentExecutionActivity>,
+  agentId: string,
+): AgentExecutionActivity {
+  const activity = activities.get(agentId) ?? {
+    currentLoad: 0,
+    successfulExecutions: 0,
+    finishedExecutions: 0,
+  }
+  activities.set(agentId, activity)
+  return activity
+}
+
 function projectAgentActivity(
-  executions: readonly PlatformProjectSnapshot['executions'][number][],
+  snapshot: Pick<PlatformProjectSnapshot, 'executions' | 'tasks' | 'repairs'>,
 ): Map<string, AgentExecutionActivity> {
   const activities = new Map<string, AgentExecutionActivity>()
-  for (const execution of executions) {
-    const activity = activities.get(execution.agentId) ?? {
-      currentLoad: 0,
-      successfulExecutions: 0,
-      finishedExecutions: 0,
-    }
+  const executionAgentIds = new Set<string>()
+  for (const execution of snapshot.executions) {
+    const activity = activityFor(activities, execution.agentId)
+    executionAgentIds.add(execution.agentId)
     if (execution.status === 'RUNNING') {
       activity.currentLoad += 1
     } else {
       activity.finishedExecutions += 1
       if (execution.status === 'COMPLETED') activity.successfulExecutions += 1
     }
-    activities.set(execution.agentId, activity)
+  }
+
+  // Pre-Execution legacy projects only persisted task assignments.
+  const taskAgentIds = new Set<string>()
+  for (const task of snapshot.tasks) {
+    const agentId = task.assignedAgentId
+    if (agentId === undefined || executionAgentIds.has(agentId)) continue
+    taskAgentIds.add(agentId)
+    const activity = activityFor(activities, agentId)
+    if (task.status === 'RUNNING') {
+      activity.currentLoad += 1
+    } else if (task.status === 'COMPLETED') {
+      activity.finishedExecutions += 1
+      activity.successfulExecutions += 1
+    } else if (task.status === 'FAILED' || task.status === 'CANCELLED' || task.status === 'BLOCKED') {
+      activity.finishedExecutions += 1
+    }
+  }
+
+  for (const repair of snapshot.repairs) {
+    const agentId = repair.repairAgentId
+    if (executionAgentIds.has(agentId) || taskAgentIds.has(agentId)) continue
+    const activity = activityFor(activities, agentId)
+    activity.finishedExecutions += 1
+    if (repair.afterStatus === 'PASS') activity.successfulExecutions += 1
   }
   return activities
 }
@@ -712,7 +747,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
         ? undefined
         : await options.agentRegistry.projectProfiles(projectId)
       const profiles = boundProfiles ?? options.profiles
-      const activities = projectAgentActivity(snapshot.executions)
+      const activities = projectAgentActivity(snapshot)
       return await reply.send(profiles.map((profile) => {
         const activity = activities.get(profile.id)
         const currentLoad = activity?.currentLoad ?? 0

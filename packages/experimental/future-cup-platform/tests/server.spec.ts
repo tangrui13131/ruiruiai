@@ -382,6 +382,81 @@ describe('Future Cup platform server', () => {
     expect(errors).toEqual([])
   })
 
+  it('derives legacy Agent history from terminal tasks and repairs without executions', async () => {
+    const { baseUrl, store } = await startServer()
+    const createResponse = await fetch(`${baseUrl}/api/v1/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'project-legacy-history',
+        name: 'Legacy history',
+        requirement: 'Build a legacy project with task-only evidence.',
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+    const projectId = ProjectId('project-legacy-history')
+    const dag = await DagEngine.create(store, {
+      id: projectId,
+      name: 'Legacy history',
+      requirement: 'Build a legacy project with task-only evidence.',
+    }, [
+      taskDefinition({
+        id: 'legacy-design',
+        title: 'Legacy design',
+        description: 'Produce the design using the legacy task-only path.',
+        role: 'ui-designer',
+        priority: 50,
+        dependencies: [],
+        requiredCapabilities: { design: 1 },
+        writeScopes: ['src/'],
+      }),
+    ])
+    await dag.startTask(TaskId('legacy-design'), AgentId('ui-designer'))
+    await dag.completeTask(TaskId('legacy-design'), { summary: 'Legacy design complete.' })
+    const verification = store.saveVerificationReport(
+      projectId,
+      'PASS',
+      { status: 'PASS' },
+      TaskId('legacy-design'),
+    )
+    store.saveRepairRecord(projectId, {
+      repairRound: 1,
+      verificationReportId: verification.id,
+      repairAgentId: AgentId('repair'),
+      failureSignature: 'legacy-signature',
+      errorSummary: 'Legacy failure',
+      changeSummary: 'Legacy repair',
+      diff: '',
+      beforeStatus: 'FAIL',
+      afterStatus: 'PASS',
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    })
+
+    const executions = await fetch(`${baseUrl}/api/v1/projects/project-legacy-history/executions`)
+      .then(async response => await readJson(response, z.array(z.unknown())))
+    const projectAgents = await fetch(`${baseUrl}/api/v1/projects/project-legacy-history/agents`)
+      .then(async response => await readJson(response, z.array(z.looseObject({
+        id: z.string(),
+        historicalSuccessCount: z.number(),
+        historicalExecutionCount: z.number(),
+      }))))
+
+    expect(executions).toEqual([])
+    expect(projectAgents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'ui-designer',
+        historicalSuccessCount: 1,
+        historicalExecutionCount: 1,
+      }),
+      expect.objectContaining({
+        id: 'repair',
+        historicalSuccessCount: 1,
+        historicalExecutionCount: 1,
+      }),
+    ]))
+  })
+
   it('registers versioned Agents and freezes the default team on project creation', async () => {
     const { baseUrl, agentRegistry, defaultTeamVersionId } = await startServer(undefined, true)
     expect(agentRegistry).toBeDefined()

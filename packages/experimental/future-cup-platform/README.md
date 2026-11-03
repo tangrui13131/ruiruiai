@@ -160,7 +160,7 @@ The My Teams entry manages logical Teams independently of the recommendation flo
 
 Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease.
 
-Project-scoped Agent state derives live load from `RUNNING` executions. Historical success uses `COMPLETED` as success and includes `FAILED` and `CANCELLED` in the execution total. The API returns both counts, so the management UI distinguishes an observed rate from a profile default when an Agent has no historical executions.
+Project-scoped Agent state derives live load from `RUNNING` executions. Historical success uses `COMPLETED` as success and includes `FAILED` and `CANCELLED` in the execution total. Legacy projects without execution rows fall back to their assigned tasks and terminal repair records. The API returns both counts, so the management UI distinguishes observed history from the profile default.
 
 ## Model Experience
 
