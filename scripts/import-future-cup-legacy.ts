@@ -29,7 +29,13 @@ const targetRepository = new OrchestrationRepository(targetPath, { journalMode: 
 targetRepository.close()
 
 const copyOrder = [
+  'agent_definitions',
+  'agent_definition_versions',
+  'agent_teams',
+  'agent_team_versions',
+  'agent_team_members',
   'projects',
+  'project_team_bindings',
   'workflow_definitions',
   'workflow_runs',
   'workflow_control_runs',
@@ -42,6 +48,7 @@ const copyOrder = [
   'execution_events',
   'verification_reports',
   'repair_records',
+  'repair_strategy_decisions',
   'project_memory_entries',
   'project_runs',
   'product_events',
