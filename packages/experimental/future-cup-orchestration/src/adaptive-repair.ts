@@ -459,7 +459,11 @@ function matchesTarget(pattern: string, target: string): boolean {
   return new RegExp(`^${escaped}$`, 'u').test(target)
 }
 
-/** Convert one verification finding category into its repair strategy category. */
+/**
+ * Convert one verification finding category into its repair strategy category.
+ * @param finding - verification finding carrying the source category.
+ * @returns the matching controlled repair category.
+ */
 export function repairCategoryForFinding(finding: VerificationFinding): typeof REPAIR_FAILURE_CATEGORIES[number] {
   return repairFailureCategorySchema.parse(finding.category)
 }

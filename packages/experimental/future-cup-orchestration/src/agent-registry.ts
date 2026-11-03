@@ -605,6 +605,7 @@ const jsonSchemaDescriptorSchema = z.object({
   schema: z.record(z.string(), jsonValueSchema),
 }).strict()
 
+/** Validated input for registering one Agent definition. */
 export const registerAgentDefinitionInputSchema = z.object({
   id: identifierSchema,
   name: z.string().trim().min(1).max(160),
@@ -612,12 +613,14 @@ export const registerAgentDefinitionInputSchema = z.object({
   discoveryTags: z.array(tagSchema).max(64),
 }).strict()
 
+/** Validated mutable metadata for an existing Agent definition. */
 export const updateAgentDefinitionInputSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
   purpose: z.string().trim().min(1).max(4_000).optional(),
   discoveryTags: z.array(tagSchema).max(64).optional(),
 }).strict()
 
+/** Validated input for one immutable Agent definition version. */
 export const registerAgentVersionInputSchema = z.object({
   id: identifierSchema.optional(),
   version: identifierSchema,
@@ -633,6 +636,7 @@ export const registerAgentVersionInputSchema = z.object({
   outputSchema: jsonSchemaDescriptorSchema,
 }).strict()
 
+/** Validated capability, role, and tag filters for Agent discovery. */
 export const agentDiscoveryQuerySchema = z.object({
   capabilities: capabilityMapSchema.optional(),
   capability: capabilityNameSchema.optional(),
@@ -704,6 +708,7 @@ const teamMemoryPolicySchema = z.object({
   }
 })
 
+/** Validated input for one immutable Team version. */
 export const createAgentTeamVersionInputSchema = z.object({
   id: identifierSchema.optional(),
   teamId: identifierSchema.optional(),
@@ -723,6 +728,7 @@ export const createAgentTeamVersionInputSchema = z.object({
   requiredOutputSchemas: z.array(jsonSchemaDescriptorSchema).min(1).max(64),
 }).strict()
 
+/** Validated input for one logical Team. */
 export const createAgentTeamInputSchema = z.object({
   id: identifierSchema,
   ownerId: identifierSchema,
@@ -730,11 +736,13 @@ export const createAgentTeamInputSchema = z.object({
   purpose: z.string().trim().min(1).max(4_000),
 }).strict()
 
+/** Validated mutable metadata for an existing logical Team. */
 export const updateAgentTeamInputSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
   purpose: z.string().trim().min(1).max(4_000).optional(),
 }).strict()
 
+/** Validated input for one editable Team-library draft. */
 export const createTeamLibraryDraftInputSchema = z.object({
   id: identifierSchema.optional(),
   version: identifierSchema,
@@ -2210,6 +2218,7 @@ export class AgentRegistry {
 
   /**
    * List every immutable team version in stable identity order.
+   * @param teamId - optional logical Team filter.
    * @returns frozen team versions.
    */
   listTeamVersions(teamId?: string): readonly AgentTeamVersion[] {

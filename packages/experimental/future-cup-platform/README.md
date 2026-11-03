@@ -194,3 +194,5 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 ### Dev Note
 
 The PostgreSQL client is generated into ignored `src/generated/` during package installation. Run `prisma generate` after schema edits and `prisma migrate deploy` against a reachable PostgreSQL database before starting the bundle. The M5 `20261101160000`, `20261101173000`, `20261101200000`, and `20261102130000` migrations jointly create Registry, logical Team ownership, one-row-per-instance runtime members, project-memory, workflow-control, and adaptive-repair-strategy tables.
+
+Run the key-gated M5.5 real Team acceptance with `pnpm exec vitest run --config vitest.e2e.config.ts packages/experimental/future-cup-platform/tests/real-team-library.e2e.ts`. It self-skips without `DEEPSEEK_API_KEY` and writes the run summary and screenshots under `.artifacts/future-cup-m55-live/real-team-*`.

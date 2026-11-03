@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, and M5.4 are complete and M5.5 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, M5.4, and M5.5 are complete and M5.6 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4/M5.5 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -168,7 +168,8 @@ MCP, A2A, external API plugins, RAG, vector databases, arbitrary tool installati
 - Team publication and recommendation share capability, concurrency, tool, memory, output-contract, department, and publication-state validation. The deterministic Verifier remains system-owned and is not a Team member.
 - Project creation freezes the selected Team version. The project Agent API derives the roster from that snapshot, and HQ reads the frozen department and position values instead of guessing from role names.
 - The `My Teams` management page provides the Team list, version history, capacity and usage summary, and a 1–7 instance editor. The existing `Build a team` flow remains the intelligent-recommendation entry.
-- Current focused results pass 181/181 orchestration tests, 27/27 platform tests, and 76/76 UI tests. SQLite v1–v7 migration tests, Prisma schema validation, TypeScript checks, and artifact builds pass.
+- Current focused results pass 194/194 orchestration tests, 32/32 platform tests, and 87/87 UI tests. The real Team E2E self-skips without a key; SQLite v1–v7 migration tests, Prisma schema validation, TypeScript checks, and artifact builds pass.
+- The 2026-11-03 real DeepSeek E2E created a project from a user-cloned and published seven-member Team. It verified the immutable frozen snapshot, seven project Agent projections, seven independent Harness homes, real generation Sessions, and desktop/mobile browser checks. The project passed full verification first; the platform then injected `TS2322`, the adaptive repair path completed a new Repair Session, reverification changed from `FAIL` to `PASS`, and the control graph retained the conditional edge, bounded loop, Repair subworkflow, and `PASSED` terminal state. Evidence is written to `.artifacts/future-cup-m55-live/real-team-*/run-result.json`; the entry point is `packages/experimental/future-cup-platform/tests/real-team-library.e2e.ts`.
 
 ### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, and M5.4 results
 

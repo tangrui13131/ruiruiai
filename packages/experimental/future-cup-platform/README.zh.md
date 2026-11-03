@@ -195,3 +195,5 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 ### 开发备注
 
 PostgreSQL 客户端在包安装期间生成到被忽略的 `src/generated/`。修改 schema 后运行 `prisma generate`；启动组合包前，对可访问的 PostgreSQL 数据库运行 `prisma migrate deploy`。M5 的 `20261101160000`、`20261101173000`、`20261101200000` 与 `20261102130000` 迁移共同建立 Registry、逻辑团队、每实例一行运行时成员、项目记忆、工作流控制与自适应修复策略表。
+
+使用 `pnpm exec vitest run --config vitest.e2e.config.ts packages/experimental/future-cup-platform/tests/real-team-library.e2e.ts` 运行需要密钥的 M5.5 真实团队验收。没有 `DEEPSEEK_API_KEY` 时测试会自动跳过；运行摘要与截图写入 `.artifacts/future-cup-m55-live/real-team-*`。
