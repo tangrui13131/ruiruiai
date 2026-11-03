@@ -1183,6 +1183,70 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-forge-session -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-future-cup-platform -->
+<a id="deepseek-aidsh-experimental-future-cup-platform"></a>
+
+## `@deepseek-ai/dsh-experimental-future-cup-platform`
+
+- `source`: [`packages/experimental/future-cup-platform/src/index.ts:30`](../packages/experimental/future-cup-platform/src/index.ts)
+
+```ts config-catalog
+/** Explicit platform server and database configuration. */
+export interface Config {
+  /** Loopback address bound by the platform API. */
+  readonly host: '127.0.0.1' | '::1'
+  /** Platform API port; zero asks the operating system to allocate one. */
+  readonly port: number
+  /** Durable storage adapter selected for this profile. */
+  readonly databaseDriver: 'sqlite' | 'postgres'
+  /** Stable profile-local user identity used to scope Team ownership. */
+  readonly ownerId: string
+  /** PostgreSQL connection URL, required by the PostgreSQL adapter. */
+  readonly databaseUrl?: string | undefined
+  /** SQLite database path, required by the SQLite adapter. */
+  readonly sqlitePath?: string | undefined
+  /** Delay between committed Outbox polls. */
+  readonly outboxPollMs: number
+  /** Maximum Outbox rows claimed by one poll. */
+  readonly outboxBatchSize: number
+  /** Expiry of one dispatcher's Outbox claim before redelivery is allowed. */
+  readonly outboxClaimMs: number
+  /** Private root containing generated workspaces, Agent homes, screenshots, and previews. */
+  readonly workspaceRoot: string
+  /** Root containing one isolated Harness home per Agent invocation. */
+  readonly agentHomeRoot: string
+  /** Optional built management UI directory. */
+  readonly uiRoot?: string | undefined
+  /** Optional DeepSeek provider route used by project Agents. */
+  readonly runProvider?: string | undefined
+  /** Optional model used by project Agents. */
+  readonly runModel?: string | undefined
+  /** Maximum output tokens for one project-Agent request. */
+  readonly runMaxTokens: number
+  /** Timeout for one project-Agent request. */
+  readonly runRequestTimeoutMs: number
+  /** Timeout for generated-project dependency installation and build. */
+  readonly verificationBuildTimeoutMs: number
+  /** Timeout for generated-project browser verification. */
+  readonly verificationBrowserTimeoutMs: number
+  /** Maximum automatic repair rounds. */
+  readonly maxRepairRounds: number
+  /** Timeout for one Repair Agent turn. */
+  readonly repairTimeoutMs: number
+  /** Maximum retries for one failed task assignment. */
+  readonly maxAgentRetries: number
+  /** Duration of one workflow lease. */
+  readonly leaseDurationMs: number
+  /** Lease heartbeat interval, which must be smaller than the lease duration. */
+  readonly heartbeatIntervalMs: number
+  /** Delay between terminal project-run settlement retries after transient database failures. */
+  readonly settlementRetryMs: number
+  /** Maximum bounded wait for cancel or close to observe settlement. */
+  readonly settlementWaitMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-future-cup-platform -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-inspector -->
 <a id="deepseek-aidsh-experimental-inspector"></a>
 
@@ -4987,6 +5051,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 | `@deepseek-ai/dsh-experimental-browser-use-runtime` | — | [`packages/experimental/browser-use-runtime/src/index.ts`](../packages/experimental/browser-use-runtime/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-cot-translation-bundle` | — | [`packages/experimental/cot-translation-bundle/src/index.ts`](../packages/experimental/cot-translation-bundle/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-forge-bundle` | — | [`packages/experimental/forge-bundle/src/index.ts`](../packages/experimental/forge-bundle/src/index.ts) |
+| `@deepseek-ai/dsh-experimental-future-cup-orchestration` | — | [`packages/experimental/future-cup-orchestration/src/index.ts`](../packages/experimental/future-cup-orchestration/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-inspector-profile` | — | [`packages/experimental/inspector-profile/src/index.ts`](../packages/experimental/inspector-profile/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-liveshare` | — | [`packages/experimental/liveshare/src/index.ts`](../packages/experimental/liveshare/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-liveshare-protocol` | — | [`packages/experimental/liveshare-protocol/src/index.ts`](../packages/experimental/liveshare-protocol/src/index.ts) |

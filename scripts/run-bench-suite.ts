@@ -8,7 +8,6 @@ import { runPnpmCommand } from './compile-referenced-projects.ts'
  * children and budget their startup. Corpus cases tolerate a sibling.
  */
 export const SERIAL_BENCH_FILES = [
-  'benchmarks/long-session-browser/long-session.bench.ts',
   'benchmarks/user-text/user-text.bench.client.ts',
   'benchmarks/conversation-fold/conversation-fold.bench.client.ts',
   'benchmarks/active-stream-reconnect/reconnect.bench.client.ts',

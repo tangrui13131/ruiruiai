@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execa } from 'execa'
 import { describe, expect, it } from 'vitest'
 import { probeNonLoopbackIpv4, probeZonedLoopback } from '../../../../../../scripts/test-non-loopback-address.ts'
-import { startPrefixProxy } from '../../../../../../apps/web/tests/prefix-proxy.ts'
+import { startPrefixProxy } from '../../../../../../scripts/test-prefix-proxy.ts'
 import { PROCESS_SHUTDOWN_TIMEOUT_MS } from '../../../../src/process-shutdown.ts'
 import { materializeTlsFixture } from '../../../../../../packages/host/webserver/tests/tls-fixture.ts'
 

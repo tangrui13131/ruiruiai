@@ -213,6 +213,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-experimental-forge` | yes | Provider-neutral change request registry with shared status polling |
 | `@deepseek-ai/dsh-experimental-forge-github` | yes | GitHub provider for the experimental forge registry, read through the GitHub CLI on the host |
 | `@deepseek-ai/dsh-experimental-forge-session` | yes | Binds change requests to the Session that created, pushed, or tracked them |
+| `@deepseek-ai/dsh-experimental-future-cup-platform` | yes | Future Cup management application, real Harness team launcher, API, realtime events, and Prisma PostgreSQL persistence |
 | `@deepseek-ai/dsh-experimental-inspector` | yes | Experimental cross-realm CDP hub for Host debugging and Client Runtime inspection |
 | `@deepseek-ai/dsh-experimental-ptc-runtime-python` | yes | CPython subprocess implementation of the DeepSeek Harness PTC execution seam |
 | `@deepseek-ai/dsh-experimental-session-inspector` | no | Experimental virtualized Session log and live Chat group/node inspectors |

@@ -1,12 +1,9 @@
 /** Resolve direct third-party browser inputs through the shipping build configurations, without emitting files. */
 
 import { globSync, readFileSync, realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Rolldown, type UserConfigExport } from 'tsdown'
-import ts from 'typescript'
-import { browserDependencyAnalysis } from '../apps/web/product-isolation.ts'
 
 interface Manifest {
   name: string
@@ -62,24 +59,6 @@ function readManifest(path: string): Manifest {
   return JSON.parse(readFileSync(path, 'utf8')) as Manifest
 }
 
-/**
- * Source aliases shared with the repository's source-plane TypeScript programs.
- * @param root - Repository root containing tsconfig.base.json.
- * @returns Exact and wildcard aliases for the Vite dependency walk.
- */
-export function browserSourceAliases(root: string): { find: RegExp; replacement: string }[] {
-  const path = resolve(root, 'tsconfig.base.json')
-  const config = ts.readConfigFile(path, file => ts.sys.readFile(file))
-  if (config.error !== undefined) throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root)
-  return Object.entries(parsed.options.paths ?? {}).map(([name, targets]) => {
-    const target = targets[0]
-    if (target === undefined) throw new Error(`browser notices: ${name} has no source target in ${path}`)
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '(.*)')
-    return { find: new RegExp(`^${escaped}$`), replacement: resolve(root, target).replace('*', '$1') }
-  })
-}
-
 async function collectClientBundles(
   root: string,
   manifests: ReadonlyMap<string, Manifest>,
@@ -113,53 +92,6 @@ async function collectClientBundles(
   }
 }
 
-interface ShellConfig {
-  build: { rollupOptions?: { input?: string | string[] | Record<string, string> } }
-}
-
-interface ViteApi {
-  resolveConfig(
-    config: Record<string, unknown>, command: 'build', defaultMode: string, defaultNodeEnv: string,
-  ): Promise<ShellConfig>
-  build(config: Record<string, unknown>): Promise<unknown>
-}
-
-async function collectShell(
-  root: string,
-  workspaceNames: ReadonlySet<string>,
-  seen: Set<string>,
-): Promise<void> {
-  for (const path of globSync('apps/*/vite.config.ts', { cwd: root }).sort()) {
-    const dir = dirname(resolve(root, path))
-    const manifest = readManifest(resolve(dir, 'package.json'))
-    if (manifest.private === true || manifest.exports?.['./dist/*'] === undefined) continue
-    const vitePath = createRequire(resolve(dir, 'package.json')).resolve('vite')
-    const vite = await import(pathToFileURL(vitePath).href) as ViteApi
-    const config = await vite.resolveConfig({ root: dir, logLevel: 'error' }, 'build', 'production', 'production')
-    const input = config.build.rollupOptions?.input
-    const entries = typeof input === 'string' ? [input] : Object.values(input ?? {})
-    const pages = entries.filter(entry => entry.endsWith('.html'))
-    if (pages.length === 0) throw new Error(`browser notices: ${manifest.name} has no HTML build entry`)
-    await vite.build({
-      root: dir,
-      logLevel: 'error',
-      plugins: [browserDependencyAnalysis(), recorder(seen, workspaceNames, true)],
-      resolve: { alias: browserSourceAliases(root) },
-      build: {
-        write: false,
-        minify: false,
-        sourcemap: false,
-        reportCompressedSize: false,
-        rollupOptions: {
-          input: pages.length === 1 ? pages[0] : pages,
-          // Chunk coloring expects full third-party bodies; the disclosure walk stops at their imports.
-          output: { manualChunks: () => undefined },
-        },
-      },
-    })
-  }
-}
-
 /**
  * Direct third-party packages resolved by published browser builds.
  * @param root - Repository root, possibly symlinked, with installed build dependencies; lib/ is not required.
@@ -178,6 +110,5 @@ export async function browserBundledExternals(root: string): Promise<Set<string>
   const names = new Set([...manifests.values()].map(manifest => manifest.name))
   const seen = new Set<string>()
   await collectClientBundles(root, manifests, names, seen)
-  await collectShell(root, names, seen)
   return seen
 }

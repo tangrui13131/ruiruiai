@@ -11,7 +11,6 @@ import { readPluginMeta } from '../packages/boot/app-boot/src/package-meta.ts'
 import { bundlePatchPaths, composeEntries, initProfile, readProfileManifest } from '../packages/boot/app-boot/src/profile.ts'
 import { OPTIONAL_BUNDLES, PROFILE_TEMPLATES } from '../packages/util/official-bundles/src/bundles.ts'
 import type { DshBundleManifest } from '../packages/util/package-manifest/src/types.ts'
-import { createPluginProfile } from '../apps/desktop/src/project-manager.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -49,21 +48,20 @@ function flattenRows(entries: EntryOptions[]): EntryOptions[] {
   return entries.flatMap(entry => [entry, ...entry.group && Array.isArray(entry.config) ? flattenRows(entry.config as EntryOptions[]) : []])
 }
 
-function profileLayers(surface: 'web' | 'desktop'): ReturnType<typeof loadOverlayPatches>[] {
+function profileLayers(): ReturnType<typeof loadOverlayPatches>[] {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-bundle-compatibility-'))
   onTestFinished(() => { rmSync(directory, { recursive: true, force: true }) })
-  if (surface === 'desktop') createPluginProfile(directory)
-  else initProfile(directory, PROFILE_TEMPLATES.web!.bundles)
+  initProfile(directory, PROFILE_TEMPLATES.web!.bundles)
   const names = readProfileManifest('test', directory).dsh?.profile?.bundles
-  if (names === undefined) throw new Error(`${surface} profile has no bundle list`)
+  if (names === undefined) throw new Error('web profile has no bundle list')
   return names.map(name => bundle(name).patches)
 }
 
-describe.each(['web', 'desktop'] as const)('%s optional bundle overrides', (surface) => {
+describe('web optional bundle overrides', () => {
   const selectedNames = ['@deepseek-ai/dsh-experimental-badge-skill-bundle', '@deepseek-ai/dsh-experimental-ralph-bundle']
 
   it('keeps established selectors for later configuration and disabled overrides', () => {
-    const shipped = profileLayers(surface)
+    const shipped = profileLayers()
     const config = { subagentProvider: 'spawn', maxRounds: 3 }
     const warnings: string[] = []
     const entries = composeEntries([...shipped, ...selectedNames.map(name => bundle(name).patches), [
@@ -79,7 +77,7 @@ describe.each(['web', 'desktop'] as const)('%s optional bundle overrides', (surf
 
   it('does not select absent bundles through enable-only row overrides', () => {
     const warnings: string[] = []
-    const entries = composeEntries([...profileLayers(surface), [
+    const entries = composeEntries([...profileLayers(), [
       { id: 'skill-badge', disabled: false },
       { id: 'tool-ralph', disabled: false },
     ]], warning => warnings.push(warning))

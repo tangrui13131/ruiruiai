@@ -21,7 +21,6 @@ export const MEMORY_PRESSURE_FILES = [
   'benchmarks/session-corpus/session-corpus.bench.ts',
   'benchmarks/session-corpus/projection-list.bench.ts',
   'benchmarks/session-open/session-open.bench.ts',
-  'benchmarks/long-session-browser/long-session.bench.ts',
 ] as const
 
 const USAGE = `usage: run-memory-pressure-bench.ts <${Object.keys(MEMORY_PRESSURE_MACHINES).join('|')}>`

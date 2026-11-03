@@ -5376,10 +5376,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AfterScheduleRecord {\n    readonly id: ScheduleId;\n    readonly kind: \'after\';\n    readonly title: string;\n    readonly prompt: string;\n    readonly afterSeconds: number;\n    readonly scheduledAt: string;\n}',
   },
   {
-    name: 'Agent',
-    declaration: 'export interface Agent {\n    readonly id: SessionId;\n}',
-  },
-  {
     name: 'AgentCancelCause',
     declaration: 'export type AgentCancelCause = {\n    readonly kind: \'user\';\n} | {\n    readonly kind: \'parent\';\n} | {\n    readonly kind: \'hook\';\n    readonly reason: string;\n} | {\n    readonly kind: \'disposed\';\n};',
   },
@@ -5434,10 +5430,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AgentStatus',
     declaration: 'export type AgentStatus = \'idle\' | \'running\';',
-  },
-  {
-    name: 'AnalyticsPreset',
-    declaration: 'export type AnalyticsPreset = \'creator\' | \'ptc\' | \'minimal\' | \'standard\';',
   },
   {
     name: 'AnonymousTranslationProvider',
@@ -6756,10 +6748,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type JsonSchemaType = \'object\' | \'array\' | \'string\' | \'number\' | \'integer\' | \'boolean\' | \'null\';',
   },
   {
-    name: 'JsonValue',
-    declaration: 'export type JsonValue = null | boolean | number | string | JsonValue[] | {\n    [key: string]: JsonValue;\n};',
-  },
-  {
     name: 'KvFacet',
     declaration: 'export interface KvFacet {\n    open(descriptor: KvUnitDescriptor): Promise<KvUnit>;\n}',
   },
@@ -7224,10 +7212,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OfficeToPdfResult {\n    readonly pdf: Uint8Array;\n    readonly missingFonts: string[];\n    readonly cacheKey: OfficeToPdfKey;\n    readonly generation: OfficeToPdfGeneration;\n}',
   },
   {
-    name: 'OnboardingPage',
-    declaration: 'export type OnboardingPage = \'onboarding_welcome\' | \'onboarding_recharge\' | \'onboarding_use_case\' | \'onboarding_process\';',
-  },
-  {
     name: 'OneShotScheduleRecord',
     declaration: 'export type OneShotScheduleRecord = AfterScheduleRecord | AtScheduleRecord;',
   },
@@ -7474,14 +7458,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PrincipalMap',
     declaration: 'export interface PrincipalMap {\n    owner: {\n        readonly kind: \'owner\';\n    };\n}',
-  },
-  {
-    name: 'ProductEvent',
-    declaration: 'export type ProductEvent = {\n    [K in keyof ProductEventMap]: {\n        eventName: K;\n        attributes: ProductEventMap[K];\n        timestamp: number;\n    };\n}[keyof ProductEventMap];',
-  },
-  {
-    name: 'ProductEventMap',
-    declaration: 'export interface ProductEventMap {\n    desktop_app_launch: Record<string, never>;\n    auth_page_view: Record<string, never>;\n    auth_page_click: {\n        button_name: \'sign_in\' | \'api-key\';\n    };\n    api_key_save_click: Record<string, never>;\n    onboarding_page_view: {\n        page_name: OnboardingPage;\n    };\n    onboarding_page_click: {\n        page_name: OnboardingPage;\n        button_name: \'next\' | \'back\' | \'skip\' | \'charge\' | \'later\' | \'continue\';\n        selected_content?: \'office\' | \'code\' | \'code_office\' | \'focus_result\' | \'key_detail\' | \'full_process\';\n    };\n    onboarding_popup_view: {\n        popup_name: \'skip_charge\' | \'skip_setting\';\n    };\n    onboarding_popup_click: {\n        popup_name: \'skip_charge\' | \'skip_setting\';\n        button_name: \'charge\' | \'know\' | \'enter\' | \'setting\' | \'close\';\n    };\n    desktop_upgrade_click: Record<string, never>;\n    desktop_upgrade_download_result: {\n        is_success: boolean;\n        error_reason?: string;\n    };\n    desktop_upgrade_install_restart_click: Record<string, never>;\n    send_button_click: {\n        session_id?: SessionId;\n        model_name?: string;\n        thinking_effort?: string;\n        run_mode: \'plan\' | \'goal\' | \'default\';\n        msg_type: \'default\' | \'steer\' | \'queue\';\n        is_new_session: boolean;\n        agent_preset?: AnalyticsPreset | \'other\';\n    };\n    model_switch: {\n        session_id?: SessionId;\n        switch_from: string;\n        switch_to: string;\n    };\n    thinking_level_switch: {\n /* …truncated — full shape in source */',
   },
   {
     name: 'ProductTelemetryRecord',
@@ -9884,20 +9860,8 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WorkflowPhase {\n    title: string;\n    detail?: string;\n    provider?: string;\n    model?: string;\n}',
   },
   {
-    name: 'WorkflowResult',
-    declaration: 'export interface WorkflowResult {\n    value: unknown;\n    stopReason: WorkflowStopReason;\n    error?: string;\n    agentsStarted: number;\n}',
-  },
-  {
     name: 'WorkflowResultInfo',
     declaration: 'export interface WorkflowResultInfo {\n    stopReason: WorkflowStopReason;\n    error?: string;\n    agentsStarted: number;\n}',
-  },
-  {
-    name: 'WorkflowRun',
-    declaration: 'export interface WorkflowRun {\n    readonly id: WorkflowRunId;\n    readonly meta: WorkflowMeta;\n    readonly result: Promise<WorkflowResult>;\n    cancel(reason?: string): void;\n    dispose(): Promise<void>;\n}',
-  },
-  {
-    name: 'WorkflowRunId',
-    declaration: 'export type WorkflowRunId = Branded<\'WorkflowRunId\'>;',
   },
   {
     name: 'WorkflowRunInfo',
