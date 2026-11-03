@@ -100,7 +100,7 @@ capabilityMatch * capabilityWeight
 - loadRatio * loadPenalty
 ```
 
-权重是经过校验的配置。决策记录所有候选、资格、拒绝原因、得分明细、选中 Agent 与重试重分配原因。同分时优先较低负载，再按稳定 Agent id 排序。
+权重是经过校验的配置。决策记录所有候选、资格、拒绝原因、得分明细、选中 Agent 与重试重分配原因。同分时优先较低负载，再按稳定 Agent id 排序。所有具备能力的 Agent 都暂时达到并发容量时，调度器会把对应 READY 任务延后到下一轮，使较小团队也能串行完成并行任务。
 
 ### Agent 权限与输出
 

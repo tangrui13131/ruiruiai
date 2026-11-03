@@ -87,6 +87,23 @@ describe('ExplainableScheduler', () => {
     expect(assignments[1]?.decision.candidates[1]?.loadRatio).toBe(1)
   })
 
+  it('defers a capacity-limited task to the next scheduling round', () => {
+    const scheduler = new ExplainableScheduler(DEFAULT_SCHEDULER_WEIGHTS, {
+      now: NOW,
+      createDecisionId: () => 'decision-capacity',
+    })
+    const assignments = scheduler.schedule(PROJECT, [
+      task('dashboard'),
+      task('users'),
+    ], [
+      frontend('frontend-a'),
+    ])
+
+    expect(assignments).toHaveLength(1)
+    expect(assignments[0]?.task.id).toBe(TaskId('dashboard'))
+    expect(assignments[0]?.agent.id).toBe(AgentId('frontend-a'))
+  })
+
   it('reassigns a failed task while excluding the failed Agent', () => {
     const scheduler = new ExplainableScheduler(DEFAULT_SCHEDULER_WEIGHTS, {
       now: NOW,

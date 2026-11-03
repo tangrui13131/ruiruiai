@@ -100,7 +100,7 @@ capabilityMatch * capabilityWeight
 - loadRatio * loadPenalty
 ```
 
-Weights are validated configuration. A decision records every candidate, eligibility, rejection reason, score terms, selected Agent, and any retry reassignment reason. Ties prefer lower load and then stable Agent id.
+Weights are validated configuration. A decision records every candidate, eligibility, rejection reason, score terms, selected Agent, and any retry reassignment reason. Ties prefer lower load and then stable Agent id. When every capable Agent is temporarily at concurrency capacity, the scheduler defers that READY task to the next round so a smaller team can execute parallel tasks serially.
 
 ### Agent permissions and output
 

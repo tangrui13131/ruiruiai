@@ -151,6 +151,11 @@ export class ExplainableScheduler {
       const candidates = this.rank(task, profiles, loads)
       const selected = candidates.find(candidate => candidate.eligible)
       if (selected === undefined) {
+        if (candidates.some(candidate =>
+          candidate.rejectionReason === 'Agent is at concurrency capacity',
+        )) {
+          continue
+        }
         throw new Error(`no eligible Agent for task "${task.id}" (${task.role})`)
       }
       const agent = profiles.find(profile => profile.id === selected.agentId)

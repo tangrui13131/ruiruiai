@@ -268,6 +268,52 @@ describe('TeamOrchestrator', () => {
     }
   })
 
+  it('runs parallel frontend tasks serially when the team has one frontend instance', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'future-cup-serial-frontend-'))
+    const repository = new OrchestrationRepository(':memory:', { now: NOW })
+    const profiles = defaultAgentProfiles().filter(profile => profile.id !== 'frontend-b')
+    let activeFrontends = 0
+    let maxActiveFrontends = 0
+    const invokers = new Map<string, AgentInvoker>()
+    for (const profile of profiles) {
+      const base = outputs(profile)
+      invokers.set(profile.id, new TestInvoker(profile, async (invocation) => {
+        if (profile.role === 'frontend') {
+          activeFrontends += 1
+          maxActiveFrontends = Math.max(maxActiveFrontends, activeFrontends)
+          try {
+            return await base(invocation)
+          } finally {
+            activeFrontends -= 1
+          }
+        }
+        return await base(invocation)
+      }))
+    }
+
+    const team = new TeamOrchestrator({
+      repository,
+      invokers,
+      profiles,
+      workspace,
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 3, repairTimeoutMs: 1_000 },
+      projectVerifier: async () => passingVerification(),
+    })
+    try {
+      const result = await team.run('Build an admin dashboard with users')
+
+      expect(maxActiveFrontends).toBe(1)
+      expect(result.tasks.every(task => task.status === 'COMPLETED')).toBe(true)
+      expect(result.executions.filter(execution => execution.agentId === 'frontend-a'))
+        .toHaveLength(2)
+    } finally {
+      await team.close()
+      repository.close()
+      rmSync(workspace, { recursive: true, force: true })
+    }
+  })
+
   it('reassigns a failed frontend task to the other Frontend Agent', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'future-cup-retry-'))
     const repository = new OrchestrationRepository(':memory:', { now: NOW })

@@ -151,6 +151,11 @@ export class TeamOrchestrator {
         ready,
         withHistoricalSuccessRates(this.options.profiles, rates),
       )
+      if (assignments.length === 0) {
+        throw new Error(
+          `Scheduler deferred every READY task: ${ready.map(task => task.id).join(', ')}`,
+        )
+      }
       const running: RunningExecution[] = []
       for (const assignment of assignments) {
         await this.options.repository.saveSchedulerDecision(assignment.decision)
