@@ -162,6 +162,8 @@ Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. 
 
 Project-scoped Agent state derives live load from `RUNNING` executions. Historical success uses `COMPLETED` as success and includes `FAILED` and `CANCELLED` in the execution total. Legacy projects without execution rows fall back to their assigned tasks and terminal repair records. The API returns both counts, so the management UI distinguishes observed history from the profile default.
 
+The HQ derives ordinary department progress from DAG tasks and derives self-heal progress from persisted repair rounds. A completed Repair execution therefore updates the self-heal department even though it is a control subworkflow rather than a DAG task.
+
 ## Model Experience
 
 ### Platform data plane

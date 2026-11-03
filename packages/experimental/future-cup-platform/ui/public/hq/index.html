@@ -2297,6 +2297,13 @@ function hrReset() {
 function itemUnits(it, P) { if (it.failed) return 0; if (it.st === "fin") return P.ns; var u = Math.min(it.s, P.ns); if (it.st === "work") u += it.prog * 0.9; else if (it.st === "rev") u += 0.9 + it.prog * 0.1; else if (it.kind === "rev" && it.st !== "back") u += 0.9; return u; }
 function projProg(P) { var s = 0; P.items.forEach(function (it) { s += itemUnits(it, P); }); return s / (P.N * P.ns); }
 function deptProg(k) {
+  if (REAL_PROJECTION && REAL_PROJECTION.departments && REAL_DEPARTMENTS[k]) {
+    var key = REAL_DEPARTMENTS[k].key;
+    var projected = REAL_PROJECTION.departments.filter(function (department) {
+      return department.key === key;
+    })[0];
+    if (projected) return projected.progress;
+  }
   var tot = 0, dn = 0;
   PROJS.forEach(function (P) {
     P.S.forEach(function (S, si) {

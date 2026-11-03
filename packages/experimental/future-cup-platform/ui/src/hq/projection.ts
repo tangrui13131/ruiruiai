@@ -39,6 +39,10 @@ export interface HqDepartmentProjection {
   readonly completedTasks: number
   readonly failedTasks: number
   readonly totalTasks: number
+  readonly completedRepairs: number
+  readonly failedRepairs: number
+  readonly activeRepairs: number
+  readonly totalRepairs: number
 }
 
 /** One real Agent workstation state. */
@@ -131,7 +135,7 @@ export function createProjection(
     workflowStatus: snapshot.workflow?.status ?? 'PENDING',
     tasks,
     agents: projectedAgents,
-    departments: departmentsFor(tasks, projectedAgents),
+    departments: departmentsFor(tasks, projectedAgents, snapshot.repairs.map(repairProjection)),
     verification: verificationProjection(snapshot.verificationReports.at(-1)),
     repairs: snapshot.repairs.map(repairProjection),
     events: snapshot.events.map(eventProjection),
@@ -232,7 +236,7 @@ export function applyProductEvent(
     workflowStatus,
     tasks,
     agents,
-    departments: departmentsFor(tasks, agents),
+    departments: departmentsFor(tasks, agents, repairs),
     verification,
     repairs,
     events: [...projection.events, eventProjection(event)].slice(-100),
@@ -314,28 +318,43 @@ function refreshAgentProjection(
 function departmentsFor(
   tasks: readonly HqTaskProjection[],
   agents: readonly HqAgentProjection[],
+  repairs: readonly HqRepairProjection[],
 ): readonly HqDepartmentProjection[] {
   return HQ_DEPARTMENTS.map((department) => {
     const departmentTasks = tasks.filter(task => departmentForTask(task, agents) === department.key)
+    const departmentRepairs = department.key === 'repair' ? repairs : []
     const activeTaskIds = departmentTasks.filter(task => task.status === 'RUNNING').map(task => task.id)
     const failedTasks = departmentTasks.filter(task => task.status === 'FAILED').length
     const completedTasks = departmentTasks.filter(task => task.status === 'COMPLETED').length
     const totalTasks = departmentTasks.length
-    const status = failedTasks > 0
+    const completedRepairs = departmentRepairs.filter(repair =>
+      repair.completed && repair.afterStatus === 'PASS').length
+    const failedRepairs = departmentRepairs.filter(repair =>
+      repair.completed && repair.afterStatus !== 'PASS').length
+    const activeRepairs = departmentRepairs.filter(repair => !repair.completed).length
+    const totalRepairs = departmentRepairs.length
+    const completedUnits = completedTasks + completedRepairs
+    const failedUnits = failedTasks + failedRepairs
+    const totalUnits = totalTasks + totalRepairs
+    const status = failedUnits > 0
       ? 'FAILED'
-      : activeTaskIds.length > 0
+      : activeTaskIds.length > 0 || activeRepairs > 0
         ? 'ACTIVE'
-        : totalTasks > 0 && completedTasks === totalTasks
+        : totalUnits > 0 && completedUnits === totalUnits
           ? 'COMPLETED'
-          : totalTasks > 0 ? 'READY' : 'IDLE'
+          : totalUnits > 0 ? 'READY' : 'IDLE'
     return {
       ...department,
       status,
-      progress: totalTasks === 0 ? 0 : completedTasks / totalTasks,
+      progress: totalUnits === 0 ? 0 : completedUnits / totalUnits,
       activeTaskIds,
       completedTasks,
       failedTasks,
       totalTasks,
+      completedRepairs,
+      failedRepairs,
+      activeRepairs,
+      totalRepairs,
     }
   })
 }

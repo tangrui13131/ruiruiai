@@ -13,6 +13,7 @@ describe('HQ static asset contract', () => {
     expect(index).toContain('src="./hq-bridge.js"')
     expect(index).toContain('projectId')
     expect(index).toContain('animate: animateRealAction')
+    expect(index).toContain('REAL_PROJECTION.departments')
     expect(index).toContain('visualOnly: true')
     expect(index).toContain('if (!VP) return null')
     expect(index).not.toContain('fonts.googleapis.com')

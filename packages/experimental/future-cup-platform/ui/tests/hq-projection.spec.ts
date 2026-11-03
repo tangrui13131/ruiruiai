@@ -3,6 +3,7 @@ import type {
   AgentView,
   ProductEventView,
   ProjectSnapshotView,
+  RepairView,
   TaskView,
   VerificationReportView,
 } from '../src/api/contracts.ts'
@@ -127,6 +128,24 @@ function realSnapshot(): ProjectSnapshotView {
   }
 }
 
+function realRepair(): RepairView {
+  return {
+    id: 'repair-hq',
+    projectId: 'project-hq',
+    repairRound: 1,
+    verificationReportId: 'verification-hq',
+    repairAgentId: 'repair',
+    failureSignature: 'failure-hq',
+    errorSummary: 'Users page is missing',
+    changeSummary: 'Added the users route.',
+    diff: '',
+    beforeStatus: 'FAIL',
+    afterStatus: 'PASS',
+    startedAt: '2026-11-01T10:00:03.000Z',
+    completedAt: '2026-11-01T10:00:04.000Z',
+  }
+}
+
 describe('HQ realtime projection', () => {
   it.each([1, 5, 7])('keeps the HQ population equal to the frozen roster (%i)', (count) => {
     const departments = [
@@ -207,6 +226,51 @@ describe('HQ realtime projection', () => {
     expect(applied.lastEventSeq).toBe(4)
     expect(applied.verification.status).toBe('PASS')
     expect(applyProductEvent(applied, event)).toBe(applied)
+  })
+
+  it('derives self-heal department progress from repair events', () => {
+    let projection = createProjection(realSnapshot(), [
+      realAgent('repair', 'repair', 0, 'repair'),
+    ])
+    projection = applyProductEvent(projection, {
+      type: 'repair.started',
+      projectId: 'project-hq',
+      seq: 4,
+      occurredAt: '2026-11-01T10:00:04.000Z',
+      taskId: 'repair-round-1',
+      agentId: 'repair',
+      payload: {
+        round: 1,
+        failureSignature: 'failure-hq',
+        strategyId: 'browser-behavior',
+        strategyReason: 'Browser assertion failed.',
+      },
+    })
+    expect(projection.departments.find(department => department.key === 'repair'))
+      .toMatchObject({
+        status: 'ACTIVE',
+        progress: 0,
+        activeRepairs: 1,
+        completedRepairs: 0,
+        totalRepairs: 1,
+      })
+
+    projection = applyProductEvent(projection, {
+      type: 'repair.completed',
+      projectId: 'project-hq',
+      seq: 5,
+      occurredAt: '2026-11-01T10:00:05.000Z',
+      agentId: 'repair',
+      payload: realRepair(),
+    })
+    expect(projection.departments.find(department => department.key === 'repair'))
+      .toMatchObject({
+        status: 'COMPLETED',
+        progress: 1,
+        activeRepairs: 0,
+        completedRepairs: 1,
+        totalRepairs: 1,
+      })
   })
 
   it('recomputes Agent load after completion and preserves an escalated run', () => {
