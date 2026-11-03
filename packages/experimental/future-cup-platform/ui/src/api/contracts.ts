@@ -5,12 +5,16 @@ import {
   createAgentTeamRequestSchema,
   createTeamDraftRequestSchema,
   deleteResponseSchema,
+  faultDrillModeSchema,
   projectDeliverySchema,
+  projectDrillInfoSchema,
   publicAgentTeamVersionSchema,
   projectRunCancelSchema,
   projectRunStartSchema,
   publicProjectRunSchema,
   publicTeamVersionResponseSchema,
+  startSelfHealDrillRequestSchema,
+  startSelfHealDrillResponseSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationAdoptRequestSchema,
@@ -31,8 +35,12 @@ export {
   createAgentTeamRequestSchema,
   createTeamDraftRequestSchema,
   deleteResponseSchema,
+  faultDrillModeSchema,
+  projectDrillInfoSchema,
   publicAgentTeamVersionSchema,
   publicTeamVersionResponseSchema,
+  startSelfHealDrillRequestSchema,
+  startSelfHealDrillResponseSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationAdoptRequestSchema,
@@ -494,3 +502,7 @@ export type TeamRecommendationSaveResponseView =
   z.infer<typeof teamRecommendationSaveResponseSchema>
 export type TeamRecommendationAdoptionResponseView =
   z.infer<typeof teamRecommendationAdoptionResponseSchema>
+export type FaultDrillMode = z.infer<typeof faultDrillModeSchema>
+export type ProjectDrillInfoView = z.infer<typeof projectDrillInfoSchema>
+export type StartSelfHealDrillRequestView = z.infer<typeof startSelfHealDrillRequestSchema>
+export type StartSelfHealDrillResponseView = z.infer<typeof startSelfHealDrillResponseSchema>

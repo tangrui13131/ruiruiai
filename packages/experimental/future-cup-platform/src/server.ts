@@ -54,6 +54,9 @@ import {
   teamRecommendationSaveRequestSchema,
   teamRecommendationSaveResponseSchema,
   teamProfileRequestSchema,
+  projectDrillInfoSchema,
+  startSelfHealDrillRequestSchema,
+  startSelfHealDrillResponseSchema,
 } from './api-contracts.ts'
 import { registerFutureCupArtifacts } from './artifact-server.ts'
 import {
@@ -790,6 +793,61 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     await requireProject(projectId)
     return await reply.send({ cancelled: await requireLauncher().cancel(projectId) })
   })
+
+  app.get<{ Params: unknown }>(
+    '/api/v1/projects/:projectId/drill-info',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      await requireProject(projectId)
+      const snapshot = await requireSnapshot(projectId)
+      const runs = await options.store.listProjectRuns(projectId)
+      const latestRun = runs.at(-1)
+      const workspacePath = runs.slice().reverse().find(run => run.workspacePath !== undefined)?.workspacePath
+      const testerTask = snapshot.tasks.find(task => task.role === 'tester' && task.status === 'COMPLETED')
+      const canDrill = workspacePath !== undefined && testerTask?.result !== undefined && latestRun?.status !== 'RUNNING'
+      return await reply.send(projectDrillInfoSchema.parse({
+        projectId,
+        canDrill,
+        ...workspacePath === undefined ? {} : { workspacePath },
+        ...latestRun === undefined ? {} : { latestRunStatus: latestRun.status },
+        availableModes: [
+          'preset:typescript-contract',
+          'preset:browser-behavior',
+          'manual:workspace',
+          'restore:golden',
+        ],
+      }))
+    },
+  )
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/projects/:projectId/self-heal-drill',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      const body = startSelfHealDrillRequestSchema.parse(request.body)
+      const project = await requireProject(projectId)
+      const launcher = requireLauncher()
+      if (typeof launcher.startDrill !== 'function') {
+        throw new ApiError(501, 'NOT_IMPLEMENTED', 'Self-healing drill is not supported by launcher')
+      }
+      try {
+        const result = await launcher.startDrill(project, body.mode)
+        return await reply.code(202).send(startSelfHealDrillResponseSchema.parse({
+          runId: result.runId,
+          mode: body.mode,
+          injectedFault: result.injectedFault,
+        }))
+      } catch (error: unknown) {
+        if (error instanceof ProjectRunConflictError) {
+          throw new ApiError(409, error.code, error.message)
+        }
+        if (error instanceof ProjectRunStartError) {
+          throw new ApiError(503, error.code, error.message)
+        }
+        throw error
+      }
+    },
+  )
 
   async function createProjectWithTeam(input: {
     readonly id?: string | undefined

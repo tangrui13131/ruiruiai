@@ -13,6 +13,8 @@ import {
   projectRunSchema,
   projectSchema,
   projectSnapshotSchema,
+  projectDrillInfoSchema,
+  startSelfHealDrillResponseSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationPlanSchema,
@@ -33,9 +35,12 @@ import type {
   AgentVersionView,
   AgentView,
   DeliveryView,
+  FaultDrillMode,
+  ProjectDrillInfoView,
   ProjectRunView,
   ProjectSnapshotView,
   ProjectView,
+  StartSelfHealDrillResponseView,
   StructuredProjectProfileView,
   TeamRecommendationAdoptionResponseView,
   TeamRecommendationAdoptRequestView,
@@ -371,6 +376,25 @@ export const api = {
     return teamRecommendationAdoptionResponseSchema.parse(await request(
       '/api/v1/team-recommendations/adopt',
       { method: 'POST', body: JSON.stringify(input) },
+    ))
+  },
+
+  async getProjectDrillInfo(projectId: string): Promise<ProjectDrillInfoView> {
+    return projectDrillInfoSchema.parse(await request(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/drill-info`,
+    ))
+  },
+
+  async startSelfHealDrill(
+    projectId: string,
+    mode: FaultDrillMode,
+  ): Promise<StartSelfHealDrillResponseView> {
+    return startSelfHealDrillResponseSchema.parse(await request(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/self-heal-drill`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ mode }),
+      },
     ))
   },
 }

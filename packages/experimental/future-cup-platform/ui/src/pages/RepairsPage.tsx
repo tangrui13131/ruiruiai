@@ -2,11 +2,12 @@ import { Collapse, Descriptions, Tag } from 'antd'
 import { EmptyPanel } from '../components/EmptyPanel.tsx'
 import { JsonViewer } from '../components/JsonViewer.tsx'
 import { PageHeading } from '../components/PageHeading.tsx'
+import { SelfHealDrillButton } from '../components/SelfHealDrillModal.tsx'
 import { StatusBadge } from '../components/StatusBadge.tsx'
 import { UnifiedDiffViewer } from '../components/UnifiedDiffViewer.tsx'
 import type { RepairStrategyDecisionView } from '../api/contracts.ts'
 import { useLocale } from '../locale/LocaleProvider.tsx'
-import { useProjectState } from '../state/ProjectStoreContext.tsx'
+import { useProjectState, useProjectStore } from '../state/ProjectStoreContext.tsx'
 import type { ProjectSnapshotView } from '../api/contracts.ts'
 import type { Dictionary } from '../locale/types.ts'
 
@@ -15,13 +16,23 @@ import type { Dictionary } from '../locale/types.ts'
  * @param snapshot - project snapshot containing repairs and strategy decisions.
  * @returns repair history with strategy evidence and real diffs.
  */
-export function RepairsView({ snapshot }: { readonly snapshot: ProjectSnapshotView }) {
+export function RepairsView({
+  snapshot,
+  onLaunched,
+}: {
+  readonly snapshot: ProjectSnapshotView
+  readonly onLaunched?: () => void
+}) {
   const { dictionary } = useLocale()
   const repairs = [...snapshot.repairs].sort((left, right) => left.repairRound - right.repairRound)
   const strategies = new Map(snapshot.repairStrategies.map(value => [value.repairRound, value]))
   return (
     <div className="page-stack">
-      <PageHeading title={dictionary.repairs.title} description={dictionary.repairs.description} />
+      <PageHeading
+        title={dictionary.repairs.title}
+        description={dictionary.repairs.description}
+        actions={<SelfHealDrillButton projectId={snapshot.project.id} onLaunched={onLaunched} />}
+      />
       {repairs.length === 0 ? <EmptyPanel text={dictionary.repairs.noRepairs} /> : (
         <Collapse
           defaultActiveKey={repairs.slice(0, 1).map(repair => repair.id)}
@@ -91,8 +102,15 @@ export function RepairsView({ snapshot }: { readonly snapshot: ProjectSnapshotVi
 
 /** Render bounded repair rounds from the active project store. */
 export function RepairsPage() {
-  const snapshot = useProjectState().snapshot
-  return snapshot === undefined ? null : <RepairsView snapshot={snapshot} />
+  const state = useProjectState()
+  const store = useProjectStore()
+  const snapshot = state.snapshot
+  return snapshot === undefined ? null : (
+    <RepairsView
+      snapshot={snapshot}
+      onLaunched={() => { void store.refresh() }}
+    />
+  )
 }
 
 /**

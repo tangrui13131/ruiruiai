@@ -781,4 +781,87 @@ describe('FutureCupRunLauncher', () => {
     expect(run.status).toBe('CANCELLED')
     await launcher.close()
   })
+
+  it('executes a self-healing drill over an existing project run workspace', async () => {
+    const { root, repository, project } = setupProject()
+    const workspace = join(root, 'workspace-previous')
+    mkdirSync(join(workspace, 'src'), { recursive: true })
+    writeFileSync(join(workspace, 'src', 'App.tsx'), 'export function App() { return <div>Original</div> }\n')
+
+    const prevRun = repository.createProjectRun(project.id, 'owner-prev', 1n, workspace)
+    repository.finishProjectRun(prevRun.id, 'PASSED')
+
+    await DagEngine.create(repository, {
+      id: project.id,
+      name: project.name,
+      requirement: project.requirement,
+    }, [launcherTask('tester', 'tester')])
+
+    const current = repository.listTasks(project.id)[0]!
+    const next = {
+      ...current,
+      revision: current.revision + 1,
+      status: 'COMPLETED' as const,
+      result: {
+        summary: 'Spec',
+        pages: [
+          { pageId: 'overview', route: '/', navigationLabel: 'Overview', requiredText: ['Original'] },
+          { pageId: 'users', route: '/users', navigationLabel: 'Users', requiredText: ['Users'] },
+        ],
+        interactions: [
+          { fromRoute: '/', clickText: 'Users', expectedRoute: '/users', expectedText: 'Users' },
+        ],
+      },
+    }
+    repository.saveTask(next, 'task/completed')
+
+    let drillTeamRan = false
+    const launcher = new FutureCupRunLauncher({
+      store: repository,
+      workspaceRoot: join(root, 'runs'),
+      agentHomeRoot: join(root, 'homes'),
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 1, repairTimeoutMs: 1_000 },
+      leaseDurationMs: 1_000,
+      heartbeatIntervalMs: 50,
+      settlementRetryMs: 10,
+      settlementWaitMs: 200,
+      createDrillTeam: (request, spec) => ({
+        run: async () => {
+          drillTeamRan = true
+          expect(spec.pages[0]?.pageId).toBe('overview')
+          return teamResult(request, 'PASSED')
+        },
+        close: async () => {},
+      }),
+    })
+
+    const drillResult = await launcher.startDrill(project, 'preset:typescript-contract')
+    expect(drillResult.runId).toBeDefined()
+    expect(drillResult.injectedFault?.mode).toBe('preset:typescript-contract')
+
+    const run = await waitForTerminalRun(repository, project.id)
+    expect(run.status).toBe('PASSED')
+    expect(drillTeamRan).toBe(true)
+    await launcher.close()
+  })
+
+  it('rejects a self-healing drill when project has no previous workspace', async () => {
+    const { root, repository, project } = setupProject()
+    const launcher = new FutureCupRunLauncher({
+      store: repository,
+      workspaceRoot: join(root, 'runs'),
+      agentHomeRoot: join(root, 'homes'),
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 1, repairTimeoutMs: 1_000 },
+      leaseDurationMs: 1_000,
+      heartbeatIntervalMs: 50,
+      settlementRetryMs: 10,
+      settlementWaitMs: 200,
+    })
+
+    await expect(launcher.startDrill(project, 'preset:typescript-contract'))
+      .rejects.toBeInstanceOf(ProjectRunStartError)
+    await launcher.close()
+  })
 })

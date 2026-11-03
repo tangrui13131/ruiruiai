@@ -25,12 +25,15 @@ import { createFutureCupServer } from '../src/server.ts'
 import type { FutureCupServer, ProjectRunLauncher } from '../src/server-types.ts'
 import {
   agentTeamPageSchema,
+  projectDrillInfoSchema,
   publicAgentTeamVersionSchema,
+  startSelfHealDrillResponseSchema,
   structuredProjectProfileSchema,
   teamRecommendationAdoptionResponseSchema,
   teamRecommendationPlanSchema,
   teamRecommendationSaveResponseSchema,
 } from '../src/api-contracts.ts'
+import type { FaultDrillMode } from '../src/api-contracts.ts'
 
 const servers: FutureCupServer[] = []
 const sockets: Socket[] = []
@@ -57,6 +60,7 @@ afterEach(async () => {
 class FakeLauncher implements ProjectRunLauncher {
   readonly started: string[] = []
   readonly cancelled: string[] = []
+  readonly drills: { projectId: string; mode: FaultDrillMode }[] = []
 
   async start(project: PlatformProjectSummary) {
     this.started.push(project.id)
@@ -66,6 +70,17 @@ class FakeLauncher implements ProjectRunLauncher {
   async cancel(projectId: string) {
     this.cancelled.push(projectId)
     return true
+  }
+
+  async startDrill(project: PlatformProjectSummary, mode: FaultDrillMode) {
+    this.drills.push({ projectId: project.id, mode })
+    return {
+      runId: `run-drill-${project.id}`,
+      injectedFault: {
+        mode,
+        description: 'Test drill fault',
+      },
+    }
   }
 }
 
@@ -883,5 +898,113 @@ describe('Future Cup platform server', () => {
     )
     expect(deleteCustomRes.status).toBe(200)
     expect(await deleteCustomRes.json()).toEqual({ deleted: true })
+  })
+
+  it('serves drill-info and launches self-healing drill via launcher', async () => {
+    const launcher = new FakeLauncher()
+    const { baseUrl, store, runRoot } = await startServer(launcher)
+
+    // 404 for nonexistent project
+    const notFoundInfoRes = await fetch(`${baseUrl}/api/v1/projects/nonexistent/drill-info`)
+    expect(notFoundInfoRes.status).toBe(404)
+
+    const notFoundDrillRes = await fetch(`${baseUrl}/api/v1/projects/nonexistent/self-heal-drill`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'preset:typescript-contract' }),
+    })
+    expect(notFoundDrillRes.status).toBe(404)
+
+    // Create a real project
+    const createProjectRes = await fetch(`${baseUrl}/api/v1/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'project-drill-test',
+        name: 'Drill Test Project',
+        requirement: 'Build a drillable test app',
+      }),
+    })
+    expect(createProjectRes.status).toBe(201)
+
+    // Before any runs, canDrill should be false
+    const initialDrillInfoRes = await fetch(`${baseUrl}/api/v1/projects/project-drill-test/drill-info`)
+    expect(initialDrillInfoRes.status).toBe(200)
+    const initialInfo = await readJson(initialDrillInfoRes, projectDrillInfoSchema)
+    expect(initialInfo.canDrill).toBe(false)
+    expect(initialInfo.availableModes).toEqual([
+      'preset:typescript-contract',
+      'preset:browser-behavior',
+      'manual:workspace',
+      'restore:golden',
+    ])
+
+    // Set up finished run and completed tester task
+    const workspaceDir = join(runRoot, 'drill-workspace')
+    const run = store.createProjectRun('project-drill-test', 'worker-1', 1n, workspaceDir)
+    store.finishProjectRun(run.id, 'PASSED')
+
+    await DagEngine.create(store, {
+      id: ProjectId('project-drill-test'),
+      name: 'Drill Test Project',
+      requirement: 'Build a drillable test app',
+    }, [
+      taskDefinition({
+        id: TaskId('task-tester'),
+        role: 'tester',
+        title: 'Tester Spec',
+        description: 'Tester Spec Description',
+        priority: 50,
+        requiredCapabilities: {},
+        writeScopes: [],
+        dependencies: [],
+      }),
+    ])
+    const currentTask = store.listTasks(ProjectId('project-drill-test'))[0]!
+    store.saveTask({
+      ...currentTask,
+      revision: currentTask.revision + 1,
+      status: 'COMPLETED',
+      result: {
+        summary: 'Spec',
+        pages: [
+          { pageId: 'p1', route: '/', navigationLabel: 'Home', requiredText: ['Home'] },
+          { pageId: 'p2', route: '/about', navigationLabel: 'About', requiredText: ['About'] },
+        ],
+        interactions: [
+          { fromRoute: '/', clickText: 'About', expectedRoute: '/about', expectedText: 'About' },
+        ],
+      },
+    }, 'task/completed')
+
+    // Now canDrill should be true
+    const readyDrillInfoRes = await fetch(`${baseUrl}/api/v1/projects/project-drill-test/drill-info`)
+    expect(readyDrillInfoRes.status).toBe(200)
+    const readyInfo = await readJson(readyDrillInfoRes, projectDrillInfoSchema)
+    expect(readyInfo.canDrill).toBe(true)
+    expect(readyInfo.workspacePath).toBe(workspaceDir)
+    expect(readyInfo.latestRunStatus).toBe('PASSED')
+
+    // 400 Bad Request on invalid drill mode
+    const badModeRes = await fetch(`${baseUrl}/api/v1/projects/project-drill-test/self-heal-drill`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'preset:invalid-mode' }),
+    })
+    expect(badModeRes.status).toBe(400)
+
+    // Launch drill with valid preset
+    const launchRes = await fetch(`${baseUrl}/api/v1/projects/project-drill-test/self-heal-drill`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'preset:typescript-contract' }),
+    })
+    expect(launchRes.status).toBe(202)
+    const launchBody = await readJson(launchRes, startSelfHealDrillResponseSchema)
+    expect(launchBody.runId).toBe('run-drill-project-drill-test')
+    expect(launchBody.mode).toBe('preset:typescript-contract')
+    expect(launchBody.injectedFault?.description).toBe('Test drill fault')
+    expect(launcher.drills).toHaveLength(1)
+    expect(launcher.drills[0]?.mode).toBe('preset:typescript-contract')
   })
 })

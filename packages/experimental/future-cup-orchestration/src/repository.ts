@@ -1578,6 +1578,19 @@ export class OrchestrationRepository implements OrchestrationStore {
     }))
   }
 
+  /** {@inheritDoc OrchestrationStore.resetSelfHealingCycle} */
+  resetSelfHealingCycle(projectId: string, write?: WorkflowWriteContext): void {
+    this.transaction(() => {
+      this.assertWorkflowWriteFence(write)
+      this.database.prepare('DELETE FROM repair_strategy_decisions WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM repair_records WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM verification_reports WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM workflow_control_events WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM workflow_control_runs WHERE project_id = ?').run(projectId)
+      this.database.prepare('DELETE FROM workflow_runs WHERE project_id = ?').run(projectId)
+    })
+  }
+
   /** {@inheritDoc PlatformStore.listAgentDefinitions} */
   listAgentDefinitions(): StoredAgentDefinition[] {
     const rows = agentDefinitionRowSchema.array().parse(this.database.prepare(`

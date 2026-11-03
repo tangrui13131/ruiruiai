@@ -9,8 +9,14 @@ import {
   createHarnessAgentTeam,
   DagEngine,
   defaultAgentProfiles,
+  ensureGoldenWorkspaceSnapshot,
+  injectFault,
   ProjectId,
+  saveGoldenWorkspaceSnapshot,
+  SelfLoopController,
   TeamOrchestrator,
+  testerOutputSchema,
+  verifyProject,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import type {
   AgentProfile,
@@ -18,6 +24,8 @@ import type {
   ExecutionId,
   ExecutionRecord,
   ExecutionStatus,
+  FaultDrillMode,
+  FaultInjectionResult,
   HarnessAgentOptions,
   JsonValue,
   LeaseAcquisition,
@@ -46,6 +54,7 @@ import type {
   TaskJournalEventType,
   TaskSnapshot,
   TeamRunResult,
+  TesterOutput,
   VerificationReport,
   VerificationStatus,
   VerificationConfig,
@@ -88,6 +97,12 @@ export interface FutureCupRunTeamRequest {
 /** Creates one isolated team runtime for a project run. */
 export type FutureCupRunTeamFactory = (
   request: FutureCupRunTeamRequest,
+) => FutureCupRunTeam | Promise<FutureCupRunTeam>
+
+/** Creates the bounded repair-only runtime over an existing project workspace. */
+export type FutureCupDrillTeamFactory = (
+  request: FutureCupRunTeamRequest,
+  spec: TesterOutput,
 ) => FutureCupRunTeam | Promise<FutureCupRunTeam>
 
 class FencedOrchestrationStore implements OrchestrationStore {
@@ -463,6 +478,10 @@ class FencedOrchestrationStore implements OrchestrationStore {
     return await this.base.listRepairStrategyDecisions(projectId)
   }
 
+  async resetSelfHealingCycle(projectId: string): Promise<void> {
+    await this.base.resetSelfHealingCycle(projectId, this.write)
+  }
+
   async close(): Promise<void> {
     await this.base.close()
   }
@@ -483,6 +502,7 @@ export interface FutureCupRunLauncherOptions {
   readonly settlementRetryMs: number
   readonly settlementWaitMs: number
   readonly createTeam?: FutureCupRunTeamFactory | undefined
+  readonly createDrillTeam?: FutureCupDrillTeamFactory | undefined
   readonly onError?: ((error: unknown) => void) | undefined
 }
 
@@ -569,6 +589,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
   private readonly active = new Map<string, ActiveRun>()
   private readonly starting = new Map<string, Promise<void>>()
   private readonly createTeam: FutureCupRunTeamFactory
+  private readonly createDrillTeam: FutureCupDrillTeamFactory
   private readonly settlementFailures = new Map<string, ProjectRunSettlementIssue>()
   private closePromise: Promise<void> | undefined
   private closed = false
@@ -584,6 +605,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     }
     this.profiles = options.profiles ?? defaultAgentProfiles()
     this.createTeam = options.createTeam ?? (request => this.defaultTeam(request))
+    this.createDrillTeam = options.createDrillTeam ?? ((request, spec) => this.defaultDrillTeam(request, spec))
   }
 
   /** {@inheritDoc ProjectRunLauncher.start} */
@@ -700,6 +722,147 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     }
   }
 
+  /** {@inheritDoc ProjectRunLauncher.startDrill} */
+  async startDrill(
+    project: PlatformProjectSummary,
+    mode: FaultDrillMode,
+  ): Promise<{ runId: string; injectedFault?: FaultInjectionResult | undefined }> {
+    if (this.closed) throw new Error('FutureCupRunLauncher is closed')
+    if (this.active.has(project.id) || this.starting.has(project.id)) {
+      throw new ProjectRunConflictError(project.id)
+    }
+
+    const previousRuns = await this.options.store.listProjectRuns(project.id)
+    const latestRunWithWorkspace = previousRuns.slice().reverse().find(candidate => candidate.workspacePath !== undefined)
+    if (latestRunWithWorkspace === undefined || latestRunWithWorkspace.workspacePath === undefined) {
+      throw new ProjectRunStartError(`Project "${project.id}" has no existing workspace from a previous run`)
+    }
+    const workspace = latestRunWithWorkspace.workspacePath
+
+    const tasks = await this.options.store.listTasks(project.id)
+    const testerTask = tasks.find(task => task.role === 'tester' && task.status === 'COMPLETED')
+    if (testerTask === undefined || testerTask.result === undefined) {
+      throw new ProjectRunStartError(`Project "${project.id}" has no completed verification specification`)
+    }
+    const spec = testerOutputSchema.parse(testerTask.result)
+
+    let finishStarting!: () => void
+    const starting = new Promise<void>((resolve) => {
+      finishStarting = resolve
+    })
+    this.starting.set(project.id, starting)
+    const ownerId = `future-cup-drill-${randomUUID()}`
+    const resourceId = `workflow:${project.id}`
+    let leaseToken: bigint | undefined
+    let run: ProjectRunRecord | undefined
+    let startupHeartbeat: NodeJS.Timeout | undefined
+
+    try {
+      const lease = await this.options.store.acquireWorkflowLease(
+        resourceId,
+        project.id,
+        ownerId,
+        this.options.leaseDurationMs,
+      )
+      if (!lease.acquired || lease.fencingToken === undefined) {
+        throw new ProjectRunConflictError(project.id)
+      }
+      leaseToken = lease.fencingToken
+      const fencingToken = lease.fencingToken
+      startupHeartbeat = setInterval(() => {
+        void this.renewLease(resourceId, ownerId, fencingToken)
+      }, this.options.heartbeatIntervalMs)
+      startupHeartbeat.unref()
+
+      const write: WorkflowWriteContext = {
+        resourceId,
+        ownerId,
+        fencingToken,
+      }
+      const fencedStore = new FencedOrchestrationStore(this.options.store, write)
+      await this.reconcileInterruptedRun(project.id, fencedStore)
+      this.settlementFailures.delete(project.id)
+      this.throwIfClosed()
+
+      const runRoot = resolve(this.options.workspaceRoot, ownerId)
+      const homeRoot = resolve(this.options.agentHomeRoot, ownerId)
+      const screenshotDir = resolve(runRoot, 'screenshots')
+      await mkdir(runRoot, { recursive: true, mode: 0o700 })
+      await mkdir(homeRoot, { recursive: true, mode: 0o700 })
+      await mkdir(screenshotDir, { recursive: true, mode: 0o700 })
+      this.throwIfClosed()
+
+      await ensureGoldenWorkspaceSnapshot(workspace, tasks)
+      const injectedFault = await injectFault(workspace, mode, spec)
+
+      await fencedStore.resetSelfHealingCycle(project.id)
+
+      run = await fencedStore.createProjectRun(
+        project.id,
+        ownerId,
+        leaseToken,
+        workspace,
+      )
+      const team = await this.createDrillTeam({
+        project,
+        run,
+        store: fencedStore,
+        runRoot,
+        workspace,
+        homeRoot,
+        screenshotDir,
+        profiles: await this.resolveProfiles(project.id),
+      }, spec)
+
+      if (this.isClosed()) {
+        await team.close()
+        throw new Error('FutureCupRunLauncher closed during startup')
+      }
+      clearInterval(startupHeartbeat)
+      startupHeartbeat = undefined
+      const heartbeat = setInterval(() => {
+        void this.renew(project.id, ownerId, fencingToken)
+      }, this.options.heartbeatIntervalMs)
+      heartbeat.unref()
+      const active = {
+        project,
+        run,
+        write,
+        team,
+        heartbeat,
+        cancelled: false,
+        settled: false,
+        job: Promise.resolve(),
+      } satisfies ActiveRun
+      active.job = this.execute(active, workspace).catch((error: unknown) => {
+        this.options.onError?.(error)
+      })
+      this.active.set(project.id, active)
+      return { runId: run.id, injectedFault }
+    } catch (error: unknown) {
+      if (run !== undefined && leaseToken !== undefined) {
+        await this.failStart(run, error, {
+          resourceId,
+          ownerId,
+          fencingToken: leaseToken,
+        }, startupHeartbeat)
+      } else {
+        if (startupHeartbeat !== undefined) clearInterval(startupHeartbeat)
+        if (leaseToken !== undefined) {
+          await this.options.store.releaseWorkflowLease(resourceId, ownerId, leaseToken)
+        }
+      }
+      if (error instanceof ProjectRunConflictError) throw error
+      throw new ProjectRunStartError(
+        error instanceof Error ? error.message : String(error),
+        { cause: error },
+      )
+    } finally {
+      finishStarting()
+      this.starting.delete(project.id)
+    }
+  }
+
   /** {@inheritDoc ProjectRunLauncher.cancel} */
   async cancel(projectId: string): Promise<boolean> {
     const issue = this.settlementFailures.get(projectId)
@@ -781,6 +944,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       } else if (result.workflow.status === 'PASSED') {
         status = 'PASSED'
         previewPath = await existingDirectory(resolve(workspace, 'dist'))
+        await saveGoldenWorkspaceSnapshot(workspace).catch(() => {})
       } else {
         status = 'ESCALATED'
       }
@@ -1063,6 +1227,52 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     return {
       run: async (requirement, project) => await orchestrator.run(requirement, project),
       close: async () => { await orchestrator.close() },
+    }
+  }
+
+  private defaultDrillTeam(request: FutureCupRunTeamRequest, spec: TesterOutput): FutureCupRunTeam {
+    const profiles = request.profiles ?? this.profiles
+    const invokers = createHarnessAgentTeam(profiles, {
+      ...this.options.harness,
+      workspace: request.workspace,
+      homeRoot: request.homeRoot,
+    })
+    const selfLoop = new SelfLoopController({
+      repository: request.store,
+      invokers,
+      profiles,
+      workspace: request.workspace,
+      config: this.options.selfLoop,
+      verifier: async (ws, s) => await verifyProject(ws, s, {
+        ...this.options.verification,
+        screenshotDir: request.screenshotDir,
+      }),
+    })
+    return {
+      run: async () => {
+        const result = await selfLoop.run(request.project.id, spec)
+        return {
+          projectId: request.project.id,
+          planner: { projectName: request.project.name, pages: [], tasks: [] },
+          verificationSpec: spec,
+          tasks: await request.store.listTasks(request.project.id),
+          decisions: await request.store.listSchedulerDecisions(request.project.id),
+          executions: await request.store.listExecutions(request.project.id),
+          workspace: request.workspace,
+          ...result,
+        }
+      },
+      close: async () => {
+        const failures: unknown[] = []
+        for (const invoker of invokers.values()) {
+          try {
+            await invoker.close()
+          } catch (error: unknown) {
+            failures.push(error)
+          }
+        }
+        if (failures.length > 0) throw new AggregateError(failures, 'Drill team disposal failed')
+      },
     }
   }
 

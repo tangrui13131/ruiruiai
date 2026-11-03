@@ -600,3 +600,44 @@ export function publicVerificationReport(report: VerificationReport): Verificati
 function fileName(path: string): string {
   return path.split(/[\\/]/u).at(-1) ?? path
 }
+
+/** Supported fault injection and drill modes for project runs. */
+export const faultDrillModeSchema = z.enum([
+  'preset:typescript-contract',
+  'preset:browser-behavior',
+  'manual:workspace',
+  'restore:golden',
+])
+/** Supported self-healing drill modes. */
+export type FaultDrillMode = z.infer<typeof faultDrillModeSchema>
+
+/** Project drill readiness query response schema. */
+export const projectDrillInfoSchema = z.object({
+  projectId: z.string().min(1).max(120),
+  canDrill: z.boolean(),
+  workspacePath: z.string().optional(),
+  latestRunStatus: z.string().optional(),
+  availableModes: z.array(faultDrillModeSchema),
+}).strict()
+/** Project self-healing drill readiness. */
+export type ProjectDrillInfo = z.infer<typeof projectDrillInfoSchema>
+
+/** Request to trigger a self-healing drill. */
+export const startSelfHealDrillRequestSchema = z.object({
+  mode: faultDrillModeSchema,
+}).strict()
+/** Request to start one self-healing drill. */
+export type StartSelfHealDrillRequest = z.infer<typeof startSelfHealDrillRequestSchema>
+
+/** Self-healing drill launch response schema. */
+export const startSelfHealDrillResponseSchema = z.object({
+  runId: z.string(),
+  mode: faultDrillModeSchema,
+  injectedFault: z.object({
+    mode: faultDrillModeSchema,
+    targetFile: z.string().optional(),
+    description: z.string(),
+  }).strict().optional(),
+})
+/** Accepted self-healing drill launch. */
+export type StartSelfHealDrillResponse = z.infer<typeof startSelfHealDrillResponseSchema>

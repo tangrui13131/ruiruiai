@@ -748,4 +748,15 @@ export interface OrchestrationStore extends PlatformStore {
    * @returns validated repair records.
    */
   listRepairRecords(projectId: string): Awaitable<RepairRecord[]>
+  /**
+   * Reset Phase 2 self-healing cycle records so a new verification and repair cycle can execute.
+   * Deletes repair records, strategy decisions, verification reports, workflow control state and events,
+   * and previous workflow run state for this project.
+   * @param projectId - owning project.
+   * @param write - optional live workflow lease that authorizes the write.
+   */
+  resetSelfHealingCycle(
+    projectId: string,
+    write?: WorkflowWriteContext,
+  ): Awaitable<void>
 }

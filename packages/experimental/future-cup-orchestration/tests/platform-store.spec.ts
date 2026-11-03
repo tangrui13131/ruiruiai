@@ -348,4 +348,66 @@ describe('SQLite platform store', () => {
       repository.close()
     }
   })
+
+  it('resets self-healing cycle records cleanly without losing project or tasks', async () => {
+    const repository = new OrchestrationRepository(':memory:', {
+      now: () => new Date('2026-10-31T08:00:00.000Z'),
+      journalMode: 'delete',
+    })
+    try {
+      repository.createProject({
+        id: projectId,
+        name: 'Reset Drill',
+        requirement: 'Test self-healing reset',
+        createdAt: '2026-10-31T08:00:00.000Z',
+      }, [])
+      const report = repository.saveVerificationReport(
+        projectId,
+        'FAIL',
+        { status: 'FAIL', screenshots: [] },
+        undefined,
+        'sig-1',
+      )
+      repository.saveRepairRecord(projectId, {
+        repairRound: 1,
+        verificationReportId: report.id,
+        repairAgentId: AgentId('agent-repair'),
+        failureSignature: 'sig-1',
+        errorSummary: 'syntax error',
+        changeSummary: 'fixed syntax',
+        diff: '--- a\n+++ b\n',
+        beforeStatus: 'FAIL',
+        afterStatus: 'PASS',
+        startedAt: '2026-10-31T08:00:01.000Z',
+        completedAt: '2026-10-31T08:00:02.000Z',
+      })
+      repository.saveRepairStrategyDecision({
+        id: 'strategy-1',
+        projectId,
+        repairRound: 1,
+        failureSignature: 'sig-1',
+        strategyId: 'typescript-contract',
+        decision: { strategyId: 'typescript-contract' },
+        createdAt: '2026-10-31T08:00:01.000Z',
+        updatedAt: '2026-10-31T08:00:02.000Z',
+      })
+      repository.startWorkflowRun(projectId)
+
+      expect(repository.listVerificationReports(projectId)).toHaveLength(1)
+      expect(repository.listRepairRecords(projectId)).toHaveLength(1)
+      expect(repository.listRepairStrategyDecisions(projectId)).toHaveLength(1)
+      expect(repository.getWorkflowRun(projectId)).toBeDefined()
+
+      repository.resetSelfHealingCycle(projectId)
+
+      expect(repository.listVerificationReports(projectId)).toHaveLength(0)
+      expect(repository.listRepairRecords(projectId)).toHaveLength(0)
+      expect(repository.listRepairStrategyDecisions(projectId)).toHaveLength(0)
+      expect(repository.getWorkflowRun(projectId)).toBeUndefined()
+      expect(repository.getWorkflowControlState(projectId)).toBeUndefined()
+      expect(repository.getProject(projectId)).toBeDefined()
+    } finally {
+      repository.close()
+    }
+  })
 })

@@ -1691,6 +1691,18 @@ export class PostgresPlatformStore implements OrchestrationStore {
     return rows.map(decodeRepairStrategyDecisionRow)
   }
 
+  /** {@inheritDoc OrchestrationStore.resetSelfHealingCycle} */
+  async resetSelfHealingCycle(projectId: string, write?: WorkflowWriteContext): Promise<void> {
+    await this.withWorkflowTransaction(write, async (tx) => {
+      await tx.repairStrategyDecision.deleteMany({ where: { projectId } })
+      await tx.repairRecord.deleteMany({ where: { projectId } })
+      await tx.verificationReport.deleteMany({ where: { projectId } })
+      await tx.workflowControlEvent.deleteMany({ where: { projectId } })
+      await tx.workflowControlRun.deleteMany({ where: { projectId } })
+      await tx.workflowRun.deleteMany({ where: { projectId } })
+    })
+  }
+
   private async withWorkflowTransaction<T>(
     write: WorkflowWriteContext | undefined,
     operation: (tx: Prisma.TransactionClient) => Promise<T>,

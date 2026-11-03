@@ -25,6 +25,7 @@ import { api } from '../api/client.ts'
 import { localizedApiError } from '../api/errors.ts'
 import type { AgentTeamView, ProjectView } from '../api/contracts.ts'
 import { PageHeading } from '../components/PageHeading.tsx'
+import { SelfHealDrillButton } from '../components/SelfHealDrillModal.tsx'
 import { StatusBadge } from '../components/StatusBadge.tsx'
 import { useProjectCommands } from '../hooks/useProjectCommands.ts'
 import { useLocale } from '../locale/LocaleProvider.tsx'
@@ -105,14 +106,11 @@ function ProjectCard({
               />
             </Tooltip>
           ) : (
-            <Tooltip title={dictionary.projects.runUnavailable}>
-              <Button
-                type="text"
-                icon={<PlayCircleOutlined />}
-                aria-label={dictionary.projects.runUnavailable}
-                disabled
-              />
-            </Tooltip>
+            <SelfHealDrillButton
+              projectId={project.id}
+              compact
+              onLaunched={onChanged}
+            />
           )}
           <Tooltip title={dictionary.projects.deleteProject}>
             <Button

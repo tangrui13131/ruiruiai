@@ -2,6 +2,8 @@
 
 import type {
   AgentProfile,
+  FaultDrillMode,
+  FaultInjectionResult,
   PlatformProjectSummary,
   PlatformStore,
   PersistentAgentRegistry,
@@ -21,6 +23,16 @@ export interface ProjectRunLauncher {
    * @returns whether a run was cancelled.
    */
   cancel(projectId: string): Promise<boolean>
+  /**
+   * Start one self-healing drill execution over an existing project run workspace.
+   * @param project - durable project summary.
+   * @param mode - selected fault drill mode.
+   * @returns a stable run identity and fault injection details.
+   */
+  startDrill?(
+    project: PlatformProjectSummary,
+    mode: FaultDrillMode,
+  ): Promise<{ runId: string; injectedFault?: FaultInjectionResult | undefined }>
 }
 
 /** Explicit Fastify and realtime server configuration. */

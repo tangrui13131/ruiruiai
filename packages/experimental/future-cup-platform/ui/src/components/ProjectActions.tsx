@@ -3,6 +3,7 @@ import { Button, Space, Tooltip } from 'antd'
 import { useProjectCommands } from '../hooks/useProjectCommands.ts'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import { useProjectState, useProjectStore } from '../state/ProjectStoreContext.tsx'
+import { SelfHealDrillButton } from './SelfHealDrillModal.tsx'
 
 /** Start or cancel the real project run through the platform API. */
 export function ProjectActions({
@@ -48,16 +49,11 @@ export function ProjectActions({
           </Button>
         </Tooltip>
       ) : (
-        <Tooltip title={dictionary.projects.runUnavailable}>
-          <Button
-            type="default"
-            icon={<PlayCircleOutlined />}
-            aria-label={dictionary.projects.runUnavailable}
-            disabled
-          >
-            {compact ? null : dictionary.projects.run}
-          </Button>
-        </Tooltip>
+        <SelfHealDrillButton
+          projectId={projectId}
+          compact={compact}
+          onLaunched={() => { void store.refresh() }}
+        />
       )}
     </Space>
   )
