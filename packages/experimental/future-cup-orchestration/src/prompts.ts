@@ -67,6 +67,8 @@ export const TESTER_INSTRUCTIONS = [
   'Never place shared navigation labels in requiredText; the interactions array verifies navigation.',
   'Every requiredText value must be part of the page body rather than shared navigation.',
   'Navigation labels and expected text must be concise and stable enough for Playwright role and text locators.',
+  'Each interaction clickText must be either the destination page navigationLabel or one of the source page requiredText values.',
+  'Never invent a clickText variant that is absent from both the source page requiredText and destination navigationLabel.',
   'Do not invent exact counts, dates, prices, or data values that are absent from the requirement and page plan.',
   'Prefer headings, navigation labels, control labels, column headings, and stable empty-state or sample-data labels.',
   'Every interaction route must reference a declared page route.',

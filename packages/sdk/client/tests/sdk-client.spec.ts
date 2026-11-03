@@ -17,6 +17,7 @@ import {
   HarnessSession,
   JsonRpcResponseError,
   RequestTimeoutError,
+  SessionTurnError,
   SdkProtocolError,
   TransportClosedError,
   type HarnessNotification,
@@ -724,6 +725,24 @@ describe('wire payload validation', () => {
   it.each(['1', 'aborted', 'abort-unknown', 'hook', 'no-data'])('rejects malformed turn/end input %s as a protocol error', async (mode) => {
     const harness = harnessWith({ FAKE_MALFORMED_REASON: mode })
     await expect(harness.run('bad-reason')).rejects.toThrow(SdkProtocolError)
+  })
+
+  it.each([
+    ['TRANSPORT', true],
+    ['UNKNOWN', false],
+  ] as const)('rejects a failed turn with its %s retry classification', async (code, retryable) => {
+    const harness = harnessWith({
+      FAKE_REASON_KIND: 'error',
+      FAKE_ERROR_CODE: code,
+      FAKE_ERROR_MESSAGE: 'provider failed',
+    })
+    await expect(harness.run('failed-turn')).rejects.toMatchObject({
+      name: 'SessionTurnError',
+      code,
+      retryable,
+      message: 'provider failed',
+    })
+    expect(new SessionTurnError({ code, message: 'provider failed' }).retryable).toBe(retryable)
   })
 
   it('accepts the complete hook cancellation cause', async () => {

@@ -259,18 +259,31 @@ export const testerOutputSchema = z.object({
 }).strict().superRefine((value, context) => {
   const pageIds = new Set(value.pages.map(page => page.pageId))
   const routes = new Set(value.pages.map(page => page.route))
+  const pagesByRoute = new Map(value.pages.map(page => [page.route, page]))
   if (pageIds.size !== value.pages.length) {
     context.addIssue({ code: 'custom', message: 'Tester page ids must be unique', path: ['pages'] })
   }
   if (routes.size !== value.pages.length) {
     context.addIssue({ code: 'custom', message: 'Tester routes must be unique', path: ['pages'] })
   }
-  for (const interaction of value.interactions) {
-    if (!routes.has(interaction.fromRoute) || !routes.has(interaction.expectedRoute)) {
+  for (const [index, interaction] of value.interactions.entries()) {
+    const fromPage = pagesByRoute.get(interaction.fromRoute)
+    const expectedPage = pagesByRoute.get(interaction.expectedRoute)
+    if (fromPage === undefined || expectedPage === undefined) {
       context.addIssue({
         code: 'custom',
         message: 'Tester interactions must reference declared routes',
-        path: ['interactions'],
+        path: ['interactions', index],
+      })
+      continue
+    }
+    const bodyLabel = fromPage.requiredText.includes(interaction.clickText)
+    const navigationLabel = expectedPage.navigationLabel === interaction.clickText
+    if (!bodyLabel && !navigationLabel) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Tester clickText must be a source-page requiredText value or the destination navigationLabel',
+        path: ['interactions', index, 'clickText'],
       })
     }
   }

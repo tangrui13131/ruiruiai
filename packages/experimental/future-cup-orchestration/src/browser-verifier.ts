@@ -103,6 +103,12 @@ export async function verifyBrowser(
             }
             const interactions = spec.interactions.filter(value => value.fromRoute === pageSpec.route)
             for (const interaction of interactions) {
+              // Interactions are independent scenarios. A previous navigation must not leak
+              // its destination into the next interaction's starting route.
+              await page.goto(routeUrl(preview.url, interaction.fromRoute), {
+                waitUntil: 'networkidle',
+                timeout: options.timeoutMs,
+              })
               await page.getByRole('link', { name: interaction.clickText, exact: true })
                 .filter({ visible: true }).first().click()
               await page.waitForFunction(

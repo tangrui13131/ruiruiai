@@ -1,7 +1,8 @@
 /** Bounded verify, repair, and reverify control loop. */
 
 import { setTimeout as delay } from 'node:timers/promises'
-import type { AgentInvoker } from './agent-contracts.ts'
+import { SessionTurnError } from '@deepseek-ai/dsh-sdk-client'
+import type { AgentInvocation, AgentInvoker, AgentRun } from './agent-contracts.ts'
 import { buildStructuredPrompt } from './agent-contracts.ts'
 import {
   selectRepairContext,
@@ -10,6 +11,7 @@ import {
 } from './adaptive-repair.ts'
 import { TaskId } from './brand.ts'
 import type { ProjectId as ProjectIdType } from './brand.ts'
+import type { ExecutionId } from './brand.ts'
 import { requireAgentInvoker } from './harness-agents.ts'
 import { REPAIR_INSTRUCTIONS } from './prompts.ts'
 import { writeScopedFiles } from './project-scaffold.ts'
@@ -48,6 +50,7 @@ export interface SelfLoopControllerOptions {
   readonly profiles: readonly AgentProfile[]
   readonly workspace: string
   readonly config: SelfLoopConfig
+  readonly maxAgentRetries?: number | undefined
   readonly verifier?: (workspace: string, spec: TesterOutput) => Promise<VerificationResult>
   readonly now?: () => Date
 }
@@ -79,6 +82,7 @@ type RepairOutcome =
 export class SelfLoopController {
   private readonly verifier: NonNullable<SelfLoopControllerOptions['verifier']>
   private readonly now: () => Date
+  private readonly maxAgentRetries: number
   private readonly control: WorkflowControlCoordinator
 
   /**
@@ -96,9 +100,14 @@ export class SelfLoopController {
     if (!Number.isSafeInteger(options.config.repairTimeoutMs) || options.config.repairTimeoutMs <= 0) {
       throw new Error('repairTimeoutMs must be a positive safe integer')
     }
+    if (options.maxAgentRetries !== undefined
+      && (!Number.isSafeInteger(options.maxAgentRetries) || options.maxAgentRetries < 0)) {
+      throw new Error('maxAgentRetries must be a non-negative safe integer')
+    }
     if (options.verifier === undefined) throw new Error('A complete verification function is required')
     this.verifier = options.verifier
     this.now = options.now ?? (() => new Date())
+    this.maxAgentRetries = options.maxAgentRetries ?? 0
     this.control = new WorkflowControlCoordinator(
       options.repository,
       createFutureCupWorkflowControlDefinition(
@@ -386,9 +395,10 @@ export class SelfLoopController {
         },
         repairOutputSchema,
       )
-      const run = await withTimeout(
-        invoker.run({ taskId: `repair-round-${round}`, prompt }, repairOutputSchema),
-        this.options.config.repairTimeoutMs,
+      const run = await this.invokeRepairAgent(
+        executionId,
+        invoker,
+        { taskId: `repair-round-${round}`, prompt },
       )
       await this.options.repository.appendExecutionEvent(
         executionId,
@@ -439,6 +449,45 @@ export class SelfLoopController {
         ok: false,
         reason: timeout ? 'REPAIR_TIMEOUT' : 'REPAIR_FAILED',
         repairRecordId: repairRecord.id,
+      }
+    }
+  }
+
+  /**
+   * Run one Repair turn and retry only provider failures that the SDK marks as transient.
+   * @param executionId - durable execution receiving retry evidence.
+   * @param invoker - Repair Agent runtime.
+   * @param invocation - complete structured Repair prompt.
+   * @returns the successful structured Repair output.
+   */
+  private async invokeRepairAgent(
+    executionId: ExecutionId,
+    invoker: AgentInvoker,
+    invocation: AgentInvocation,
+  ): Promise<AgentRun<RepairOutput>> {
+    let retries = 0
+    for (;;) {
+      try {
+        return await withTimeout(
+          invoker.run(invocation, repairOutputSchema),
+          this.options.config.repairTimeoutMs,
+        )
+      } catch (error: unknown) {
+        if (!(error instanceof SessionTurnError)
+          || !error.retryable
+          || retries >= this.maxAgentRetries) {
+          throw error
+        }
+        retries += 1
+        await this.options.repository.appendExecutionEvent(
+          executionId,
+          'agent/retry',
+          jsonValueSchema.parse({
+            attempt: retries,
+            code: error.code,
+            message: error.message,
+          }),
+        )
       }
     }
   }

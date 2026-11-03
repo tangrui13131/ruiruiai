@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { z } from 'zod'
+import { SessionTurnError } from '@deepseek-ai/dsh-sdk-client'
 import type { AgentInvocation, AgentInvoker, AgentRun } from '../src/agent-contracts.ts'
 import { selectRepairStrategy } from '../src/adaptive-repair.ts'
 import { AgentId, ProjectId } from '../src/brand.ts'
@@ -106,6 +107,18 @@ class FailingRepairInvoker implements AgentInvoker {
   async close(): Promise<void> {}
 }
 
+class RetryThenRepairInvoker extends RepairInvoker {
+  attempts = 0
+
+  override async run<T>(invocation: AgentInvocation, schema: z.ZodType<T>): Promise<AgentRun<T>> {
+    this.attempts += 1
+    if (this.attempts === 1) {
+      throw new SessionTurnError({ code: 'TRANSPORT', message: 'transient provider failure' })
+    }
+    return await super.run(invocation, schema)
+  }
+}
+
 class DrainToolsRepairInvoker extends RepairInvoker {
   override async run<T>(invocation: AgentInvocation, schema: z.ZodType<T>): Promise<AgentRun<T>> {
     const resultValue = await super.run(invocation, schema)
@@ -202,6 +215,12 @@ describe('SelfLoopController', () => {
       ...base,
       config: { maxRepairRounds: 1, repairTimeoutMs: 1_000 },
     })).toThrow(/verification function/)
+    expect(() => new SelfLoopController({
+      ...base,
+      config: { maxRepairRounds: 1, repairTimeoutMs: 1_000 },
+      maxAgentRetries: -1,
+      verifier: async () => result('PASS'),
+    })).toThrow(/maxAgentRetries/)
     expect(() => new SelfLoopController({
       ...base,
       config: { maxRepairRounds: 1, repairTimeoutMs: 1_000 },
@@ -673,6 +692,35 @@ describe('SelfLoopController', () => {
       escalationReason: 'REPAIR_FAILED',
     })
     expect(outcome.repairs[0]?.afterStatus).toBe('INCOMPLETE')
+  })
+
+  it('retries a transient Repair turn without consuming a repair round', async () => {
+    const invoker = new RetryThenRepairInvoker(
+      repairProfile,
+      ["export const app = 'recovered'\n"],
+    )
+    const { workspace, repository } = setup([], 0, repairProfile, invoker)
+    const verifications = [result('FAIL', 'a'), result('PASS')]
+    const controller = new SelfLoopController({
+      repository,
+      invokers: new Map([[repairProfile.id, invoker]]),
+      profiles: [repairProfile],
+      workspace,
+      config: { maxRepairRounds: 2, repairTimeoutMs: 1_000 },
+      maxAgentRetries: 1,
+      verifier: async () => verifications.shift() ?? result('PASS'),
+      now: NOW,
+    })
+
+    const outcome = await controller.run(projectId, spec)
+
+    expect(invoker.attempts).toBe(2)
+    expect(outcome.workflow).toMatchObject({ status: 'PASSED', repairRound: 1 })
+    const repairExecution = repository.listExecutions(projectId)
+      .find(execution => execution.taskId === 'repair-round-1')
+    expect(repairExecution?.status).toBe('COMPLETED')
+    expect(repository.listExecutionEvents(repairExecution!.id).map(event => event.eventType))
+      .toContain('agent/retry')
   })
 
   it('escalates a distinct follow-up failure when its strategy becomes unavailable', async () => {

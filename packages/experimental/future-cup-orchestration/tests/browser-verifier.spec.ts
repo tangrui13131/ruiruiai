@@ -61,6 +61,41 @@ describe('Playwright browser verification', () => {
     expect(result.viewports).toEqual(['desktop', 'mobile'])
   })
 
+  it('restarts every interaction at its declared source route', {
+    timeout: 60_000,
+  }, async () => {
+    const root = fixture({
+      script: [
+        '<script>',
+        'const render = () => {',
+        '  const users = location.hash === "#/users";',
+        '  document.querySelector("#root").innerHTML = users',
+        '    ? `<main><h1>Users</h1><a href="#/">Home</a></main>`',
+        '    : `<main><h1>Home</h1><nav><a href="#/users">Users</a></nav><a href="#/users">Open Users</a></main>`;',
+        '};',
+        'addEventListener("hashchange", render);',
+        'render();',
+        '</script>',
+      ].join('\n'),
+    })
+    const sequentialSpec: TesterOutput = {
+      summary: 'Independent interactions from the same source route',
+      pages: [
+        { pageId: 'home', route: '/', navigationLabel: 'Home', requiredText: ['Home', 'Open Users'] },
+        { pageId: 'users', route: '/users', navigationLabel: 'Users', requiredText: ['Users'] },
+      ],
+      interactions: [
+        { fromRoute: '/', clickText: 'Users', expectedRoute: '/users', expectedText: 'Users' },
+        { fromRoute: '/', clickText: 'Open Users', expectedRoute: '/users', expectedText: 'Users' },
+      ],
+    }
+
+    const result = await verifyBrowser(root, sequentialSpec, { timeoutMs: 10_000 })
+
+    expect(result.status).toBe('PASS')
+    expect(result.checks.filter(check => check.status === 'PASS')).toHaveLength(4)
+  })
+
   it('rejects page errors, console errors, Ant Design deprecations, and 404 responses', {
     timeout: 60_000,
   }, async () => {

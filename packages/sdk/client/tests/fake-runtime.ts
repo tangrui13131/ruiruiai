@@ -207,7 +207,13 @@ function runTurn(sessionId: string): void {
                   : { kind: env.FAKE_ABORT_REASON_KIND ?? 'user' },
               }
               : reasonKind === 'error'
-                ? { kind: 'error', error: { message: 'scripted child error', code: 'UNKNOWN' } }
+                ? {
+                  kind: 'error',
+                  error: {
+                    message: env.FAKE_ERROR_MESSAGE ?? 'scripted child error',
+                    code: env.FAKE_ERROR_CODE ?? 'UNKNOWN',
+                  },
+                }
                 : { kind: reasonKind }
     event(sessionId, 'turn/end', { turn: 0, reason })
   }

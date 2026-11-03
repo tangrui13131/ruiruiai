@@ -1243,6 +1243,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       profiles,
       workspace: request.workspace,
       config: this.options.selfLoop,
+      maxAgentRetries: this.options.maxAgentRetries ?? 1,
       verifier: async (ws, s) => await verifyProject(ws, s, {
         ...this.options.verification,
         screenshotDir: request.screenshotDir,

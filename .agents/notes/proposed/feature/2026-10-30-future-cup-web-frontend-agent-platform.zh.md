@@ -168,8 +168,9 @@ M5 以初赛可验收为边界，按依赖顺序完成以下阶段，不并行�
 - 团队发布与智能推荐共用能力、并发、工具、记忆、输出契约、部门和发布状态校验。确定性 Verifier 仍由系统拥有，不属于团队成员。
 - 项目创建冻结所选团队版本；项目 Agent 接口从冻结快照派生名单，HQ 读取冻结的部门与工位，而不是根据角色字符串猜测。
 - “我的团队”管理页提供团队列表、版本历史、容量与引用摘要，以及 1–7 实例编辑器；既有“智能配队”仍作为推荐入口。
-- 当前聚焦结果为编排包 194/194、平台包 32/32、UI 87/87 测试通过；真实团队 E2E 在无密钥时安全跳过，SQLite v1–v7 迁移测试、Prisma schema、TypeScript 检查与构建产物检查通过。
+- 当前聚焦结果为编排包 198/198、平台包 32/32、UI 87/87 测试通过；真实团队 E2E 在无密钥时安全跳过，SQLite v1–v7 迁移测试、Prisma schema、TypeScript 检查与构建产物检查通过。
 - 2026-11-03 的真实 DeepSeek E2E 从用户复制并发布的 7 人团队创建项目，验证了不可变冻结快照、7 个项目 Agent 投影、7 个独立 Harness home、真实生成 Session，以及桌面与移动浏览器验证。项目先通过完整验证，再通过平台接口注入 `TS2322`；自适应修复完成新的 Repair Session，复验结果由 `FAIL` 转为 `PASS`，控制图记录条件边、有界循环、Repair 子工作流和 `PASSED` 终态。证据保存在 `.artifacts/future-cup-m55-live/real-team-*/run-result.json`，测试入口为 `packages/experimental/future-cup-platform/tests/real-team-library.e2e.ts`。
+- Browser Verifier 现在会在每个交互前重新进入该交互声明的 `fromRoute`，避免前一个导航污染后一个交互的起始页面。Tester 输出也会拒绝既不属于源页面 `requiredText`、也不等于目标页面 `navigationLabel` 的 `clickText`。SDK 将失败的 `turn/end` 暴露为带稳定错误码和可重试分类的 `SessionTurnError`，Self-loop 使用 `maxAgentRetries` 对可恢复传输失败进行有界重试；回归测试覆盖同源多交互、矛盾文案和传输恢复。
 
 ### M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3 与 M5.4 结果
 

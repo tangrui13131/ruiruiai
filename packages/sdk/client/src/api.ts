@@ -13,6 +13,32 @@ import { createProcessHarnessClient, HarnessClient, isRecord, SdkProtocolError }
 import type { RuntimeProcessOptions } from './launch.ts'
 import type { ContentBlock, DeepSeekHarnessOptions, HarnessNotification, RunResult, SdkPromptContentBlock } from './types.ts'
 
+const RETRYABLE_TURN_ERROR_CODES = new Set([
+  'EMPTY_RESPONSE',
+  'RATE_LIMIT',
+  'SERVER',
+  'TIMEOUT',
+  'TRANSPORT',
+])
+
+/** A Harness turn ended with a provider or runtime failure instead of an assistant response. */
+export class SessionTurnError extends Error {
+  /** Stable provider/runtime failure code. */
+  readonly code: string
+  /** Whether retrying the complete turn can reasonably recover. */
+  readonly retryable: boolean
+
+  /**
+   * @param failure - failed turn reason carried by `turn/end`.
+   */
+  constructor(failure: { readonly message: string; readonly code: string }) {
+    super(failure.message)
+    this.name = 'SessionTurnError'
+    this.code = failure.code
+    this.retryable = RETRYABLE_TURN_ERROR_CODES.has(failure.code)
+  }
+}
+
 /**
  * Reusable SDK for running DeepSeek Harness agent turns in a runtime
  * subprocess. The subprocess starts lazily on first use and stays owned by
@@ -247,6 +273,14 @@ export class HarnessSession {
       }
     } finally {
       subscription.close()
+    }
+
+    const terminal = events.findLast(event => event.type === 'turn/end')
+    if (terminal?.data.reason.kind === 'error') {
+      throw new SessionTurnError({
+        message: terminal.data.reason.error.message,
+        code: terminal.data.reason.error.code,
+      })
     }
 
     return {

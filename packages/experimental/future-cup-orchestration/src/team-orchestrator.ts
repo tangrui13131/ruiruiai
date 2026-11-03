@@ -222,6 +222,7 @@ export class TeamOrchestrator {
       profiles: this.options.profiles,
       workspace: generated.workspace,
       config: this.options.selfLoop,
+      maxAgentRetries: this.maxAgentRetries,
       verifier: this.projectVerifier,
     })
     return await selfLoop.run(generated.projectId, generated.verificationSpec)
