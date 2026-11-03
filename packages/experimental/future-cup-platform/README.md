@@ -87,7 +87,7 @@ The server binds only to a loopback host. Its current routes are:
 | `POST` | `/api/v1/teams/:teamId/clone` | clone a published Team into a new draft |
 | `POST` | `/api/v1/teams/:teamId/archive` | archive a logical Team |
 | `GET` | `/api/v1/teams/:teamId/usage` | list projects frozen to a Team |
-| `GET` | `/api/v1/projects/:projectId/agents` | project-scoped Agent capacity, live load, and observed success rates |
+| `GET` | `/api/v1/projects/:projectId/agents` | project-scoped Agent capacity, live load, terminal execution counts, and observed success rates |
 | `GET` | `/api/v1/projects/:projectId/team` | complete frozen team snapshot for one project |
 | `POST` | `/api/v1/projects/:projectId/team-binding` | freeze a team version for an unbound project |
 | `GET` | `/api/v1/projects/:projectId/snapshot` | current project state plus events after `afterSeq` |
@@ -160,7 +160,7 @@ The My Teams entry manages logical Teams independently of the recommendation flo
 
 Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease.
 
-Project-scoped Agent state derives live load from `RUNNING` executions and overlays persisted success rates from completed executions. The management UI refreshes this projection whenever the authoritative snapshot cursor advances.
+Project-scoped Agent state derives live load from `RUNNING` executions. Historical success uses `COMPLETED` as success and includes `FAILED` and `CANCELLED` in the execution total. The API returns both counts, so the management UI distinguishes an observed rate from a profile default when an Agent has no historical executions.
 
 ## Model Experience
 

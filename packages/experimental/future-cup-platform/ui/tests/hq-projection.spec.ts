@@ -28,6 +28,8 @@ function realAgent(
     maxConcurrency: 1,
     currentLoad,
     historicalSuccessRate: 0.9,
+    historicalSuccessCount: 0,
+    historicalExecutionCount: 0,
     available: currentLoad < 1,
     ...departmentKey === undefined ? {} : { departmentKey },
   }

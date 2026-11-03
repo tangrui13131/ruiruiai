@@ -86,8 +86,8 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `POST` | `/api/v1/teams/:teamId/versions/:versionId/publish` | 校验并发布团队草稿 |
 | `POST` | `/api/v1/teams/:teamId/clone` | 将已发布团队复制为新草稿 |
 | `POST` | `/api/v1/teams/:teamId/archive` | 归档逻辑团队 |
-| `GET` | `/api/v1/teams/:teamId/usage` | 查询冻结到团队的项�?|
-| `GET` | `/api/v1/projects/:projectId/agents` | 项目级 Agent 容量、实时负载与已观测成功率 |
+| `GET` | `/api/v1/teams/:teamId/usage` | 查询冻结到团队的项目 |
+| `GET` | `/api/v1/projects/:projectId/agents` | 项目级 Agent 容量、实时负载、终止执行计数与已观测成功率 |
 | `GET` | `/api/v1/projects/:projectId/team` | 项目冻结的完整团队快照 |
 | `POST` | `/api/v1/projects/:projectId/team-binding` | 为未绑定项目冻结团队版本 |
 | `GET` | `/api/v1/projects/:projectId/snapshot` | 当前项目状态与 `afterSeq` 后的事件 |
@@ -159,7 +159,7 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 
 工作流租约保存 owner、heartbeat、expiry 与单调 fencing token。租约接管会递增 token，只有当前 owner 与 token 能续期或释放。领域写会在自身事务内校验该 fence。新启动在接管过期租约后会回收遗留 `RUNNING` 行。
 
-项目级 Agent 状态从 `RUNNING` 执行记录计算实时负载，并用已完成执行记录覆盖持久化成功率。权威快照游标推进时，管理界面会刷新该投影。
+项目级 Agent 状态从 `RUNNING` 执行记录计算实时负载。历史成功率以 `COMPLETED` 为成功，并把 `FAILED` 与 `CANCELLED` 计入执行总数。接口同时返回成功数与终止执行数，管理界面据此区分真实观测值与 Agent 没有历史执行时使用的配置默认值。
 
 “我的团队”入口独立管理逻辑团队。团队版本包含 1–7 个运行时实例；重复的已发布 Agent 版本按多个成员计数，每个实例拥有稳定显示名、部门与工位。草稿可以为空，但发布必须通过推荐器使用的同一套能力与策略校验。项目创建时冻结所选版本，项目 Agent 接口投影该冻结名单，因此 HQ 大屏的人数与部门位置严格一致。
 

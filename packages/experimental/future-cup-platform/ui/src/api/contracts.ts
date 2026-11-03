@@ -121,6 +121,8 @@ export const agentSchema = z.looseObject({
   maxConcurrency: z.number(),
   currentLoad: z.number(),
   historicalSuccessRate: z.number(),
+  historicalSuccessCount: z.number().int().nonnegative(),
+  historicalExecutionCount: z.number().int().nonnegative(),
   available: z.boolean(),
   definitionVersionId: z.string().optional(),
   model: z.string().optional(),

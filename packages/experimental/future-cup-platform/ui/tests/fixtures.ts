@@ -4,6 +4,8 @@ export function agent(
   id: string,
   currentLoad = 0,
   historicalSuccessRate = 0.75,
+  historicalSuccessCount = 0,
+  historicalExecutionCount = 0,
 ): AgentView {
   return {
     id,
@@ -13,6 +15,8 @@ export function agent(
     maxConcurrency: 1,
     currentLoad,
     historicalSuccessRate,
+    historicalSuccessCount,
+    historicalExecutionCount,
     available: currentLoad < 1,
   }
 }

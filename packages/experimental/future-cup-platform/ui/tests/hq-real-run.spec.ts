@@ -50,6 +50,8 @@ function agent(id: string, role: string): AgentView {
     maxConcurrency: 1,
     currentLoad: 0,
     historicalSuccessRate: 0.9,
+    historicalSuccessCount: 0,
+    historicalExecutionCount: 0,
     available: true,
   }
 }

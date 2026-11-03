@@ -186,6 +186,12 @@ describe('Future Cup platform server', () => {
     await dag.startTask(TaskId('design'), AgentId('ui-designer'))
     const executionId = store.startExecution(projectId, TaskId('design'), AgentId('ui-designer'))
     store.appendExecutionEvent(executionId, 'agent/started', { attempt: 1 })
+    const failedExecutionId = store.startExecution(
+      projectId,
+      TaskId('design'),
+      AgentId('ui-designer'),
+    )
+    store.finishExecution(failedExecutionId, 'FAILED', 'session-ui-designer-failed')
     const completedExecutionId = store.startExecution(
       projectId,
       TaskId('planner'),
@@ -268,6 +274,8 @@ describe('Future Cup platform server', () => {
           id: z.string(),
           currentLoad: z.number(),
           historicalSuccessRate: z.number(),
+          historicalSuccessCount: z.number(),
+          historicalExecutionCount: z.number(),
           available: z.boolean(),
         })))),
       fetch(`${baseUrl}/api/v1/projects/project-api/snapshot?afterSeq=0&limit=500`)
@@ -316,12 +324,17 @@ describe('Future Cup platform server', () => {
       expect.objectContaining({
         id: 'ui-designer',
         currentLoad: 1,
+        historicalSuccessRate: 0,
+        historicalSuccessCount: 0,
+        historicalExecutionCount: 1,
         available: false,
       }),
       expect.objectContaining({
         id: 'planner',
         currentLoad: 0,
         historicalSuccessRate: 1,
+        historicalSuccessCount: 1,
+        historicalExecutionCount: 1,
         available: true,
       }),
     ]))

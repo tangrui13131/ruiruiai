@@ -123,6 +123,33 @@ const createProjectSchema = z.object({
   teamVersionId: z.string().min(1).max(160).optional(),
 }).strict()
 
+interface AgentExecutionActivity {
+  currentLoad: number
+  successfulExecutions: number
+  finishedExecutions: number
+}
+
+function projectAgentActivity(
+  executions: readonly PlatformProjectSnapshot['executions'][number][],
+): Map<string, AgentExecutionActivity> {
+  const activities = new Map<string, AgentExecutionActivity>()
+  for (const execution of executions) {
+    const activity = activities.get(execution.agentId) ?? {
+      currentLoad: 0,
+      successfulExecutions: 0,
+      finishedExecutions: 0,
+    }
+    if (execution.status === 'RUNNING') {
+      activity.currentLoad += 1
+    } else {
+      activity.finishedExecutions += 1
+      if (execution.status === 'COMPLETED') activity.successfulExecutions += 1
+    }
+    activities.set(execution.agentId, activity)
+  }
+  return activities
+}
+
 class ApiError extends Error {
   constructor(
     readonly statusCode: number,
@@ -320,6 +347,8 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     maxConcurrency: profile.maxConcurrency,
     currentLoad: profile.currentLoad,
     historicalSuccessRate: profile.historicalSuccessRate,
+    historicalSuccessCount: 0,
+    historicalExecutionCount: 0,
     available: profile.available,
   })))
 
@@ -679,18 +708,16 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     async (request, reply) => {
       const { projectId } = projectParamsSchema.parse(request.params)
       const snapshot = await requireSnapshot(projectId)
-      const rates = await options.store.historicalSuccessRates(projectId)
       const boundProfiles = options.agentRegistry === undefined
         ? undefined
         : await options.agentRegistry.projectProfiles(projectId)
       const profiles = boundProfiles ?? options.profiles
-      const loads = new Map<string, number>()
-      for (const execution of snapshot.executions) {
-        if (execution.status !== 'RUNNING') continue
-        loads.set(execution.agentId, (loads.get(execution.agentId) ?? 0) + 1)
-      }
+      const activities = projectAgentActivity(snapshot.executions)
       return await reply.send(profiles.map((profile) => {
-        const currentLoad = loads.get(profile.id) ?? 0
+        const activity = activities.get(profile.id)
+        const currentLoad = activity?.currentLoad ?? 0
+        const finishedExecutions = activity?.finishedExecutions ?? 0
+        const successfulExecutions = activity?.successfulExecutions ?? 0
         return {
           id: profile.id,
           name: profile.name,
@@ -698,7 +725,11 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
           capabilities: profile.capabilities,
           maxConcurrency: profile.maxConcurrency,
           currentLoad,
-          historicalSuccessRate: rates[profile.id] ?? profile.historicalSuccessRate,
+          historicalSuccessRate: finishedExecutions === 0
+            ? profile.historicalSuccessRate
+            : successfulExecutions / finishedExecutions,
+          historicalSuccessCount: successfulExecutions,
+          historicalExecutionCount: finishedExecutions,
           available: profile.available && currentLoad < profile.maxConcurrency,
           definitionVersionId: profile.definitionVersionId,
           model: profile.model,

@@ -9,9 +9,44 @@ import { useProjectAgents } from '../hooks/useProjectAgents.ts'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import { useProjectState, useProjectStore } from '../state/ProjectStoreContext.tsx'
 
-function AgentCard({ agent }: { readonly agent: AgentView }) {
+function AgentHistorySummary({ agent }: { readonly agent: AgentView }) {
   const { dictionary } = useLocale()
-  const successPercent = Math.max(0, Math.min(100, Math.round(agent.historicalSuccessRate * 100)))
+  const hasHistory = agent.historicalExecutionCount > 0
+  const successPercent = hasHistory
+    ? Math.max(0, Math.min(100, Math.round(
+      agent.historicalSuccessCount / agent.historicalExecutionCount * 100,
+    )))
+    : 0
+  const historySummary = hasHistory
+    ? dictionary.overview.executionHistory
+      .replace('{success}', String(agent.historicalSuccessCount))
+      .replace('{total}', String(agent.historicalExecutionCount))
+    : dictionary.overview.noHistoricalExecutions
+  return (
+    <div className="agent-history">
+      <div className="agent-history-heading">
+        <span className="agent-metric-label">{dictionary.overview.successRate}</span>
+        <span className="agent-metric-value">
+          {hasHistory ? `${successPercent}%` : dictionary.common.noData}
+        </span>
+      </div>
+      <Progress
+        aria-label={`${dictionary.overview.successRate}: ${
+          hasHistory ? `${successPercent}%` : dictionary.common.noData
+        }. ${historySummary}`}
+        size="small"
+        percent={successPercent}
+        showInfo={false}
+        strokeColor={hasHistory ? '#0f766e' : '#d8e0dc'}
+      />
+      <div className="agent-history-detail">{historySummary}</div>
+    </div>
+  )
+}
+
+/** Render one Agent's capacity, live load, and observed execution history. */
+export function AgentCard({ agent }: { readonly agent: AgentView }) {
+  const { dictionary } = useLocale()
   return (
     <article className="agent-row">
       <div className="agent-row-heading">
@@ -30,19 +65,9 @@ function AgentCard({ agent }: { readonly agent: AgentView }) {
           <div className="agent-metric-label">{dictionary.overview.load}</div>
           <div className="agent-metric-value">{agent.currentLoad}</div>
         </div>
-        <div>
-          <div className="agent-metric-label">{dictionary.overview.successRate}</div>
-          <div className="agent-metric-value">{successPercent}%</div>
-        </div>
       </div>
-      <Progress
-        style={{ marginTop: 10 }}
-        size="small"
-        percent={successPercent}
-        showInfo={false}
-        strokeColor="#0f766e"
-      />
-      <div className="agent-metric-label">
+      <AgentHistorySummary agent={agent} />
+      <div className="agent-capabilities">
         {dictionary.overview.capabilities}: {Object.entries(agent.capabilities).map(([key, value]) => `${key} ${String(value)}`).join(', ')}
       </div>
     </article>
