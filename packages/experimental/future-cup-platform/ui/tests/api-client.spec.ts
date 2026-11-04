@@ -8,6 +8,44 @@ afterEach(() => {
 })
 
 describe('project Agent API', () => {
+  it('creates a project successor through the encoded derivation route', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      project: {
+        id: 'project-target',
+        name: 'Project v2',
+        requirement: 'Build the page',
+        createdAt: '2026-11-04T10:00:00.000Z',
+        lastEventSeq: 0,
+        sourceProjectId: 'project-source',
+        sourceProjectName: 'Project',
+        derivationMode: 'UPGRADE',
+        changeRequest: 'Add search',
+      },
+      runId: 'run-target',
+    }), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.deriveProject('project / source', {
+      name: 'Project v2',
+      mode: 'UPGRADE',
+      changeRequest: 'Add search',
+    })).resolves.toMatchObject({
+      project: {
+        id: 'project-target',
+        sourceProjectId: 'project-source',
+        derivationMode: 'UPGRADE',
+      },
+      runId: 'run-target',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/projects/project%20%2F%20source/derivations',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
   it('loads project-scoped Agent metrics from the encoded project route', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify([
       agent('frontend-a', 1, 0.5, 1, 2),

@@ -72,6 +72,8 @@ repository.close()
 
 `AgentTeam` is the user-owned logical parent. Every `AgentTeamVersion` belongs to one Team, is immutable after creation, and contains one `runtimeMember` row per schedulable Agent instance. A Team version accepts 1–7 runtime instances, allows the same published Agent version to appear more than once, and requires stable `instanceId`, `displayName`, `departmentKey`, and `position` values. Draft versions may be empty; publishing and project freezing require a complete capability, concurrency, tool, memory, output-contract, department, and publication-state validation.
 
+Derived projects carry source-project, source-run, derivation-mode, and optional upgrade-request metadata. `TeamOrchestrator` preserves a restored source workspace for `UPGRADE`, keeps existing scaffold files, and adds the upgrade request and source-project context to the Planner input. `REGENERATE` leaves the ordinary empty-scaffold path unchanged.
+
 `WorkflowControlCoordinator` persists a versioned control graph and execution snapshot. The fixed graph starts with independent verification, routes `PASS` to delivery and `FAIL` or `INCOMPLETE` into the Repair subworkflow, then returns Repair to verification. The loop permits three rounds and a repeated failure signature first switches to an unused strategy before escalation. Node entry, edge selection, loop rounds, and subworkflow entry and exit all have durable Journal entries and can resume deterministically from one snapshot.
 
 ### Adaptive repair and team recommendation
@@ -86,7 +88,7 @@ Tasks use `PENDING`, `READY`, `RUNNING`, `COMPLETED`, `FAILED`, `BLOCKED`, and `
 
 ### Durable records
 
-The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, strategy-decision, workflow, product-event, Outbox, workflow-lease, Agent Registry, logical Team, runtime-member, team-binding, project-memory, and workflow-control records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1-v7 databases migrate in place to v8 without deleting existing verification evidence or expanding legacy member counts into empty runtime identities.
+The SQLite schema contains the project, task dependency, Journal, scheduling, execution, verification, repair, strategy-decision, workflow, product-event, Outbox, workflow-lease, Agent Registry, logical Team, runtime-member, team-binding, project-memory, derivation-lineage, and workflow-control records. Every task mutation matches the previous revision and appends a Journal record in one transaction. `DagEngine.resume()` replays the Journal and rejects state that disagrees with the current task rows. Schema v1-v8 databases migrate in place to v9 without deleting existing verification evidence or expanding legacy member counts into empty runtime identities.
 
 ### Scheduling
 

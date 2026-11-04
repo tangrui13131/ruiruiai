@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -26,6 +26,7 @@ import {
   ProjectRunSettlementPendingError,
   ProjectRunSettlementTimeoutError,
 } from '../src/run-launcher.ts'
+import { saveDeliverySnapshot } from '../src/delivery-snapshot.ts'
 import type {
   FutureCupRunTeam,
   FutureCupRunTeamRequest,
@@ -156,6 +157,62 @@ function withProjectRunReader(
 }
 
 describe('FutureCupRunLauncher', () => {
+  it('restores a source snapshot into an upgrade workspace before Agent execution', async () => {
+    const { root, repository } = setupProject()
+    const sourceId = ProjectId('project-upgrade-source')
+    const sourceWorkspace = join(root, 'source-workspace')
+    mkdirSync(join(sourceWorkspace, 'src'), { recursive: true })
+    writeFileSync(join(sourceWorkspace, 'src', 'App.tsx'), 'export const App = () => <main>v1</main>\n')
+    repository.createProject({
+      id: sourceId,
+      name: 'Source',
+      requirement: 'Build the source page.',
+      createdAt: '2026-10-31T12:00:00.000Z',
+    }, [])
+    const sourceRun = repository.createProjectRun(sourceId, 'source-worker', 1n, sourceWorkspace)
+    repository.finishProjectRun(sourceRun.id, 'PASSED')
+    await saveDeliverySnapshot(sourceWorkspace)
+    const targetId = ProjectId('project-upgrade-target')
+    repository.createProject({
+      id: targetId,
+      name: 'Source v2',
+      requirement: 'Build the source page.',
+      createdAt: '2026-10-31T12:01:00.000Z',
+      sourceProjectId: sourceId,
+      sourceProjectName: 'Source',
+      sourceRunId: sourceRun.id,
+      derivationMode: 'UPGRADE',
+      changeRequest: 'Add search.',
+    }, [])
+    const target = repository.listProjects().find(project => project.id === targetId)!
+    let restoredSource = ''
+    const launcher = new FutureCupRunLauncher({
+      store: repository,
+      workspaceRoot: join(root, 'runs'),
+      agentHomeRoot: join(root, 'homes'),
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 0, repairTimeoutMs: 1_000 },
+      leaseDurationMs: 1_000,
+      heartbeatIntervalMs: 100,
+      settlementRetryMs: 10,
+      settlementWaitMs: 1_000,
+      createTeam: request => ({
+        async run() {
+          restoredSource = readFileSync(join(request.workspace, 'src', 'App.tsx'), 'utf8')
+          return teamResult(request, 'PASSED')
+        },
+        async close() {},
+      }),
+    })
+    try {
+      await launcher.start(target)
+      await waitForTerminalRun(repository, targetId)
+      expect(restoredSource).toContain('v1')
+    } finally {
+      await launcher.close()
+    }
+  })
+
   it('persists a passing run, preview, lease release, and terminal event', async () => {
     const { root, repository, project } = setupProject()
     const launcher = new FutureCupRunLauncher({

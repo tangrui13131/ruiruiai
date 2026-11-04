@@ -6,6 +6,7 @@ import {
   agentVersionViewSchema,
   createAgentTeamRequestSchema,
   createTeamDraftRequestSchema,
+  deriveProjectResponseSchema,
   deleteResponseSchema,
   agentSchema,
   apiErrorSchema,
@@ -35,6 +36,8 @@ import type {
   AgentVersionView,
   AgentView,
   DeliveryView,
+  DeriveProjectRequest,
+  DeriveProjectResponse,
   FaultDrillMode,
   ProjectDrillInfoView,
   ProjectRunView,
@@ -97,6 +100,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }))
+  },
+
+  async deriveProject(projectId: string, input: DeriveProjectRequest): Promise<DeriveProjectResponse> {
+    return deriveProjectResponseSchema.parse(await request(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/derivations`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    ))
   },
 
   async deleteProject(projectId: string): Promise<boolean> {

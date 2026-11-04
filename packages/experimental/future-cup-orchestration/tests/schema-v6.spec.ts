@@ -8,7 +8,7 @@ import {
   ORCHESTRATION_SCHEMA_VERSION,
 } from '../src/sqlite.ts'
 
-const legacyVersions = [1, 2, 3, 4, 5, 6, 7] as const
+const legacyVersions = [1, 2, 3, 4, 5, 6, 7, 8] as const
 const temporaryRoots: string[] = []
 
 afterEach(() => {
@@ -61,6 +61,7 @@ const requiredIndexes = [
   'agent_team_versions_team',
   'agent_team_versions_status',
   'project_team_bindings_team_version',
+  'projects_source_project',
   'repair_strategy_decisions_project_round',
   'workflow_control_events_project_seq',
   'workflow_control_runs_definition',
@@ -215,6 +216,16 @@ function insertSchemaRows(database: DatabaseSync): void {
 }
 
 function downgradeToVersion(database: DatabaseSync, version: number): void {
+  if (version <= 8) {
+    database.exec(`
+      DROP INDEX IF EXISTS projects_source_project;
+      ALTER TABLE projects DROP COLUMN source_project_id;
+      ALTER TABLE projects DROP COLUMN source_project_name;
+      ALTER TABLE projects DROP COLUMN source_run_id;
+      ALTER TABLE projects DROP COLUMN derivation_mode;
+      ALTER TABLE projects DROP COLUMN change_request;
+    `)
+  }
   if (version <= 7) {
     database.exec(`
       DROP TABLE IF EXISTS agent_team_runtime_members;
@@ -318,12 +329,12 @@ function downgradeToVersion(database: DatabaseSync, version: number): void {
   database.exec(`PRAGMA user_version = ${version}`)
 }
 
-describe('orchestration schema v8', () => {
-  it('creates every fresh table, index, and foreign-key mode at schema version 8', () => {
+describe('orchestration schema v9', () => {
+  it('creates every fresh table, index, and foreign-key mode at schema version 9', () => {
     const database = openOrchestrationDatabase(':memory:', 'delete')
     try {
-      expect(ORCHESTRATION_SCHEMA_VERSION).toBe(8)
-      expect(database.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
+      expect(ORCHESTRATION_SCHEMA_VERSION).toBe(9)
+      expect(database.prepare('PRAGMA user_version').get()).toEqual({ user_version: 9 })
       expect(database.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
       expect(schemaNames(database, 'table')).toEqual(expectedTables)
       expect(schemaNames(database, 'index')).toEqual(expect.arrayContaining(requiredIndexes))
@@ -436,7 +447,7 @@ describe('orchestration schema v8', () => {
     }
   })
 
-  it.each(legacyVersions)('migrates schema v%i to v8 without losing existing evidence', (version) => {
+  it.each(legacyVersions)('migrates schema v%i to v9 without losing existing evidence', (version) => {
     const root = mkdtempSync(join(tmpdir(), `future-cup-schema-v${version}-`))
     temporaryRoots.push(root)
     const path = join(root, 'orchestration.sqlite')
@@ -477,7 +488,7 @@ describe('orchestration schema v8', () => {
 
     const migrated = openOrchestrationDatabase(path, 'delete')
     try {
-      expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
+      expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 9 })
       expect(migrated.prepare('SELECT name FROM projects WHERE id = ?').get('project-legacy'))
         .toEqual({ name: 'Legacy' })
       expect(migrated.prepare('SELECT status FROM tasks WHERE id = ?').get('task-legacy'))

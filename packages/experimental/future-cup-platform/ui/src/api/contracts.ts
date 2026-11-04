@@ -103,6 +103,8 @@ export const taskSchema = z.looseObject({
   updatedAt: isoDateSchema,
 })
 
+export const projectDerivationModeSchema = z.enum(['UPGRADE', 'REGENERATE'])
+
 export const projectSchema = z.looseObject({
   id: identifierSchema,
   name: z.string(),
@@ -111,7 +113,24 @@ export const projectSchema = z.looseObject({
   lastEventSeq: z.number(),
   workflowStatus: workflowStatusSchema.optional(),
   latestRunStatus: projectRunStatusSchema.optional(),
+  sourceProjectId: identifierSchema.optional(),
+  sourceProjectName: z.string().optional(),
+  sourceRunId: identifierSchema.optional(),
+  derivationMode: projectDerivationModeSchema.optional(),
+  changeRequest: z.string().optional(),
+  childProjectCount: z.number().int().nonnegative().optional(),
 })
+
+export const deriveProjectRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  mode: projectDerivationModeSchema,
+  changeRequest: z.string().trim().max(20_000).optional(),
+}).strict()
+
+export const deriveProjectResponseSchema = z.object({
+  project: projectSchema,
+  runId: z.string().min(1),
+}).strict()
 
 export const agentSchema = z.looseObject({
   id: identifierSchema,
@@ -446,6 +465,9 @@ export const cancelRunResponseSchema = projectRunCancelSchema
 export type TaskView = z.infer<typeof taskSchema>
 export type TaskStatus = z.infer<typeof taskStatusSchema>
 export type ProjectView = z.infer<typeof projectSchema>
+export type ProjectDerivationMode = z.infer<typeof projectDerivationModeSchema>
+export type DeriveProjectRequest = z.infer<typeof deriveProjectRequestSchema>
+export type DeriveProjectResponse = z.infer<typeof deriveProjectResponseSchema>
 export type AgentView = z.infer<typeof agentSchema>
 export type AgentVersionView = z.infer<typeof agentVersionViewSchema>
 export type AgentDefinitionView = z.infer<typeof agentDefinitionViewSchema>

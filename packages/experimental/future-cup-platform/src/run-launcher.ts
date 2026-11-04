@@ -67,6 +67,11 @@ import type {
   WorkflowStatus,
   WorkflowWriteContext,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
+import {
+  copyDeliverySnapshot,
+  deliverySnapshotPath,
+  saveDeliverySnapshot,
+} from './delivery-snapshot.ts'
 import type { ProjectRunLauncher } from './server-types.ts'
 
 /** One running team retained by the launcher until terminal settlement. */
@@ -92,6 +97,7 @@ export interface FutureCupRunTeamRequest {
   readonly homeRoot: string
   readonly screenshotDir: string
   readonly profiles?: readonly AgentProfile[] | undefined
+  readonly preserveExistingWorkspace?: boolean | undefined
 }
 
 /** Creates one isolated team runtime for a project run. */
@@ -657,6 +663,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       await mkdir(homeRoot, { recursive: true, mode: 0o700 })
       await mkdir(screenshotDir, { recursive: true, mode: 0o700 })
       this.throwIfClosed()
+      await this.prepareDerivedWorkspace(project, workspace)
       run = await fencedStore.createProjectRun(
         project.id,
         ownerId,
@@ -672,6 +679,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
         homeRoot,
         screenshotDir,
         profiles: await this.resolveProfiles(project.id),
+        preserveExistingWorkspace: project.derivationMode === 'UPGRADE',
       })
       if (this.isClosed()) {
         await team.close()
@@ -947,6 +955,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
         status = 'PASSED'
         previewPath = await existingDirectory(resolve(workspace, 'dist'))
         await saveGoldenWorkspaceSnapshot(workspace).catch(() => {})
+        await saveDeliverySnapshot(workspace).catch((error: unknown) => this.options.onError?.(error))
       } else {
         status = 'ESCALATED'
       }
@@ -1265,6 +1274,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       invokers,
       profiles,
       workspace: request.workspace,
+      preserveExistingWorkspace: request.preserveExistingWorkspace ?? false,
       verification: {
         ...this.options.verification,
         screenshotDir: request.screenshotDir,
@@ -1330,6 +1340,42 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
   private async resolveProfiles(projectId: string): Promise<readonly AgentProfile[]> {
     const binding = await this.options.store.getProjectTeamBinding(projectId)
     return binding === undefined ? this.profiles : agentProfilesFromTeamBinding(binding)
+  }
+
+  private async prepareDerivedWorkspace(
+    project: PlatformProjectSummary,
+    workspace: string,
+  ): Promise<void> {
+    if (project.derivationMode !== 'UPGRADE') return
+    if (project.sourceProjectId === undefined) {
+      throw new ProjectRunStartError(
+        `Upgrade project "${project.id}" has no source project`,
+        { cause: new Error('SOURCE_PROJECT_MISSING') },
+      )
+    }
+    const sourceRun = project.sourceRunId === undefined
+      ? undefined
+      : await this.options.store.getProjectRun(project.sourceRunId)
+    if (sourceRun === undefined || sourceRun.workspacePath === undefined) {
+      throw new ProjectRunStartError(
+        `Project "${project.id}" has no source workspace for upgrade`,
+        { cause: new Error('SOURCE_WORKSPACE_MISSING') },
+      )
+    }
+    if (sourceRun.projectId !== project.sourceProjectId || sourceRun.status !== 'PASSED') {
+      throw new ProjectRunStartError(
+        `Project "${project.id}" references an invalid source run for upgrade`,
+        { cause: new Error('SOURCE_RUN_NOT_PASSED') },
+      )
+    }
+    try {
+      await copyDeliverySnapshot(deliverySnapshotPath(sourceRun.workspacePath), workspace)
+    } catch (error: unknown) {
+      throw new ProjectRunStartError(
+        `Could not restore the source snapshot for project "${project.id}"`,
+        { cause: error },
+      )
+    }
   }
 }
 

@@ -1,5 +1,6 @@
 import { ReloadOutlined } from '@ant-design/icons'
 import { Alert, Button, Progress, Skeleton, Spin, Tooltip } from 'antd'
+import { Link } from 'react-router-dom'
 import { localizedApiError } from '../api/errors.ts'
 import type { AgentView } from '../api/contracts.ts'
 import { EmptyPanel } from '../components/EmptyPanel.tsx'
@@ -104,6 +105,27 @@ export function ProjectOverviewPage() {
           </Tooltip>
         }
       />
+      {snapshot.project.sourceProjectName === undefined ? null : (
+        <Alert
+          type="info"
+          showIcon
+          message={(
+            <span>
+              {dictionary.projects.derivedFrom}:{' '}
+              {snapshot.project.sourceProjectId === undefined
+                ? snapshot.project.sourceProjectName
+                : (
+                  <Link to={`/projects/${encodeURIComponent(snapshot.project.sourceProjectId)}`}>
+                    {snapshot.project.sourceProjectName}
+                  </Link>
+                )}
+            </span>
+          )}
+          description={snapshot.project.derivationMode === 'UPGRADE'
+            ? snapshot.project.changeRequest
+            : dictionary.projects.derivedRegenerate}
+        />
+      )}
       <section className="metric-strip">
         <div className="metric-cell">
           <div className="metric-cell-label">{dictionary.projects.status}</div>

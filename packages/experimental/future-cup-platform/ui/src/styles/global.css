@@ -317,6 +317,12 @@ textarea {
   border-top: 1px solid #e6ece9;
 }
 
+.project-derive-hint {
+  margin: 0 0 16px;
+  color: #60756b;
+  line-height: 1.6;
+}
+
 .agent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));

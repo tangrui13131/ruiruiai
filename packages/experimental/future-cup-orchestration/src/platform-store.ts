@@ -76,6 +76,7 @@ export interface PlatformProjectSummary extends ProjectRecord {
   readonly workflowStatus?: WorkflowStatus | undefined
   readonly latestRunId?: ProjectRunRecord['id'] | undefined
   readonly latestRunStatus?: ProjectRunStatus | undefined
+  readonly childProjectCount?: number | undefined
 }
 
 /** One validated product event ready to append to a project stream. */

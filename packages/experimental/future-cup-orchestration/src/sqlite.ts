@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { parseStoredAgentTeamVersion } from './agent-registry.ts'
 
 /** Physical SQLite layout version stored in `PRAGMA user_version`. */
-export const ORCHESTRATION_SCHEMA_VERSION = 8
+export const ORCHESTRATION_SCHEMA_VERSION = 9
 
 /** SQLite journal modes used by the orchestration repository. */
 export type OrchestrationJournalMode = 'wal' | 'delete'
@@ -37,6 +37,7 @@ export function openOrchestrationDatabase(
       && version !== 5
       && version !== 6
       && version !== 7
+      && version !== 8
       && version !== ORCHESTRATION_SCHEMA_VERSION) {
       throw new Error(
         `orchestration database at "${actual}" has schema version ${version}, expected ${ORCHESTRATION_SCHEMA_VERSION}`,
@@ -54,6 +55,7 @@ export function openOrchestrationDatabase(
       migrateVersionSix(database)
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 2) {
       migrateVersionTwo(database)
@@ -63,6 +65,7 @@ export function openOrchestrationDatabase(
       migrateVersionSix(database)
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 3) {
       migrateVersionThree(database)
@@ -71,6 +74,7 @@ export function openOrchestrationDatabase(
       migrateVersionSix(database)
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 4) {
       migrateVersionFour(database)
@@ -78,21 +82,28 @@ export function openOrchestrationDatabase(
       migrateVersionSix(database)
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 5) {
       migrateVersionFive(database)
       migrateVersionSix(database)
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 6) {
       migrateVersionSix(database)
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     } else if (version === 7) {
       migrateVersionSeven(database)
       migrateVersionEight(database)
+      migrateVersionNine(database)
+      database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
+    } else if (version === 8) {
+      migrateVersionNine(database)
       database.exec(`PRAGMA user_version = ${ORCHESTRATION_SCHEMA_VERSION}`)
     }
     return database
@@ -110,7 +121,12 @@ function createSchema(database: DatabaseSync): void {
       name           TEXT NOT NULL,
       requirement    TEXT NOT NULL,
       last_event_seq INTEGER NOT NULL DEFAULT 0,
-      created_at     TEXT NOT NULL
+      created_at     TEXT NOT NULL,
+      source_project_id   TEXT,
+      source_project_name TEXT,
+      source_run_id       TEXT,
+      derivation_mode     TEXT,
+      change_request      TEXT
     ) STRICT;
 
     CREATE TABLE IF NOT EXISTS tasks (
@@ -272,6 +288,8 @@ function createSchema(database: DatabaseSync): void {
       ON workflow_runs(project_id);
     CREATE INDEX IF NOT EXISTS project_runs_project_started
       ON project_runs(project_id, started_at);
+    CREATE INDEX IF NOT EXISTS projects_source_project
+      ON projects(source_project_id);
     CREATE UNIQUE INDEX IF NOT EXISTS project_runs_one_active
       ON project_runs(project_id) WHERE status = 'RUNNING';
     CREATE INDEX IF NOT EXISTS product_events_project_seq
@@ -671,12 +689,44 @@ function migrateVersionEight(database: DatabaseSync): void {
   }
 }
 
+/** Add project derivation lineage for creating upgrade successors without mutating history. */
+function migrateVersionNine(database: DatabaseSync): void {
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    if (!hasColumn(database, 'projects', 'source_project_id')) {
+      database.exec('ALTER TABLE projects ADD COLUMN source_project_id TEXT;')
+    }
+    if (!hasColumn(database, 'projects', 'source_project_name')) {
+      database.exec('ALTER TABLE projects ADD COLUMN source_project_name TEXT;')
+    }
+    if (!hasColumn(database, 'projects', 'source_run_id')) {
+      database.exec('ALTER TABLE projects ADD COLUMN source_run_id TEXT;')
+    }
+    if (!hasColumn(database, 'projects', 'derivation_mode')) {
+      database.exec('ALTER TABLE projects ADD COLUMN derivation_mode TEXT;')
+    }
+    if (!hasColumn(database, 'projects', 'change_request')) {
+      database.exec('ALTER TABLE projects ADD COLUMN change_request TEXT;')
+    }
+    database.exec(`
+      CREATE INDEX IF NOT EXISTS projects_source_project
+        ON projects(source_project_id);
+    `)
+    database.exec('COMMIT')
+  } catch (error: unknown) {
+    try {
+      database.exec('ROLLBACK')
+    } catch (rollbackError: unknown) {
+      throw new AggregateError([error, rollbackError], 'v9 migration and rollback both failed')
+    }
+    throw error
+  }
+}
+
 function hasColumn(database: DatabaseSync, table: string, column: string): boolean {
   return database.prepare(`PRAGMA table_info(${table})`).all()
     .some(row => (
-      typeof row === 'object'
-      && row !== null
-      && 'name' in row
+      'name' in row
       && row.name === column
     ))
 }
@@ -684,9 +734,7 @@ function hasColumn(database: DatabaseSync, table: string, column: string): boole
 function hasIndex(database: DatabaseSync, table: string, index: string): boolean {
   return database.prepare(`PRAGMA index_list(${table})`).all()
     .some(row => (
-      typeof row === 'object'
-      && row !== null
-      && 'name' in row
+      'name' in row
       && row.name === index
     ))
 }

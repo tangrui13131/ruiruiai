@@ -32,6 +32,7 @@ import type {
   PlatformProjectSummary,
   ProductEvent,
   ProductEventDraft,
+  ProjectDerivationMode,
   ProjectRecord,
   ProjectRunRecord,
   ProjectRunStatus,
@@ -133,6 +134,11 @@ export class PostgresPlatformStore implements OrchestrationStore {
               id: project.id,
               name: project.name,
               requirement: project.requirement,
+              sourceProjectId: project.sourceProjectId ?? null,
+              sourceProjectName: project.sourceProjectName ?? null,
+              sourceRunId: project.sourceRunId ?? null,
+              derivationMode: project.derivationMode ?? null,
+              changeRequest: project.changeRequest ?? null,
               createdAt: new Date(project.createdAt),
             },
           })
@@ -243,6 +249,11 @@ export class PostgresPlatformStore implements OrchestrationStore {
       },
       orderBy: { createdAt: 'asc' },
     })
+    const childCounts = new Map<string, number>()
+    for (const row of rows) {
+      if (row.sourceProjectId === null) continue
+      childCounts.set(row.sourceProjectId, (childCounts.get(row.sourceProjectId) ?? 0) + 1)
+    }
     return rows.map((row) => {
       const latestRun = row.runs[0]
       return {
@@ -253,6 +264,7 @@ export class PostgresPlatformStore implements OrchestrationStore {
         latestRunStatus: latestRun === undefined
           ? undefined
           : decodeProjectRunStatus(latestRun.status),
+        childProjectCount: childCounts.get(row.id) ?? 0,
       }
     })
   }
@@ -1815,6 +1827,11 @@ function projectRecord(row: {
   id: string
   name: string
   requirement: string
+  sourceProjectId: string | null
+  sourceProjectName: string | null
+  sourceRunId: string | null
+  derivationMode: string | null
+  changeRequest: string | null
   createdAt: Date
 }): ProjectRecord {
   return {
@@ -1822,6 +1839,23 @@ function projectRecord(row: {
     name: row.name,
     requirement: row.requirement,
     createdAt: row.createdAt.toISOString(),
+    ...row.sourceProjectId === null ? {} : { sourceProjectId: ProjectId(row.sourceProjectId) },
+    ...row.sourceProjectName === null ? {} : { sourceProjectName: row.sourceProjectName },
+    ...row.sourceRunId === null ? {} : { sourceRunId: ProjectRunId(row.sourceRunId) },
+    ...row.derivationMode === null
+      ? {}
+      : { derivationMode: decodeProjectDerivationMode(row.derivationMode) },
+    ...row.changeRequest === null ? {} : { changeRequest: row.changeRequest },
+  }
+}
+
+function decodeProjectDerivationMode(value: string): ProjectDerivationMode {
+  switch (value) {
+    case 'UPGRADE':
+    case 'REGENERATE':
+      return value
+    default:
+      throw new Error(`unknown project derivation mode "${value}"`)
   }
 }
 

@@ -141,13 +141,18 @@ model ProjectMemoryEntry {
 }
 
 model Project {
-  id           String   @id
-  ownerId      String?  @map("owner_id")
-  name         String
-  requirement  String
-  lastEventSeq Int      @default(0) @map("last_event_seq")
-  createdAt    DateTime @default(now()) @map("created_at")
-  owner        User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  id                String   @id
+  ownerId           String?  @map("owner_id")
+  name              String
+  requirement       String
+  sourceProjectId   String?  @map("source_project_id")
+  sourceProjectName String?  @map("source_project_name")
+  sourceRunId       String?  @map("source_run_id")
+  derivationMode    String?  @map("derivation_mode")
+  changeRequest     String?  @map("change_request")
+  lastEventSeq      Int      @default(0) @map("last_event_seq")
+  createdAt         DateTime @default(now()) @map("created_at")
+  owner             User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   tasks        Task[]
   dependencies TaskDependency[]
   journal      TaskJournal[]
@@ -165,6 +170,7 @@ model Project {
   workflowControlRun WorkflowControlRun?
   workflowControlEvents WorkflowControlEvent[]
 
+  @@index([sourceProjectId])
   @@map("projects")
 }
 

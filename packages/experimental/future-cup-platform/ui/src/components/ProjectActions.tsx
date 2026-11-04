@@ -1,5 +1,6 @@
-import { PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import { BranchesOutlined, PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import { Button, Space, Tooltip } from 'antd'
+import { useNavigate } from 'react-router-dom'
 import { useProjectCommands } from '../hooks/useProjectCommands.ts'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import { useProjectState, useProjectStore } from '../state/ProjectStoreContext.tsx'
@@ -16,9 +17,11 @@ export function ProjectActions({
   const { dictionary } = useLocale()
   const state = useProjectState()
   const store = useProjectStore()
+  const navigate = useNavigate()
   const latestRun = state.snapshot?.runs?.at(-1)
   const running = latestRun?.status === 'RUNNING'
   const canRun = latestRun === undefined
+  const canDerive = latestRun?.status === 'PASSED'
   const commands = useProjectCommands(projectId, async () => { await store.refresh() })
 
   return (
@@ -55,6 +58,17 @@ export function ProjectActions({
           onLaunched={() => { void store.refresh() }}
         />
       )}
+      <Tooltip title={canDerive ? dictionary.projects.derive : dictionary.projects.deriveUnavailable}>
+        <Button
+          type={compact ? 'text' : 'default'}
+          icon={<BranchesOutlined />}
+          disabled={!canDerive}
+          aria-label={dictionary.projects.derive}
+          onClick={() => { navigate(`/?deriveProjectId=${encodeURIComponent(projectId)}`) }}
+        >
+          {compact ? null : dictionary.projects.derive}
+        </Button>
+      </Tooltip>
     </Space>
   )
 }

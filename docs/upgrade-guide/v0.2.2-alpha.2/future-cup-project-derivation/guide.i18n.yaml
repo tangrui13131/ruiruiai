@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/future-cup-project-derivation/guide.md
+/:
+  en: 6301d5196000a5be
+  zh: 0ee28e6fcdba2461
+/create-future-cup-project-successors:
+  en: d92a8499e52e78bd
+  zh: 3e31a92680e343eb
+/create-future-cup-project-successors/change:
+  en: aa05497f2e565e85
+  zh: 84a264de394553d1
+/create-future-cup-project-successors/migration:
+  en: 0fb6da7ed974ae48
+  zh: 3f3cc4c5660d4844

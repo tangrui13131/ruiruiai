@@ -69,6 +69,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/health` | 服务器状态与项目数 |
 | `GET` | `/api/v1/projects` | 项目摘要与事件游标 |
 | `POST` | `/api/v1/projects` | 根据名称与需求创建项目 |
+| `POST` | `/api/v1/projects/:projectId/derivations` | 创建并启动不可变的升级或重新生成后继项目 |
 | `GET` | `/api/v1/agent-definitions` | Agent 定义、版本与版本状态 |
 | `POST` | `/api/v1/agent-definitions` | 注册 DRAFT Agent 定义 |
 | `POST` | `/api/v1/agent-definitions/:definitionId/versions` | 注册不可变 Agent 版本 |
@@ -135,6 +136,8 @@ HQ 大屏使用共享判别联合校验事件，只应用已提交事件，检�
 | `src/index.ts` | Cordis 插件、显式配置、存储选择与生命周期 |
 | `src/server.ts` | Fastify 路由、Socket.IO 重放、Outbox 轮询与关闭 |
 | `src/run-launcher.ts` | 真实 Harness 团队启动、租约心跳、取消与运行结算 |
+| `src/project-derivation.ts` | 不可变项目后继、冻结团队继承与项目记忆派生 |
+| `src/delivery-snapshot.ts` | 已通过项目的源码快照，排除依赖、构建产物、密钥与链接 |
 | `src/adaptive-repair.ts` | 根据验证 finding 选择受控修复策略并保留候选评分 |
 | `src/team-recommender.ts` | 项目画像、澄清、完整团队推荐与受控调整 |
 | `src/artifact-server.ts` | 管理资源、截图、交付与生成工程预览 |
@@ -162,6 +165,8 @@ SQLite 与 PostgreSQL 实现同一组 `OrchestrationStore` 操作。任务更新
 项目级 Agent 状态从 `RUNNING` 执行记录计算实时负载。历史成功率以 `COMPLETED` 为成功，并把 `FAILED` 与 `CANCELLED` 计入执行总数。没有执行记录旧项目会回退到已分配任务和终止状态的修复记录。接口同时返回成功数与终止执行数，管理界面据此区分真实观测值与 Agent 没有历史数据时使用的配置默认值。
 
 “我的团队”入口独立管理逻辑团队。团队版本包含 1–7 个运行时实例；重复的已发布 Agent 版本按多个成员计数，每个实例拥有稳定显示名、部门与工位。草稿可以为空，但发布必须通过推荐器使用的同一套能力与策略校验。项目创建时冻结所选版本，项目 Agent 接口投影该冻结名单，因此 HQ 大屏的人数与部门位置严格一致。
+
+项目派生保持旧项目不可变。后继项目记录来源项目、来源的已通过运行、派生模式与可选升级需求，继承完全相同的冻结团队快照与项目记忆，并启动自己的独立运行。`UPGRADE` 在 Agent 团队执行前恢复来源交付快照；`REGENERATE` 从空工作区开始。来源项目及其证据不会被改写。
 
 HQ 的普通部门进度来自 DAG 任务，自愈部进度来自持久 Repair 轮次。因此 Repair 作为控制子流程执行时，完成记录仍会更新自愈部，而不要求它成为普通 DAG 任务。
 

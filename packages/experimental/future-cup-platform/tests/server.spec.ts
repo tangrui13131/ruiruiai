@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -153,6 +153,58 @@ async function readJson<T>(response: Response, schema: z.ZodType<T>): Promise<T>
 }
 
 describe('Future Cup platform server', () => {
+  it('creates and starts a successor from a passed project', async () => {
+    const launcher = new FakeLauncher()
+    const { baseUrl, store, agentRegistry, defaultTeamVersionId, runRoot } = await startServer(
+      launcher,
+      true,
+    )
+    expect(agentRegistry).toBeDefined()
+    expect(defaultTeamVersionId).toBeDefined()
+    const sourceId = ProjectId('project-upgrade-source')
+    store.createProject({
+      id: sourceId,
+      name: 'Operations',
+      requirement: 'Build an operations dashboard',
+      createdAt: new Date().toISOString(),
+    }, [], undefined, await agentRegistry!.freezeProject(sourceId, defaultTeamVersionId!))
+    const sourceWorkspace = join(runRoot, 'source-workspace')
+    mkdirSync(join(sourceWorkspace, 'src'), { recursive: true })
+    writeFileSync(join(sourceWorkspace, 'src', 'App.tsx'), 'export const App = () => <main>v1</main>\n')
+    const sourceRun = store.createProjectRun(sourceId, 'source-worker', 1n, sourceWorkspace)
+    store.finishProjectRun(sourceRun.id, 'PASSED')
+
+    const response = await fetch(`${baseUrl}/api/v1/projects/${sourceId}/derivations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Operations v2',
+        mode: 'UPGRADE',
+        changeRequest: 'Add search and mobile navigation',
+      }),
+    })
+    expect(response.status).toBe(201)
+    const result = await readJson(response, z.object({
+      project: z.object({
+        id: z.string(),
+        sourceProjectId: z.string(),
+        sourceProjectName: z.string(),
+        derivationMode: z.literal('UPGRADE'),
+        changeRequest: z.string(),
+      }),
+      runId: z.string(),
+    }))
+    expect(result.project).toMatchObject({
+      sourceProjectId: 'project-upgrade-source',
+      sourceProjectName: 'Operations',
+      derivationMode: 'UPGRADE',
+      changeRequest: 'Add search and mobile navigation',
+    })
+    expect(result.runId).toBe(`run-${result.project.id}`)
+    expect(launcher.started).toEqual([result.project.id])
+    expect(store.getProject(sourceId)).toMatchObject({ name: 'Operations' })
+  })
+
   it('serves project, agent, snapshot, run, and cancel APIs', async () => {
     const launcher = new FakeLauncher()
     const { baseUrl, store, errors, runRoot } = await startServer(launcher)

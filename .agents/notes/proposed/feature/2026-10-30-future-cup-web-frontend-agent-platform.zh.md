@@ -10,7 +10,7 @@ Status: proposed
 
 此前的项目记录把微前端与运营 H5 编排平台及 React Flow 编辑器选为首选产品。方案 V1.0 改变了这项产品决策：平台必须接收前端工程开发需求，协调专业 Agent，生成可运行的前端工程，在浏览器中验证，修复失败，并交付项目。继续把此前场景作为当前项目记忆，会让后续架构和验收工作遵循错误的产品边界。
 
-M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3、M5.4 与 M5.5 已经完成，M5.6 是下一个受门禁约束的阶段。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4/M5.5 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
+M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3、M5.4、M5.5、M5.6 与 M5.7 已经完成。项目需要一份记录竞赛约束、产品边界、系统架构、Agent 职责、五个交付里程碑，以及已经验证的 M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4/M5.5/M5.6/M5.7 决策的项目记忆。[此前的编排提案](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.zh.md)保留为被否决的决策依据。
 
 ## Proposal
 
@@ -171,6 +171,15 @@ M5 以初赛可验收为边界，按依赖顺序完成以下阶段，不并行�
 - 当前聚焦结果为编排包 198/198、平台包 32/32、UI 87/87 测试通过；真实团队 E2E 在无密钥时安全跳过，SQLite v1–v7 迁移测试、Prisma schema、TypeScript 检查与构建产物检查通过。
 - 2026-11-03 的真实 DeepSeek E2E 从用户复制并发布的 7 人团队创建项目，验证了不可变冻结快照、7 个项目 Agent 投影、7 个独立 Harness home、真实生成 Session，以及桌面与移动浏览器验证。项目先通过完整验证，再通过平台接口注入 `TS2322`；自适应修复完成新的 Repair Session，复验结果由 `FAIL` 转为 `PASS`，控制图记录条件边、有界循环、Repair 子工作流和 `PASSED` 终态。证据保存在 `.artifacts/future-cup-m55-live/real-team-*/run-result.json`，测试入口为 `packages/experimental/future-cup-platform/tests/real-team-library.e2e.ts`。
 - Browser Verifier 现在会在每个交互前重新进入该交互声明的 `fromRoute`，避免前一个导航污染后一个交互的起始页面。Tester 输出也会拒绝既不属于源页面 `requiredText`、也不等于目标页面 `navigationLabel` 的 `clickText`。SDK 将失败的 `turn/end` 暴露为带稳定错误码和可重试分类的 `SessionTurnError`，Self-loop 使用 `maxAgentRetries` 对可恢复传输失败进行有界重试；回归测试覆盖同源多交互、矛盾文案和传输恢复。
+
+### M5.7 项目派生升级结果
+
+- 已验证项目保持不可变。用户可以从已通过项目创建新的后继项目，记录来源项目、来源运行、派生模式与升级需求，同时保留旧项目及其全部验证和交付证据。
+- 后继项目复制来源项目的完整冻结团队快照和项目记忆，不按当前 Registry 重新解析团队版本。
+- 已通过运行会在工作区旁生成不可变交付快照。快照排除 `node_modules`、构建产物、`.env`、本地配置和符号链接。
+- `UPGRADE` 在 Agent 团队执行前把交付快照恢复到新工作区，Planner 接收升级需求和来源项目上下文；现有 scaffold 文件不会被覆盖。`REGENERATE` 保留空工作区生成路径。
+- `POST /api/v1/projects/:projectId/derivations` 创建后继项目后启动独立运行。SQLite schema v9 与 PostgreSQL migration 保存派生谱系。
+- 聚焦测试覆盖快照过滤与恢复、冻结团队和项目记忆继承、来源项目不变、API 创建与启动、升级工作区恢复、SQLite v1-v8 到 v9 迁移以及前端派生对话框。
 
 ### M1、M2、M3、M4.0、M4.1、M4.2、M4.3、M4.4、M5.1、M5.2、M5.3 与 M5.4 结果
 

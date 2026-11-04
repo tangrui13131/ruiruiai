@@ -1,6 +1,6 @@
 /** Deterministic React/Vite/Ant Design scaffold and scoped structured-file writer. */
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import type { FilePlan } from './types.ts'
 import type { UiDesignTokens } from './types.ts'
@@ -106,12 +106,18 @@ const BASE_FILES: Readonly<Record<string, string>> = {
 
 /**
  * Create the deterministic project scaffold before role tasks run.
- * Existing files are replaced so each test run starts from the same base.
+ * Existing files are replaced by default so each ordinary run starts from the same base.
  * @param workspace - generated project root.
+ * @param options - set `overwrite` to false when upgrading an existing source snapshot.
  */
-export function writeProjectScaffold(workspace: string): void {
+export function writeProjectScaffold(
+  workspace: string,
+  options: { readonly overwrite?: boolean } = {},
+): void {
+  const overwrite = options.overwrite ?? true
   for (const [path, content] of Object.entries(BASE_FILES)) {
     const target = resolve(workspace, path)
+    if (!overwrite && existsSync(target)) continue
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, content)
   }

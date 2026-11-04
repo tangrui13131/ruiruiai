@@ -1,10 +1,11 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import type { AgentInvocation, AgentInvoker, AgentRun } from '../src/agent-contracts.ts'
-import { ProjectId } from '../src/brand.ts'
+import { AgentId, ProjectId, TaskId } from '../src/brand.ts'
+import { DagEngine, taskDefinition } from '../src/dag-engine.ts'
 import type { AgentProfile, VerificationResult } from '../src/types.ts'
 import { defaultAgentProfiles } from '../src/harness-agents.ts'
 import { OrchestrationRepository } from '../src/repository.ts'
@@ -192,6 +193,82 @@ function passingVerification(): VerificationResult {
 }
 
 describe('TeamOrchestrator', () => {
+  it('adds the source verification spec and upgrade request while preserving existing source', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'future-cup-team-upgrade-'))
+    const repository = new OrchestrationRepository(':memory:', { now: NOW })
+    const profiles = defaultAgentProfiles()
+    const sourceId = ProjectId('project-upgrade-source')
+    const sourceDag = await DagEngine.create(repository, {
+      id: sourceId,
+      name: 'Source',
+      requirement: 'Build an admin dashboard with users',
+    }, [
+      taskDefinition({
+        id: 'verification',
+        title: 'Verification',
+        description: 'Create browser assertions',
+        role: 'tester',
+        priority: 75,
+        dependencies: [],
+        requiredCapabilities: { testing: 0.6 },
+        writeScopes: [],
+      }),
+    ])
+    await sourceDag.startTask(TaskId('verification'), AgentId('tester'))
+    await sourceDag.completeTask(TaskId('verification'), {
+      summary: 'Existing browser assertions',
+      pages: [
+        { pageId: 'dashboard', route: '/', navigationLabel: 'Dashboard', requiredText: ['dashboard'] },
+        { pageId: 'users', route: '/users', navigationLabel: 'Users', requiredText: ['users'] },
+      ],
+      interactions: [
+        { fromRoute: '/', clickText: 'Users', expectedRoute: '/users', expectedText: 'users' },
+      ],
+    })
+    mkdirSync(join(workspace, 'src'), { recursive: true })
+    writeFileSync(join(workspace, 'package.json'), '{"name":"verified-source"}\n')
+    writeFileSync(join(workspace, 'src', 'App.tsx'), 'export const App = () => <main>v1</main>\n')
+    let plannerPrompt = ''
+    const invokers = new Map<string, AgentInvoker>()
+    for (const profile of profiles) {
+      const base = outputs(profile)
+      invokers.set(profile.id, new TestInvoker(profile, async (invocation) => {
+        if (profile.role === 'planner') plannerPrompt = invocation.prompt
+        return await base(invocation)
+      }))
+    }
+    const team = new TeamOrchestrator({
+      repository,
+      invokers,
+      profiles,
+      workspace,
+      preserveExistingWorkspace: true,
+      verification: { buildTimeoutMs: 1_000, browserTimeoutMs: 1_000 },
+      selfLoop: { maxRepairRounds: 0, repairTimeoutMs: 1_000 },
+      projectVerifier: async () => passingVerification(),
+    })
+    try {
+      await team.generate('Build an admin dashboard with users', {
+        id: ProjectId('project-upgrade-target'),
+        name: 'Source v2',
+        requirement: 'Build an admin dashboard with users',
+        createdAt: NOW().toISOString(),
+        sourceProjectId: sourceId,
+        sourceProjectName: 'Source',
+        derivationMode: 'UPGRADE',
+        changeRequest: 'Add search filters.',
+      })
+      expect(plannerPrompt).toContain('Add search filters.')
+      expect(plannerPrompt).toContain('SOURCE VERIFICATION SPEC')
+      expect(plannerPrompt).toContain('Existing browser assertions')
+      expect(readFileSync(join(workspace, 'package.json'), 'utf8')).toContain('verified-source')
+    } finally {
+      await team.close()
+      repository.close()
+      rmSync(workspace, { recursive: true, force: true })
+    }
+  })
+
   it('runs two frontend Agents concurrently and persists six independent Sessions', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'future-cup-team-'))
     const repository = new OrchestrationRepository(':memory:', { now: NOW })

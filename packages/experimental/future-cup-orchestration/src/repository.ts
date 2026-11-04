@@ -80,6 +80,7 @@ import type {
   ExecutionRecord,
   ExecutionStatus,
   JsonValue,
+  ProjectDerivationMode,
   ProjectRecord,
   ProjectRunRecord,
   ProjectRunStatus,
@@ -112,6 +113,11 @@ const projectRowSchema = z.object({
   requirement: z.string(),
   last_event_seq: z.number(),
   created_at: z.string(),
+  source_project_id: z.string().nullable(),
+  source_project_name: z.string().nullable(),
+  source_run_id: z.string().nullable(),
+  derivation_mode: z.string().nullable(),
+  change_request: z.string().nullable(),
 }).strict()
 
 const taskRowSchema = z.object({
@@ -379,8 +385,22 @@ export class OrchestrationRepository implements OrchestrationStore {
       } | undefined
       if (existing === undefined) {
         this.database.prepare(
-          'INSERT INTO projects (id, name, requirement, created_at) VALUES (?, ?, ?, ?)',
-        ).run(project.id, project.name, project.requirement, project.createdAt)
+          `INSERT INTO projects (
+            id, name, requirement, created_at,
+            source_project_id, source_project_name, source_run_id,
+            derivation_mode, change_request
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+          project.id,
+          project.name,
+          project.requirement,
+          project.createdAt,
+          project.sourceProjectId ?? null,
+          project.sourceProjectName ?? null,
+          project.sourceRunId ?? null,
+          project.derivationMode ?? null,
+          project.changeRequest ?? null,
+        )
       } else if (existing.name !== project.name || existing.requirement !== project.requirement) {
         throw new Error(`project "${project.id}" already exists with a different name or requirement`)
       }
@@ -464,16 +484,15 @@ export class OrchestrationRepository implements OrchestrationStore {
    */
   getProject(id: ProjectId): ProjectRecord | undefined {
     const raw = this.database.prepare(
-      'SELECT id, name, requirement, last_event_seq, created_at FROM projects WHERE id = ?',
+      `SELECT
+        id, name, requirement, last_event_seq, created_at,
+        source_project_id, source_project_name, source_run_id,
+        derivation_mode, change_request
+      FROM projects
+      WHERE id = ?`,
     ).get(id)
     if (raw === undefined) return undefined
-    const row = projectRowSchema.parse(raw)
-    return {
-      id: ProjectId(row.id),
-      name: row.name,
-      requirement: row.requirement,
-      createdAt: row.created_at,
-    }
+    return projectRecordFromRow(projectRowSchema.parse(raw))
   }
 
   /**
@@ -485,12 +504,20 @@ export class OrchestrationRepository implements OrchestrationStore {
       workflow_status: z.string().nullable(),
       latest_run_id: z.string().nullable(),
       latest_run_status: z.string().nullable(),
+      child_project_count: z.number(),
     }).array().parse(this.database.prepare(`
       SELECT
         p.id, p.name, p.requirement, p.last_event_seq, p.created_at,
+        p.source_project_id, p.source_project_name, p.source_run_id,
+        p.derivation_mode, p.change_request,
         w.status AS workflow_status,
         r.id AS latest_run_id,
-        r.status AS latest_run_status
+        r.status AS latest_run_status,
+        (
+          SELECT COUNT(*)
+          FROM projects child
+          WHERE child.source_project_id = p.id
+        ) AS child_project_count
       FROM projects p
       LEFT JOIN workflow_runs w ON w.project_id = p.id
       LEFT JOIN project_runs r ON r.id = (
@@ -503,9 +530,7 @@ export class OrchestrationRepository implements OrchestrationStore {
       ORDER BY p.rowid
     `).all())
     return rows.map(row => ({
-      id: ProjectId(row.id),
-      name: row.name,
-      requirement: row.requirement,
+      ...projectRecordFromRow(row),
       lastEventSeq: row.last_event_seq,
       workflowStatus: row.workflow_status === null
         ? undefined
@@ -514,7 +539,7 @@ export class OrchestrationRepository implements OrchestrationStore {
       latestRunStatus: row.latest_run_status === null
         ? undefined
         : decodeProjectRunStatus(row.latest_run_status),
-      createdAt: row.created_at,
+      childProjectCount: row.child_project_count,
     }))
   }
 
@@ -2432,6 +2457,40 @@ function decodeWorkflowDefinitionStatus(value: string): 'PUBLISHED' {
 
 function decodeProjectMemoryKind(value: string): ProjectMemoryEntry['kind'] {
   return parseProjectMemoryKind(value)
+}
+
+function projectRecordFromRow(row: z.infer<typeof projectRowSchema>): ProjectRecord {
+  return {
+    id: ProjectId(row.id),
+    name: row.name,
+    requirement: row.requirement,
+    createdAt: row.created_at,
+    ...row.source_project_id === null
+      ? {}
+      : { sourceProjectId: ProjectId(row.source_project_id) },
+    ...row.source_project_name === null
+      ? {}
+      : { sourceProjectName: row.source_project_name },
+    ...row.source_run_id === null
+      ? {}
+      : { sourceRunId: ProjectRunId(row.source_run_id) },
+    ...row.derivation_mode === null
+      ? {}
+      : { derivationMode: decodeProjectDerivationMode(row.derivation_mode) },
+    ...row.change_request === null
+      ? {}
+      : { changeRequest: row.change_request },
+  }
+}
+
+function decodeProjectDerivationMode(value: string): ProjectDerivationMode {
+  switch (value) {
+    case 'UPGRADE':
+    case 'REGENERATE':
+      return value
+    default:
+      throw new Error(`unknown project derivation mode "${value}"`)
+  }
 }
 
 function parseWorkflowControlJournalEntry(value: unknown): WorkflowControlJournalEntry {

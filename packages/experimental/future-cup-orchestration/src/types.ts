@@ -68,12 +68,25 @@ export interface TaskSnapshot extends TaskDefinition {
   readonly updatedAt: string
 }
 
+/** How a project was created from an earlier delivered project. */
+export type ProjectDerivationMode = 'UPGRADE' | 'REGENERATE'
+
 /** Durable project input and identity. */
 export interface ProjectRecord {
   readonly id: ProjectId
   readonly name: string
   readonly requirement: string
   readonly createdAt: string
+  /** Source project when this record is an upgrade or regeneration successor. */
+  readonly sourceProjectId?: ProjectId | undefined
+  /** Display name captured at derivation time so lineage survives source deletion. */
+  readonly sourceProjectName?: string | undefined
+  /** Passed source run whose delivery snapshot seeds an upgrade. */
+  readonly sourceRunId?: ProjectRunId | undefined
+  /** Whether the successor upgrades verified source or regenerates from the requirement. */
+  readonly derivationMode?: ProjectDerivationMode | undefined
+  /** User-visible upgrade request supplied when the successor is created. */
+  readonly changeRequest?: string | undefined
 }
 
 /** Lifecycle of one concrete project-generation run. */

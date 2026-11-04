@@ -10,7 +10,7 @@ The Future Cup competition requires a runnable multi-Agent orchestration platfor
 
 The earlier project record selected a micro-frontend and operations H5 authoring platform with a React Flow editor as the preferred product. Plan V1.0 changes that product decision: the platform must accept a frontend engineering requirement, coordinate specialized Agents, generate a runnable frontend project, verify it in a browser, repair failures, and deliver the project. Keeping the earlier scenario as current project context would make later architecture and acceptance work follow the wrong product boundary.
 
-M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, M5.4, and M5.5 are complete and M5.6 is the next gated stage. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4/M5.5 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
+M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, M5.4, M5.5, M5.6, and M5.7 are complete. The project needs one current record of the competition constraints, product boundary, architecture, Agent responsibilities, five delivery milestones, and the verified M1/M2/M3/M4/M5.1/M5.2/M5.3/M5.4/M5.5/M5.6/M5.7 decisions. The [earlier orchestration proposal](../../rejected/feature/2026-10-29-future-cup-multi-agent-orchestration-platform.md) remains as rejected rationale.
 
 ## Proposal
 
@@ -171,6 +171,15 @@ MCP, A2A, external API plugins, RAG, vector databases, arbitrary tool installati
 - Current focused results pass 198/198 orchestration tests, 32/32 platform tests, and 87/87 UI tests. The real Team E2E self-skips without a key; SQLite v1–v7 migration tests, Prisma schema validation, TypeScript checks, and artifact builds pass.
 - The 2026-11-03 real DeepSeek E2E created a project from a user-cloned and published seven-member Team. It verified the immutable frozen snapshot, seven project Agent projections, seven independent Harness homes, real generation Sessions, and desktop/mobile browser checks. The project passed full verification first; the platform then injected `TS2322`, the adaptive repair path completed a new Repair Session, reverification changed from `FAIL` to `PASS`, and the control graph retained the conditional edge, bounded loop, Repair subworkflow, and `PASSED` terminal state. Evidence is written to `.artifacts/future-cup-m55-live/real-team-*/run-result.json`; the entry point is `packages/experimental/future-cup-platform/tests/real-team-library.e2e.ts`.
 - Browser Verifier now reopens each interaction's declared `fromRoute` before acting, so a prior navigation cannot leak into the next interaction's starting page. Tester output also rejects a `clickText` that is neither a source-page `requiredText` value nor the destination `navigationLabel`. The SDK surfaces a failed `turn/end` as a `SessionTurnError` with a stable code and retry classification, and the Self-loop uses `maxAgentRetries` for bounded retries of recoverable transport failures. Regression tests cover repeated source-route interactions, contradictory labels, and transport recovery.
+
+### M5.7 project derivation results
+
+- Verified projects remain immutable. A passed project can create a successor that records its source project, source run, derivation mode, and upgrade request while preserving every source verification and delivery artifact.
+- The successor copies the exact frozen Team snapshot and project memory instead of resolving the current Registry Team version again.
+- A passed run writes an immutable delivery snapshot beside its workspace. The snapshot excludes `node_modules`, build output, `.env`, local configuration, and symbolic links.
+- `UPGRADE` restores the delivery snapshot into the new workspace before Agent execution and gives the Planner the upgrade request plus source-project context. Existing scaffold files are preserved. `REGENERATE` keeps the ordinary empty-workspace generation path.
+- `POST /api/v1/projects/:projectId/derivations` creates the successor and starts its independent run. SQLite schema v9 and a PostgreSQL migration persist derivation lineage.
+- Focused tests cover snapshot filtering and restoration, frozen-Team and memory inheritance, source-project immutability, API creation and start, upgrade-workspace restoration, SQLite v1-v8 to v9 migration, and the browser derivation dialog.
 
 ### M1, M2, M3, M4.0, M4.1, M4.2, M4.3, M4.4, M5.1, M5.2, M5.3, and M5.4 results
 

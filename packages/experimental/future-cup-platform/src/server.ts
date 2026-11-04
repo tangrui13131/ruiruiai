@@ -60,6 +60,10 @@ import {
 } from './api-contracts.ts'
 import { registerFutureCupArtifacts } from './artifact-server.ts'
 import {
+  ProjectDerivationError,
+  ProjectDerivationService,
+} from './project-derivation.ts'
+import {
   ProjectRunConflictError,
   ProjectRunStartError,
 } from './run-launcher.ts'
@@ -121,6 +125,12 @@ const createProjectSchema = z.object({
   name: z.string().min(1).max(120),
   requirement: z.string().min(1).max(20_000),
   teamVersionId: z.string().min(1).max(160).optional(),
+}).strict()
+
+const deriveProjectSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  mode: z.enum(['UPGRADE', 'REGENERATE']),
+  changeRequest: z.string().trim().max(20_000).optional(),
 }).strict()
 
 interface AgentExecutionActivity {
@@ -248,6 +258,38 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     })
     return await reply.code(201).send(created)
   })
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/projects/:projectId/derivations',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      const body = deriveProjectSchema.parse(request.body)
+      const targetProjectId = ProjectId(`project-${randomUUID()}`)
+      const derivation = new ProjectDerivationService({ store: options.store })
+      try {
+        const project = await derivation.derive({
+          sourceProjectId: ProjectId(projectId),
+          targetProjectId,
+          name: body.name,
+          mode: body.mode,
+          ...body.changeRequest === undefined ? {} : { changeRequest: body.changeRequest },
+        })
+        const { runId } = await requireLauncher().start(project)
+        return await reply.code(201).send({ project, runId })
+      } catch (error: unknown) {
+        if (error instanceof ProjectDerivationError) {
+          throw new ApiError(projectDerivationStatus(error.code), error.code, error.message)
+        }
+        if (error instanceof ProjectRunConflictError) {
+          throw new ApiError(409, error.code, error.message)
+        }
+        if (error instanceof ProjectRunStartError) {
+          throw new ApiError(503, error.code, error.message)
+        }
+        throw error
+      }
+    },
+  )
 
   app.delete<{ Params: unknown }>('/api/v1/projects/:projectId', async (request, reply) => {
     const { projectId } = projectParamsSchema.parse(request.params)
@@ -1175,6 +1217,23 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       throw new ApiError(503, 'RUN_LAUNCHER_UNAVAILABLE', 'No project run launcher is mounted')
     }
     return launcher
+  }
+
+  function projectDerivationStatus(code: ProjectDerivationError['code']): number {
+    switch (code) {
+      case 'SOURCE_PROJECT_NOT_FOUND':
+        return 404
+      case 'UPGRADE_REQUEST_REQUIRED':
+        return 400
+      case 'SOURCE_PROJECT_RUNNING':
+      case 'SOURCE_RUN_NOT_PASSED':
+      case 'SOURCE_TEAM_BINDING_UNAVAILABLE':
+      case 'SOURCE_SNAPSHOT_UNAVAILABLE':
+      case 'TARGET_PROJECT_EXISTS':
+        return 409
+      case 'TARGET_PROJECT_CREATE_FAILED':
+        return 500
+    }
   }
 
   function requireAgentRegistry() {

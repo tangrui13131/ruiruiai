@@ -53,6 +53,8 @@ export interface TeamOrchestratorOptions {
   readonly invokers: ReadonlyMap<string, AgentInvoker>
   readonly profiles: readonly AgentProfile[]
   readonly workspace: string
+  /** Keep a copied source snapshot instead of replacing scaffold files. */
+  readonly preserveExistingWorkspace?: boolean
   readonly scheduler?: ExplainableScheduler
   readonly verification: VerificationConfig
   readonly selfLoop: SelfLoopConfig
@@ -125,10 +127,17 @@ export class TeamOrchestrator {
       requirement,
       createdAt: new Date().toISOString(),
     }
+    const runRequirement = await requirementForRun(
+      this.options.repository,
+      project,
+      requirement,
+    )
     await this.options.repository.createProject(project, [])
-    writeProjectScaffold(this.options.workspace)
+    writeProjectScaffold(this.options.workspace, {
+      overwrite: !this.options.preserveExistingWorkspace,
+    })
 
-    const planner = await this.runPlanner(projectId, requirement)
+    const planner = await this.runPlanner(projectId, runRequirement)
     const taskDefinitions = planner.tasks.map(task => taskDefinition(task))
     const dag = await DagEngine.create(
       this.options.repository,
@@ -173,7 +182,7 @@ export class TeamOrchestrator {
       }
 
       const settled = await Promise.all(running.map(execution =>
-        this.executeAssignment(dag, requirement, planner, outputs, execution),
+        this.executeAssignment(dag, runRequirement, planner, outputs, execution),
       ))
       const failures: FailedAssignment[] = settled.filter(
         (result): result is FailedAssignment => !result.ok,
@@ -516,6 +525,42 @@ export class TeamOrchestrator {
     const invocation: AgentInvocation = { taskId, prompt }
     return await invoker.run(invocation, schema)
   }
+}
+
+async function requirementForRun(
+  repository: OrchestrationStore,
+  project: ProjectRecord,
+  requirement: string,
+): Promise<string> {
+  if (project.derivationMode !== 'UPGRADE') return requirement
+  const changeRequest = project.changeRequest?.trim()
+  if (changeRequest === undefined || changeRequest === '') return requirement
+  const sourceSnapshot = project.sourceProjectId === undefined
+    ? undefined
+    : await repository.getProjectSnapshot(project.sourceProjectId, 0, 1)
+  const sourceSpec = sourceSnapshot?.tasks.find(task =>
+    task.role === 'tester'
+    && task.status === 'COMPLETED'
+    && task.result !== undefined,
+  )?.result
+  return [
+    requirement,
+    '',
+    'UPGRADE REQUEST:',
+    changeRequest,
+    '',
+    `This project is a successor of "${project.sourceProjectName ?? String(project.sourceProjectId ?? 'an earlier project')}".`,
+    'The workspace already contains the previous verified application source.',
+    'Inspect the existing source before planning and preserve behavior that the upgrade request does not replace.',
+    'Extend or update the existing application instead of treating this as a blank generation.',
+    ...sourceSpec === undefined
+      ? []
+      : [
+        'SOURCE VERIFICATION SPEC:',
+        JSON.stringify(sourceSpec).slice(0, 20_000),
+        'Preserve every source route and interaction unless the upgrade request explicitly replaces it.',
+      ],
+  ].join('\n')
 }
 
 /** Require page-local imports to resolve to files returned by the same frontend task. */

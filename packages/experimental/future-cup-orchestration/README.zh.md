@@ -72,6 +72,8 @@ repository.close()
 
 `AgentTeam` 是用户拥有的逻辑父级。每个 `AgentTeamVersion` 属于一个团队，创建后不可修改，并按每个可调度 Agent 实例保存一行运行时成员。团队版本接受 1–7 个运行时实例，允许同一已发布 Agent 版本出现多次，并要求稳定的 `instanceId`、`displayName`、`departmentKey` 与 `position`。草稿可以为空；发布和项目冻结必须通过能力、并发、工具、记忆、输出契约、部门位置与发布状态校验。
 
+派生项目保存来源项目、来源运行、派生模式与可选升级需求。`TeamOrchestrator` 在 `UPGRADE` 中保留恢复后的来源工作区与现有 scaffold 文件，并把升级需求和来源项目上下文加入 Planner 输入；`REGENERATE` 继续使用普通空工作区路径。
+
 `WorkflowControlCoordinator` 将版本化控制图与执行快照写入仓储。固定控制图从独立验证开始，`PASS` 进入交付，`FAIL` 或 `INCOMPLETE` 进入 Repair 子工作流，Repair 完成返回验证；循环最多三轮，重复失败签名先切换未使用策略，再无替代策略时升级。每个节点、边选择、循环轮次和子工作流进入/退出都有持久 Journal，可从一个快照确定性恢复。
 
 ### 自适应修复与智能配队
@@ -86,7 +88,7 @@ repository.close()
 
 ### 持久记录
 
-SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、策略决策、工作流、产品事件、Outbox、工作流租约、Agent Registry、逻辑团队、运行时成员、团队绑定、项目记忆与工作流控制记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1-v7 数据库原地迁移到 v8，不删除已有验证证据，也不把旧成员数量扩成空的运行时身份。
+SQLite schema 包含项目、任务依赖、Journal、调度、执行、验证、修复、策略决策、工作流、产品事件、Outbox、工作流租约、Agent Registry、逻辑团队、运行时成员、团队绑定、项目记忆、派生谱系与工作流控制记录。每次任务变更都匹配前一 revision，并在同一事务中追加 Journal。`DagEngine.resume()` 重放 Journal，并拒绝与当前任务行不一致的状态。Schema v1-v8 数据库原地迁移到 v9，不删除已有验证证据，也不把旧成员数量扩成空的运行时身份。
 
 ### 调度
 
