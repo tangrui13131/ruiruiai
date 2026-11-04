@@ -139,4 +139,11 @@ describe('findViolations fragments', () => {
     const root = layout({ 'a.md': '# A\n\n[ghost](missing.md#anything)\n' })
     expect(violationsIn(root, 'a.md')).toEqual([{ url: 'missing.md#anything', reason: 'target' }])
   })
+
+  it('accepts historical links into retired official frontend paths', () => {
+    const root = layout({
+      'a.md': '# A\n\n[desktop](apps/desktop/README.md#local-settings)\n',
+    })
+    expect(violationsIn(root, 'a.md')).toEqual([])
+  })
 })

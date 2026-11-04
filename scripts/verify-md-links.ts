@@ -12,6 +12,7 @@ import { dirname, relative, resolve } from 'node:path'
 import type { Nodes } from 'mdast'
 import { markdownHeadingLines, parseMarkdown, visitMarkdown } from './markdown.ts'
 import { isArchivedAgentNotePath, uniqueRepoFiles } from './repo-files.ts'
+import { isRetiredOfficialFrontendPath } from './retired-paths.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -224,10 +225,14 @@ export function findViolations(
     if (isExternal(url)) continue
     const target = pathPart(url)
     const resolved = target === '' ? absPath : resolve(dir, target)
-    if (!cache.exists(resolved)) {
+    const retired = isRetiredOfficialFrontendPath(
+      relative(scanRoot, resolved).replaceAll('\\', '/'),
+    )
+    if (!cache.exists(resolved) && !retired) {
       out.push({ file, line, url, reason: 'target' })
       continue
     }
+    if (retired) continue
     const fragment = fragmentPart(url)
     if (fragment === null || !resolved.endsWith('.md')) continue
     if (!cache.document(resolved).anchors.has(fragment)) {

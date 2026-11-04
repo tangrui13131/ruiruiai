@@ -39,6 +39,7 @@ import {
   normalizeTranslationMarkdownLinks,
   translationLinkLocaleViolations,
 } from './translation-links.ts'
+import { isRetiredOfficialFrontendPath } from './retired-paths.ts'
 
 const root = resolve(import.meta.dirname, '..')
 let request: ReturnType<typeof parseTranslationPairingCliArgs>
@@ -97,7 +98,13 @@ function isExcluded(file: string): boolean {
   return isTranslationPairingManifestExcluded(file, manifest)
 }
 
-const recordContext = { repoRoot: root, isTranslationPairSource, repositoryFileExists }
+const translationLinkRepositoryFileExists = (file: string): boolean =>
+  repositoryFileExists(file) || isRetiredOfficialFrontendPath(file)
+const recordContext = {
+  repoRoot: root,
+  isTranslationPairSource,
+  repositoryFileExists: translationLinkRepositoryFileExists,
+}
 
 // Enumerate the scope once: the whole corpus, or exactly the named pairs'
 // three files (a named pair whose files are absent is caught by the same
@@ -267,13 +274,13 @@ for (const source of [...pairAnchors].sort()) {
       repoRoot: root,
       sourcePath: source,
       isTranslationPairSource,
-      repositoryFileExists,
+      repositoryFileExists: translationLinkRepositoryFileExists,
     }, zhSwitcherTargets, sourceTree),
     ...translationLinkLocaleViolations(zhText, {
       repoRoot: root,
       sourcePath: zh,
       isTranslationPairSource,
-      repositoryFileExists,
+      repositoryFileExists: translationLinkRepositoryFileExists,
     }, sourceSwitcherTargets, zhTree),
   ]) {
     errors.push(`${violation.sourcePath}:${violation.line}: link target ${JSON.stringify(violation.url)} uses the wrong locale; expected ${JSON.stringify(violation.expectedUrl)}`)
@@ -298,13 +305,13 @@ for (const source of [...pairAnchors].sort()) {
     repoRoot: root,
     sourcePath: source,
     isTranslationPairSource,
-    repositoryFileExists,
+    repositoryFileExists: translationLinkRepositoryFileExists,
   }))
   const normalizedZhRegions = zhRegions.map(region => normalizeTranslationMarkdownLinks(region, {
     repoRoot: root,
     sourcePath: zh,
     isTranslationPairSource,
-    repositoryFileExists,
+    repositoryFileExists: translationLinkRepositoryFileExists,
   }))
   if (normalizedSourceRegions.length !== normalizedZhRegions.length
     || normalizedSourceRegions.some((region, index) => region !== normalizedZhRegions[index])) {
@@ -323,14 +330,14 @@ for (const source of [...pairAnchors].sort()) {
       repoRoot: root,
       sourcePath: source,
       isTranslationPairSource,
-      repositoryFileExists,
+      repositoryFileExists: translationLinkRepositoryFileExists,
       markdown: sourceText,
     }),
     translationStructureSignature(zhTree, sourceSwitcherTargets, {
       repoRoot: root,
       sourcePath: zh,
       isTranslationPairSource,
-      repositoryFileExists,
+      repositoryFileExists: translationLinkRepositoryFileExists,
       markdown: zhText,
     }),
   )) {

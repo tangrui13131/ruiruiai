@@ -118,7 +118,7 @@ function member(
 }
 
 function expectRegistryError(action: () => void, code: AgentRegistryError['code']): void {
-  expect(action).toThrowError(AgentRegistryError)
+  expect(action).toThrow(AgentRegistryError)
   try {
     action()
   } catch (error) {

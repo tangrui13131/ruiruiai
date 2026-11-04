@@ -52,7 +52,7 @@ async function waitForTerminalRun(
 ): Promise<ProjectRunRecord> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const run = await repository.getProjectRun(runId)
+    const run = repository.getProjectRun(runId)
     if (run !== undefined && run.status !== 'RUNNING') return run
     await new Promise(resolve => setTimeout(resolve, 500))
   }
@@ -73,7 +73,7 @@ async function waitForReleasedLease(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const lease = await repository.getWorkflowLease(`workflow:${projectId}`)
+    const lease = repository.getWorkflowLease(`workflow:${projectId}`)
     if (lease === undefined || lease.ownerId === undefined) return
     await new Promise(resolve => setTimeout(resolve, 100))
   }
@@ -93,7 +93,7 @@ async function jsonResponse(response: Response, expectedStatus: number): Promise
   return await response.json()
 }
 
-describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () => {
+describe.skipIf(!hasKey)('M5.5 real seven-member Team workflow', { concurrent: false }, () => {
   it('freezes a published Team, runs seven real Agents, and repairs an injected failure', {
     timeout: 2_400_000,
   }, async () => {
@@ -185,7 +185,7 @@ describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () =
         }),
       }), 201))
       const projectId = ProjectId(created.id)
-      const binding = await repository.getProjectTeamBinding(projectId)
+      const binding = repository.getProjectTeamBinding(projectId)
       if (binding === undefined) throw new Error(`project "${projectId}" has no frozen Team binding`)
       const runtimeProfiles = agentProfilesFromTeamBinding(binding)
       const memberIds = binding.members.map(member => member.instanceId)
@@ -209,11 +209,11 @@ describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () =
       ), 202))
       const initialRun = await waitForTerminalRun(repository, initialStart.runId, 1_200_000)
       if (initialRun.status !== 'PASSED') {
-        throw new Error(`initial real run ended ${initialRun.status}: ${JSON.stringify(await repository.listVerificationReports(projectId))}`)
+        throw new Error(`initial real run ended ${initialRun.status}: ${JSON.stringify(repository.listVerificationReports(projectId))}`)
       }
       await waitForReleasedLease(repository, projectId, 30_000)
 
-      const generationExecutions = await repository.listExecutions(projectId)
+      const generationExecutions = repository.listExecutions(projectId)
       const initialExecutionIds = new Set(generationExecutions.map(execution => execution.id))
       const generationSessions = generationExecutions
         .flatMap(execution => execution.sessionId === undefined ? [] : [execution.sessionId])
@@ -230,11 +230,11 @@ describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () =
       ), 202))
       const drillRun = await waitForTerminalRun(repository, drillStart.runId, 1_200_000)
       if (drillRun.status !== 'PASSED') {
-        throw new Error(`self-healing drill ended ${drillRun.status}: ${JSON.stringify(await repository.listVerificationReports(projectId))}`)
+        throw new Error(`self-healing drill ended ${drillRun.status}: ${JSON.stringify(repository.listVerificationReports(projectId))}`)
       }
       await waitForReleasedLease(repository, projectId, 30_000)
 
-      const finalExecutions = await repository.listExecutions(projectId)
+      const finalExecutions = repository.listExecutions(projectId)
       const repairAgentIds = new Set(
         runtimeProfiles.filter(profile => profile.role === 'repair').map(profile => profile.id),
       )
@@ -246,7 +246,7 @@ describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () =
       expect(new Set(repairSessions).size).toBe(repairSessions.length)
       for (const sessionId of repairSessions) expect(generationSessions).not.toContain(sessionId)
 
-      const verificationReports = await repository.listVerificationReports(projectId)
+      const verificationReports = repository.listVerificationReports(projectId)
       const verificationStatuses = verificationReports.map(report => report.status)
       expect(verificationStatuses[0]).toBe('FAIL')
       expect(verificationStatuses.at(-1)).toBe('PASS')
@@ -256,9 +256,9 @@ describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () =
       expect(browserChecks).toHaveLength(4)
       expect(browserChecks.every(check => check.status === 'PASS')).toBe(true)
       expect(finalVerification.screenshots).toHaveLength(4)
-      const control = await repository.getWorkflowControlState(projectId)
+      const control = repository.getWorkflowControlState(projectId)
       expect(control?.snapshot.status).toBe('PASSED')
-      const controlEvents = await repository.listWorkflowControlEvents(projectId)
+      const controlEvents = repository.listWorkflowControlEvents(projectId)
       const controlEventTypes = controlEvents.map(record => record.entry.type)
       expect(controlEventTypes).toEqual(expect.arrayContaining([
         'edge/selected',
@@ -298,8 +298,8 @@ describe.skipIf(!hasKey).sequential('M5.5 real seven-member Team workflow', () =
       throw error
     } finally {
       writeFileSync(join(runRoot, 'run-result.json'), `${JSON.stringify(summary, null, 2)}\n`)
-      await launcher?.close().catch(error => errors.push(error))
-      await server?.close().catch(error => errors.push(error))
+      await launcher?.close().catch((error: unknown) => errors.push(error))
+      await server?.close().catch((error: unknown) => errors.push(error))
     }
   })
 })
