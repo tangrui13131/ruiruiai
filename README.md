@@ -1,77 +1,143 @@
-# DeepSeek Harness
+# Future Cup Multi-Agent Orchestration Workbench
 
 English | [中文](README.zh.md)
 
-DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
+This repository contains the **Future Cup multi-agent orchestration workbench** and its initial-round deliverables. It is built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), an everything-is-a-plugin agent harness powered by [Cordis](https://github.com/cordiverse/cordis). Harness supplies agents, sessions, tools and model adapters; Future Cup adds the control plane on top.
 
-It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
+The workbench turns a natural-language requirement into a durable task DAG, assembles and freezes a versioned agent team, schedules concurrent work, runs independent browser verification, applies bounded self-repair, and produces a runnable project with execution evidence. **The frontend engineering crew is one built-in team, not the product itself** — the platform is a general multi-agent orchestration workbench.
 
-Documentation: [https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
+> The upstream documentation and the full plugin corpus are kept in this repository; Future Cup lives in `packages/experimental/`.
 
-## Developer preview
+## What this is
 
-DeepSeek Harness is in _developer preview_ and iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**
+| Item | Detail |
+|---|---|
+| Base | DeepSeek Harness (`dsh`) + Cordis, everything-is-a-plugin |
+| Platform package | `packages/experimental/future-cup-platform` — REST / Socket.IO server, React management SPA, read-only HQ 3D screen |
+| Orchestration package | `packages/experimental/future-cup-orchestration` — durable DAG, explainable scheduling, verification and bounded repair |
+| Management UI | `/` — light neumorphic theme, project metrics, six-stage progress, crew panels |
+| HQ screen | `/hq/index.html?projectId=<id>` — read-only live projection |
+| Default port | `3090`, loopback only |
+| Storage | SQLite for local runs, PostgreSQL after configuration |
+| License | MIT; HQ 3D assets use PolyForm Noncommercial 1.0.0 |
 
-Review the [safety notice](SAFETY.md) before running the project.
+Key capabilities:
 
-## Run
+- Persistent task DAG with revision-checked writes, a workflow control graph and recoverable leases.
+- Versioned Agent Registry, immutable team versions and per-project team freezing.
+- Explainable scheduling, independent build/browser verification and up to three bounded repair rounds.
+- Transactional project events with Outbox replay over Socket.IO, REST snapshots and delivery previews.
+- A real Harness team launcher, one frozen team per project, and evidence-first delivery.
 
-### Run from `npm`
+<a id="run"></a>
 
-Install `Node.js`, then run:
+## Quick start
+
+Requirements: Node.js >= 24.9, pnpm 11, and PowerShell 5.1 on Windows for the `.bat` launchers. A `DEEPSEEK_API_KEY` is read from local configuration at launch; **no key is stored in this repository** (see "Secrets and CI" below).
+
+**Option A — Windows launcher (recommended).** Double-click `启动平台.bat` (identical to `start.bat`). `start.ps1` then runs five preflight steps:
+
+| Step | Check |
+|---|---|
+| 1 | Load `DEEPSEEK_API_KEY` from the local key file or `.env` |
+| 2 | Verify `lib/web` artifacts (`index.html`, `hq/index.html`, `hq/hq-bridge.js`) |
+| 3 | Make sure port `3090` is free |
+| 4 | Verify Node.js >= 24.9 |
+| 5 | Start the platform (equivalent to `pnpm start:platform`) |
+
+Open <http://127.0.0.1:3090>. Validation failures exit with code 1 (key), 2 (artifacts) or 3 (port/runtime).
+
+<a id="run-from-source"></a>
+
+**Option B — command line.**
 
 ```sh
-npx @deepseek-ai/dsh web
-```
-
-The command starts the Web UI at `http://127.0.0.1:3080` by default and opens it in the default browser for a local launch. An SSH launch only prints the host URL because the SSH client or editor owns the local forwarded address. Pass `--no-open` to run the server without opening a browser. See [Web UI guide](docs/user/guide/index.md).
-
-### Run from source
-
-To run from a repository checkout:
-
-```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
 pnpm install
-pnpm run build
-pnpm dsh web
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
+pnpm start:platform
 ```
 
-`pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
+`start.ps1` intentionally does **not** build the UI: it only prints a yellow hint when the sources are newer than the artifacts.
 
-## Community and support
+Keys: the launcher first tries the local key file configured in `start.ps1`, then the repository-root `.env`; you can also export `DEEPSEEK_API_KEY` in the current shell. `.env` is gitignored — never commit a key value.
 
-- Submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).
-- Add the [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic to your plugin repository for discoverability.
-- Join <a href="https://discord.gg/4MrtZUhpxg">DeepSeek Harness Discord community</a>.
+## Build the UI
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Development
-
-Start with the [development guide](docs/development.md) and [architecture documentation](docs/architecture.md).
-
-`pnpm run dev:web` builds, serves, and rebuilds client bundles on source edits in one terminal, and `make help` lists the matching Make targets for Web and Desktop; the guide's application commands section owns the full table.
-
-For agents, follow [AGENTS.md](AGENTS.md).
-
-## Citation
-
-```bibtex
-@misc{deepseek-harness2026,
-  title={DeepSeek Harness: Everything is a Plugin},
-  author={DeepSeek-AI},
-  year={2026},
-  publisher={GitHub},
-  howpublished={\url{https://github.com/deepseek-ai/deepseek-harness}},
-}
+```sh
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 ```
+
+`build:ui` runs two Vite builds in sequence: the management SPA into `lib/web/`, then the HQ screen into `lib/web/hq/` (producing `hq-bridge.js`). `lib/web/` is gitignored build output, not source. After any change under `ui/src`, rebuild and refresh the page (Ctrl+F5 if the hashed bundle is cached). Check that `lib/web/hq/hq-bridge.js` exists before starting the platform.
+
+> Do not pipe the build through `head`: closing the pipe early sends SIGPIPE to the second Vite process and silently drops `hq-bridge.js`. Redirect to a log file instead.
+
+## Common commands
+
+| Command | Purpose |
+|---|---|
+| `pnpm install` | Install workspace dependencies (Node >= 24.9) |
+| `pnpm start:platform` | Start the workbench on port 3090 |
+| `pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui` | Build management SPA + HQ screen |
+| `pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform typecheck:ui` | Type-check the UI |
+| `pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform test:ui` | Run UI unit tests (Vitest) |
+| `pnpm run typecheck` | Repository-wide type check (pre-push hook, 6 gates) |
+| `pnpm run doc-sync` | Documentation consistency gates |
+| `pnpm run build` | Build artifacts and run build checks |
+| `make platform` / `make build` | Makefile shortcuts |
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `start.ps1`, `start.bat`, `启动平台.bat` | Windows launchers and preflight checks |
+| `apps/cli/` | `dsh` CLI and the Web entry point |
+| `packages/experimental/future-cup-platform/` | Platform server, management UI (`ui/`), HQ screen, Prisma schema |
+| `packages/experimental/future-cup-orchestration/` | DAG, scheduling, verification and repair logic |
+| `packages/*/*`, `vendor/` | Harness plugin packages and vendored Cordis |
+| `docs/`, `.agents/notes/` | Architecture, development guides and design notes |
+| `scripts/`, `.github/workflows/` | Gates, generators and CI workflows |
+| `deliverables/future-cup-initial/` | Initial-round deliverables (see below) |
+| `python/`, `native/`, `benchmarks/` | Python SDK, native addon sources and performance gates |
+
+## Initial-round deliverables
+
+`deliverables/future-cup-initial/` contains the proposal, system report, evidence matrix, architecture diagrams, functional and test screenshots, raw test data, and the generator script. The baseline is the 2026-11-03 initial-round version; start with the [package README](deliverables/future-cup-initial/README.md) and `文案/初赛方案书.md`.
+
+`文件清单.json` records the byte size and sha256 of all 48 shipped files. If you edit any file in the package, recompute the matching entry — otherwise the manifest no longer verifies.
+
+## Verification
+
+A focused local loop before committing UI work:
+
+```sh
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform typecheck:ui
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform test:ui
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
+```
+
+The UI suite currently covers 24 test files / 94 cases. Lefthook runs lint on staged files, `git diff --cached --check` and the vendor manifest guard at commit time, and the full `pnpm run typecheck` (6 gates) before pushing.
+
+Both READMEs are a bilingual pair. After editing either side, bring the other along and re-record the section hashes:
+
+```sh
+pnpm run verify-translation-pairing --write README.md
+```
+
+## Secrets and CI
+
+This repository keeps **no secrets**: no committed `.env`, no hard-coded API keys and no GitHub Actions secret. `.env` is gitignored and used only for local runs; key values must never be committed. The launchers read a key from the local machine at runtime instead.
+
+`.github/workflows/e2e.yml` runs real-API end-to-end tests and hard-fails its `Preflight (require DEEPSEEK_API_KEY)` step when `DEEPSEEK_API_KEY_EXTERNAL` is empty — deliberately, because a keyless suite would self-skip and report a false green. Since this repository intentionally configures no secret, that workflow shows failed runs on pushes and its nightly schedule. This is expected and is not a code failure; local verification relies on `typecheck:ui`, `test:ui` and `pnpm run typecheck`.
+
+## Documentation
+
+- [AGENTS.md](AGENTS.md) — repository rules for agents and contributors
+- [Architecture](docs/architecture.md) and [development guide](docs/development.md)
+- [Platform package README](packages/experimental/future-cup-platform/README.md) — REST API and implementation notes
+- [Safety notice](SAFETY.md) and [contributing guide](CONTRIBUTING.md)
+- [Initial-round deliverables README](deliverables/future-cup-initial/README.md)
+- Competition constraints and milestones live in `.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md`
 
 ## License
 
-[MIT](LICENSE)
-
-Third-party dependencies and their licenses are disclosed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). Third-party dependencies are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The HQ 3D scene is distributed under PolyForm Noncommercial License 1.0.0; keep its license and Required Notice in every distribution, and obtain a separate authorization for commercial use.

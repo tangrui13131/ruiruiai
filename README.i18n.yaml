@@ -2,33 +2,36 @@
 # section, a hash of its English and Chinese blocks outside code blocks and generated regions.
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
-/deepseek-harness:
-  en: f68c4f080ce55ff2
-  zh: 88a76d7f7f0b260e
-/deepseek-harness/developer-preview:
-  en: 4ef4d8a71ac143f0
-  zh: 1bfc3149ba8e5543
-/deepseek-harness/run:
-  en: 4e0248e4c6474fc6
-  zh: eb2fb8d78c7d6bc0
-/deepseek-harness/run/run-from-npm:
-  en: e22005cd42e6cbad
-  zh: 0f536f4208df1d60
-/deepseek-harness/run/run-from-source:
-  en: 819e3f7c144d0d64
-  zh: de815f040975dba7
-/deepseek-harness/community-and-support:
-  en: 20acf6451fdc869b
-  zh: d06246dd019ecef7
-/deepseek-harness/contributing:
-  en: cabc2d3e9f8898bd
-  zh: 83b6d238bae29ce3
-/deepseek-harness/development:
-  en: 803ca2b11b497bed
-  zh: 8b4071eb0e7783ef
-/deepseek-harness/citation:
-  en: 6704e9e5a8d49a91
-  zh: 85c9cdd8d56f8e9d
-/deepseek-harness/license:
-  en: 926995344fc1c72b
-  zh: c92fab5abf85932f
+/future-cup-multi-agent-orchestration-workbench:
+  en: 2f6072623241d422
+  zh: 6d95e682d4f758a1
+/future-cup-multi-agent-orchestration-workbench/what-this-is:
+  en: fae08cb4642fd835
+  zh: 283f839a3fe13e6e
+/future-cup-multi-agent-orchestration-workbench/quick-start:
+  en: 4d89bd85b33010c9
+  zh: 07e6c08320af027e
+/future-cup-multi-agent-orchestration-workbench/build-the-ui:
+  en: 9d670de16561a52f
+  zh: 87a071b48ad96f74
+/future-cup-multi-agent-orchestration-workbench/common-commands:
+  en: d9cd8886ded60482
+  zh: aa009ea9a1598733
+/future-cup-multi-agent-orchestration-workbench/repository-layout:
+  en: 23fdf777c6e1c05d
+  zh: 941a23d0b590107d
+/future-cup-multi-agent-orchestration-workbench/initial-round-deliverables:
+  en: a2c32e28425e3e07
+  zh: 044433e70c5fef81
+/future-cup-multi-agent-orchestration-workbench/verification:
+  en: b53169450518c42f
+  zh: 37c630653e671464
+/future-cup-multi-agent-orchestration-workbench/secrets-and-ci:
+  en: 09793c556349ef21
+  zh: 8ce04560d169ac46
+/future-cup-multi-agent-orchestration-workbench/documentation:
+  en: 3670227835e239b5
+  zh: 98d1576fdac3476c
+/future-cup-multi-agent-orchestration-workbench/license:
+  en: ca3ce57a18340cc8
+  zh: f77989704bf214a2

@@ -1,96 +1,143 @@
-# DeepSeek Harness
+# Future Cup 多 Agent 调度工作站
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+本仓库是 **Future Cup 多 Agent 调度工作站** 的实现与初赛交付材料。底座为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）——由 [Cordis](https://github.com/cordiverse/cordis) 驱动的「一切皆插件」agent harness。Harness 提供 Agent、Session、工具与模型适配能力，Future Cup 在其之上实现平台控制层。
 
-它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
+工作站把自然语言需求转为持久任务 DAG，装配并冻结版本化 Agent 团队，并发调度任务，执行独立浏览器验证，进行有界自愈修复，最终交付可运行的工程与执行证据。**前端工程团队只是内置的一个团队，不是平台本身**——平台定位是通用的多 Agent 调度工作站。
 
-文档：[https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
+> 本仓库保留了上游文档与完整插件体系；Future Cup 相关实现位于 `packages/experimental/`。
 
-## 开发者预览
+## 这是什么
 
-DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
+| 项目 | 内容 |
+|---|---|
+| 底座 | DeepSeek Harness（`dsh`）+ Cordis，一切皆插件 |
+| 平台包 | `packages/experimental/future-cup-platform`：REST / Socket.IO 服务、React 管理应用、只读 HQ 3D 大屏 |
+| 编排包 | `packages/experimental/future-cup-orchestration`：持久 DAG、可解释调度、独立验证与有界修复 |
+| 管理界面 | `/`：浅色拟态主题、项目指标、六阶段进度、团队面板 |
+| HQ 大屏 | `/hq/index.html?projectId=<id>`：只读实时投影 |
+| 默认端口 | `3090`，仅绑定 loopback |
+| 存储 | 本地运行用 SQLite，配置后可用 PostgreSQL |
+| 许可 | MIT；HQ 3D 资产采用 PolyForm Noncommercial 1.0.0 |
 
-运行本项目前，请阅读[安全说明](SAFETY.zh.md)。
+核心能力：
+
+- 带 revision 校验的持久任务 DAG、工作流控制图与可恢复租约。
+- 版本化 Agent Registry、不可变团队版本与项目级团队冻结。
+- 可解释调度、独立构建/浏览器验证与最多三轮有界修复。
+- 事务性项目事件与 Outbox 重放（Socket.IO）、REST 快照与交付预览。
+- 真实 Harness 团队启动器、项目冻结团队，以及「以执行证据为准」的交付。
 
 <a id="run"></a>
 
-## 运行
+## 快速开始
 
-### 通过 `npm` 运行
+环境要求：Node.js >= 24.9、pnpm 11；Windows 下使用 `.bat` 启动器需要 PowerShell 5.1。启动时从本机配置读取 `DEEPSEEK_API_KEY`；**仓库不保存任何密钥**（见下文「密钥与 CI」）。
 
-安装 `Node.js`，然后运行：
+**方式 A — Windows 启动器（推荐）**：双击 `启动平台.bat`（与 `start.bat` 内容相同）。`start.ps1` 依次执行 5 步前置校验：
 
-```sh
-npx @deepseek-ai/dsh web
-```
+| 步骤 | 校验内容 |
+|---|---|
+| 1 | 从本机密钥文件或 `.env` 载入 `DEEPSEEK_API_KEY` |
+| 2 | 校验 `lib/web` 产物（`index.html`、`hq/index.html`、`hq/hq-bridge.js`） |
+| 3 | 确认端口 `3090` 未被占用 |
+| 4 | 校验 Node.js >= 24.9 |
+| 5 | 启动平台（等价于 `pnpm start:platform`） |
 
-该命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
+浏览器打开 <http://127.0.0.1:3090>。校验失败时退出码为 1（密钥）、2（产物）或 3（端口/运行时）。
 
 <a id="run-from-source"></a>
 
-### 从源码运行
-
-如需从仓库源码运行：
+**方式 B — 命令行**：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
 pnpm install
-pnpm run build
-pnpm dsh web
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
+pnpm start:platform
 ```
 
-`pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
+`start.ps1` **不会自动构建前端**：源码比产物新时只打印黄色提示。
 
-## 社区与支持
+密钥：启动器优先读取 `start.ps1` 中配置的本机密钥文件，其次读取仓库根目录 `.env`；也可以在当前终端预设 `DEEPSEEK_API_KEY` 环境变量。`.env` 已被 gitignore，**切勿提交密钥值**。
 
-- 通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
-- 为你的插件仓库添加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) 话题，便于被发现。
-- 欢迎加入 DeepSeek Harness 企微群！扫描下方二维码填写入群问卷，小助手会定期发送入群邀请。
+## 前端产物构建
 
-<table>
-  <thead>
-    <tr>
-      <th align="center">入群问卷</th>
-      <th align="center">微信公众号</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="https://cdn.deepseek.com/harness/readme/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
-      <td align="center"><img src="https://cdn.deepseek.com/harness/readme/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
-    </tr>
-  </tbody>
-</table>
-
-## 参与贡献
-
-参见 [CONTRIBUTING.md](CONTRIBUTING.zh.md)。
-
-## 开发
-
-请先阅读[开发指南](docs/development.zh.md)与[架构文档](docs/architecture.zh.md)。
-
-`pnpm run dev:web` 会在一个终端里完成构建、启动，并在源码修改时重建 client bundle；`make help` 列出 Web 与 Desktop 对应的 Make target。完整表格见开发指南的「应用命令」一节。
-
-面向 agent：请遵循 [AGENTS.md](AGENTS.md)。
-
-## 引用
-
-```bibtex
-@misc{deepseek-harness2026,
-  title={DeepSeek Harness: Everything is a Plugin},
-  author={DeepSeek-AI},
-  year={2026},
-  publisher={GitHub},
-  howpublished={\url{https://github.com/deepseek-ai/deepseek-harness}},
-}
+```sh
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 ```
 
-## 许可证
+`build:ui` 串跑两个 Vite：管理 SPA 输出到 `lib/web/`，HQ 大屏输出到 `lib/web/hq/`（生成 `hq-bridge.js`）。`lib/web/` 是被 gitignore 的构建产物，不是源码。改动 `ui/src` 后必须重新构建并刷新页面（产物带内容 hash，必要时 Ctrl+F5）。启动平台前请确认 `lib/web/hq/hq-bridge.js` 存在。
 
-[MIT](LICENSE)
+> 不要用 `| head` 截断构建输出：管道提前关闭会让第二个 Vite 收到 SIGPIPE，静默丢掉 `hq-bridge.js`。请重定向到日志文件再查看。
 
-第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+## 常用命令
+
+| 命令 | 作用 |
+|---|---|
+| `pnpm install` | 安装工作区依赖（Node >= 24.9） |
+| `pnpm start:platform` | 在 3090 端口启动工作站 |
+| `pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui` | 构建管理 SPA 与 HQ 大屏 |
+| `pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform typecheck:ui` | UI 类型检查 |
+| `pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform test:ui` | UI 单元测试（Vitest） |
+| `pnpm run typecheck` | 全仓类型检查（pre-push 钩子，6 个 gate） |
+| `pnpm run doc-sync` | 文档一致性门禁 |
+| `pnpm run build` | 构建产物并执行构建检查 |
+| `make platform` / `make build` | Makefile 快捷入口 |
+
+## 目录结构
+
+| 路径 | 内容 |
+|---|---|
+| `start.ps1`、`start.bat`、`启动平台.bat` | Windows 启动器与前置校验 |
+| `apps/cli/` | `dsh` CLI 与 Web 入口 |
+| `packages/experimental/future-cup-platform/` | 平台服务、管理界面（`ui/`）、HQ 大屏、Prisma schema |
+| `packages/experimental/future-cup-orchestration/` | DAG、调度、验证与修复逻辑 |
+| `packages/*/*`、`vendor/` | Harness 插件包与内置的 Cordis |
+| `docs/`、`.agents/notes/` | 架构、开发指南与设计笔记 |
+| `scripts/`、`.github/workflows/` | 门禁、生成脚本与 CI 工作流 |
+| `deliverables/future-cup-initial/` | 初赛交付包（见下文） |
+| `python/`、`native/`、`benchmarks/` | Python SDK、原生插件源码与性能门禁 |
+
+## 初赛交付包
+
+`deliverables/future-cup-initial/` 收录方案书、系统报告、赛题证据矩阵、架构图、功能与测试截图、原始测试数据及生成脚本。基线为 2026-11-03 的初赛交付版本；建议先阅读 [交付包说明](deliverables/future-cup-initial/README.md) 与 `文案/初赛方案书.md`。
+
+`文件清单.json` 记录了 48 个文件的字节数与 sha256。改动交付包内任何文件后，必须同步重算对应条目，否则清单不再自洽。
+
+## 验证
+
+提交 UI 改动前的本地组合：
+
+```sh
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform typecheck:ui
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform test:ui
+pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
+```
+
+UI 测试当前覆盖 24 个测试文件 / 94 个用例。lefthook 在提交时运行暂存文件 lint、`git diff --cached --check` 与 vendor manifest 校验，在推送前运行全仓 `pnpm run typecheck`（6 个 gate）。
+
+两份 README 是双语配对文档。改动任意一侧后要同步另一侧，并重新记录段落哈希：
+
+```sh
+pnpm run verify-translation-pairing --write README.md
+```
+
+## 密钥与 CI
+
+本仓库**不保存任何密钥**：没有 `.env` 入库、没有硬编码 API key，也没有配置 GitHub Actions Secret。`.env` 已被 gitignore，仅用于本地运行；密钥值绝不提交，启动器在运行时从本机读取。
+
+`.github/workflows/e2e.yml` 运行真实 API 的端到端测试，并在 `DEEPSEEK_API_KEY_EXTERNAL` 为空时让 `Preflight (require DEEPSEEK_API_KEY)` 主动失败——这是刻意的：无密钥时测试集会自跳过，若直接报绿就成了「假绿」。由于本仓库按要求不配置该 Secret，这个工作流在 push 与每日定时运行中会显示失败，属于预期状态，不代表代码有问题；本地验证以 `typecheck:ui`、`test:ui` 与 `pnpm run typecheck` 为准。
+
+## 文档
+
+- [AGENTS.md](AGENTS.md)：面向 agent 与贡献者的仓库规则
+- [架构文档](docs/architecture.zh.md) 与 [开发指南](docs/development.zh.md)
+- [平台包 README](packages/experimental/future-cup-platform/README.zh.md)：REST API 与实现说明
+- [安全说明](SAFETY.zh.md) 与 [贡献指南](CONTRIBUTING.zh.md)
+- [初赛交付包说明](deliverables/future-cup-initial/README.md)
+- 赛题约束与里程碑记录在 `.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md`
+
+## 许可
+
+[MIT](LICENSE)。第三方依赖见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。HQ 3D 场景采用 PolyForm Noncommercial License 1.0.0，每次分发都需保留许可证与 Required Notice；商业用途需另行取得授权。
