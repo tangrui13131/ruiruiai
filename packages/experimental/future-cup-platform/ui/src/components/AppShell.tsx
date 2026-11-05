@@ -168,7 +168,7 @@ export function AppShell({
     : selectedKey(location.pathname)
   const menu = (
     <Menu
-      theme="dark"
+      theme="light"
       mode="inline"
       selectedKeys={[activeKey]}
       items={items}
@@ -177,13 +177,16 @@ export function AppShell({
   )
   const sidebar = (
     <>
-      <div className="app-brand">
-        <div className="app-brand-mark">FC</div>
+      <Link className="app-brand" to="/" onClick={() => { setDrawerOpen(false) }}>
+        <div className="app-brand-mark">
+          <span>r</span>
+          <i aria-hidden="true" />
+        </div>
         <div className="app-brand-copy">
           <span className="app-brand-title">{dictionary.appName}</span>
           <span className="app-brand-subtitle">{dictionary.appSubtitle}</span>
         </div>
-      </div>
+      </Link>
       {project === undefined ? null : (
         <div className="app-sider-project">
           <Link
@@ -204,14 +207,14 @@ export function AppShell({
   return (
     <Layout className="app-shell">
       {screens.lg === true ? (
-        <Sider width={232} className="app-sider">{sidebar}</Sider>
+        <Sider width={244} className="app-sider">{sidebar}</Sider>
       ) : (
         <Drawer
           open={drawerOpen}
           onClose={() => { setDrawerOpen(false) }}
           placement="left"
           size={260}
-          styles={{ body: { padding: 0, background: '#17211d' } }}
+          styles={{ body: { padding: 0, background: '#f2e8e0' } }}
           title={null}
         >
           {sidebar}
@@ -233,7 +236,7 @@ export function AppShell({
             )}
             <div className="app-header-title">
               <h1>{project?.name ?? dictionary.appName}</h1>
-              <p>{project?.requirement ?? dictionary.appSubtitle}</p>
+              <p>{project?.requirement ?? dictionary.appDescription}</p>
             </div>
             {project === undefined ? null : (
               <Space size={6}>

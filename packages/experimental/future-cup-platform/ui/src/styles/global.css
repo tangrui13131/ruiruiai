@@ -1,6 +1,6 @@
 :root {
-  color: #17211d;
-  background: #f3f6f4;
+  color: #28241f;
+  background: #f2e8e0;
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -21,9 +21,9 @@ body,
 body {
   min-height: 100vh;
   background:
-    linear-gradient(90deg, rgb(15 118 110 / 4%) 1px, transparent 1px),
-    linear-gradient(rgb(15 118 110 / 4%) 1px, transparent 1px),
-    #f3f6f4;
+    linear-gradient(90deg, rgb(48 75 199 / 4%) 1px, transparent 1px),
+    linear-gradient(rgb(48 75 199 / 4%) 1px, transparent 1px),
+    #f2e8e0;
   background-size: 28px 28px;
 }
 
@@ -63,7 +63,7 @@ textarea {
   border: 1px solid rgb(94 234 212 / 38%);
   border-radius: 8px;
   color: #99f6e4;
-  background: rgb(15 118 110 / 28%);
+  background: rgb(48 75 199 / 28%);
   font-weight: 500;
 }
 
@@ -97,7 +97,7 @@ textarea {
   padding: 10px 12px;
   border: 1px solid rgb(255 255 255 / 8%);
   border-radius: 8px;
-  color: #d8e5df;
+  color: #e2d6cc;
   background: rgb(255 255 255 / 4%);
 }
 
@@ -112,7 +112,7 @@ textarea {
 }
 
 .app-sider-project-back:hover {
-  color: #f0faf6;
+  color: #e8e9f6;
 }
 
 .app-sider-project-name {
@@ -143,7 +143,7 @@ textarea {
   gap: 16px;
   min-height: 64px;
   padding: 0 24px;
-  border-bottom: 1px solid #d8e0dc;
+  border-bottom: 1px solid #dfd3c9;
   background: rgb(255 255 255 / 94%);
   backdrop-filter: blur(10px);
 }
@@ -187,7 +187,7 @@ textarea {
 .app-header-title p {
   overflow: hidden;
   margin: 1px 0 0;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 11px;
   line-height: 16px;
   text-overflow: ellipsis;
@@ -223,7 +223,7 @@ textarea {
 .page-heading p {
   max-width: 780px;
   margin: 4px 0 0;
-  color: #5c6b64;
+  color: #7a7066;
   font-size: 13px;
   line-height: 20px;
 }
@@ -238,9 +238,9 @@ textarea {
 .section-panel {
   min-width: 0;
   padding: 16px;
-  border: 1px solid #d8e0dc;
+  border: 1px solid #dfd3c9;
   border-radius: 8px;
-  background: #fff;
+  background: #f6ede5;
 }
 
 .section-panel-heading {
@@ -267,9 +267,9 @@ textarea {
   display: flex;
   min-height: 184px;
   flex-direction: column;
-  border: 1px solid #d8e0dc;
+  border: 1px solid #dfd3c9;
   border-radius: 8px;
-  background: #fff;
+  background: #f6ede5;
 }
 
 .project-card-body {
@@ -294,7 +294,7 @@ textarea {
   display: -webkit-box;
   overflow: hidden;
   margin: 10px 0 0;
-  color: #5c6b64;
+  color: #7a7066;
   line-height: 20px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -305,7 +305,7 @@ textarea {
   flex-wrap: wrap;
   gap: 8px 16px;
   margin-top: 14px;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 12px;
 }
 
@@ -314,12 +314,12 @@ textarea {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 16px;
-  border-top: 1px solid #e6ece9;
+  border-top: 1px solid #e2d6cc;
 }
 
 .project-derive-hint {
   margin: 0 0 16px;
-  color: #60756b;
+  color: #7a7066;
   line-height: 1.6;
 }
 
@@ -331,9 +331,9 @@ textarea {
 
 .agent-row {
   padding: 14px;
-  border: 1px solid #e0e7e3;
+  border: 1px solid #e2d6cc;
   border-radius: 8px;
-  background: #fbfcfb;
+  background: #f6ede5;
 }
 
 .agent-row-heading {
@@ -350,7 +350,7 @@ textarea {
 
 .agent-row-role {
   margin-top: 2px;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 11px;
 }
 
@@ -362,7 +362,7 @@ textarea {
 }
 
 .agent-metric-label {
-  color: #718078;
+  color: #7a7066;
   font-size: 10px;
 }
 
@@ -389,13 +389,13 @@ textarea {
 
 .agent-history-detail {
   margin-top: 4px;
-  color: #718078;
+  color: #7a7066;
   font-size: 10px;
 }
 
 .agent-capabilities {
   margin-top: 6px;
-  color: #718078;
+  color: #7a7066;
   font-size: 10px;
 }
 
@@ -404,19 +404,19 @@ textarea {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
-  border: 1px solid #d8e0dc;
+  border: 1px solid #dfd3c9;
   border-radius: 8px;
-  background: #d8e0dc;
+  background: #dfd3c9;
 }
 
 .metric-cell {
   min-width: 0;
   padding: 14px 16px;
-  background: #fff;
+  background: #f6ede5;
 }
 
 .metric-cell-label {
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 11px;
 }
 
@@ -453,15 +453,15 @@ textarea {
 }
 
 .status-neutral {
-  border-color: #d8e0dc;
-  color: #5c6b64;
-  background: #f4f7f5;
+  border-color: #dfd3c9;
+  color: #7a7066;
+  background: #f6ede5;
 }
 
 .status-running {
   border-color: #99f6e4;
-  color: #0f766e;
-  background: #ecfdf5;
+  color: #304bc7;
+  background: #e8e9f6;
 }
 
 .status-success {
@@ -485,22 +485,22 @@ textarea {
 .dag-frame {
   height: clamp(500px, calc(100vh - 230px), 760px);
   overflow: hidden;
-  border: 1px solid #d8e0dc;
+  border: 1px solid #dfd3c9;
   border-radius: 8px;
-  background: #fbfcfb;
+  background: #f6ede5;
 }
 
 .dag-node {
   width: 196px;
   padding: 12px;
-  border: 1px solid #cbd7d1;
+  border: 1px solid #d6c8bc;
   border-radius: 8px;
-  background: #fff;
+  background: #f6ede5;
   box-shadow: 0 2px 8px rgb(23 33 29 / 7%);
 }
 
 .dag-node.is-selected {
-  outline: 2px solid #0f766e;
+  outline: 2px solid #304bc7;
   outline-offset: 2px;
 }
 
@@ -518,7 +518,7 @@ textarea {
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 10px;
 }
 
@@ -537,17 +537,17 @@ textarea {
 .decision-button {
   width: 100%;
   padding: 12px;
-  border: 1px solid #dce4e0;
+  border: 1px solid #e2d6cc;
   border-radius: 8px;
   color: inherit;
-  background: #fff;
+  background: #f6ede5;
   text-align: left;
   cursor: pointer;
 }
 
 .decision-button[aria-pressed="true"] {
-  border-color: #0f766e;
-  background: #f0fdfa;
+  border-color: #304bc7;
+  background: #e8e9f6;
 }
 
 .decision-title {
@@ -557,7 +557,7 @@ textarea {
 
 .decision-meta {
   margin-top: 4px;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 11px;
 }
 
@@ -570,9 +570,9 @@ textarea {
 .screenshot-item {
   overflow: hidden;
   margin: 0;
-  border: 1px solid #dce4e0;
+  border: 1px solid #e2d6cc;
   border-radius: 8px;
-  background: #fff;
+  background: #f6ede5;
 }
 
 .screenshot-item img {
@@ -580,13 +580,13 @@ textarea {
   width: 100%;
   aspect-ratio: 16 / 10;
   object-fit: cover;
-  background: #eef2f0;
+  background: #efe4db;
 }
 
 .screenshot-caption {
   overflow: hidden;
   padding: 8px 10px;
-  color: #5c6b64;
+  color: #7a7066;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -595,9 +595,9 @@ textarea {
 .diff-viewer {
   max-height: 520px;
   overflow: auto;
-  border: 1px solid #d8e0dc;
+  border: 1px solid #dfd3c9;
   border-radius: 8px;
-  background: #f8faf9;
+  background: #f6ede5;
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
   line-height: 20px;
@@ -620,8 +620,8 @@ textarea {
 }
 
 .diff-line-hunk {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: #304bc7;
+  background: #e8e9f6;
 }
 
 .event-list {
@@ -636,14 +636,14 @@ textarea {
   align-items: start;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid #e0e7e3;
+  border: 1px solid #e2d6cc;
   border-radius: 8px;
-  background: #fff;
+  background: #f6ede5;
 }
 
 .event-seq,
 .event-time {
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -657,7 +657,7 @@ textarea {
   overflow: auto;
   max-height: 160px;
   margin: 0;
-  color: #42524a;
+  color: #5c5248;
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
   white-space: pre-wrap;
@@ -669,10 +669,10 @@ textarea {
   overflow: auto;
   margin: 0;
   padding: 12px;
-  border: 1px solid #e0e7e3;
+  border: 1px solid #e2d6cc;
   border-radius: 8px;
-  color: #33423b;
-  background: #f8faf9;
+  color: #5c5248;
+  background: #f6ede5;
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
   line-height: 18px;
@@ -683,9 +683,9 @@ textarea {
 .preview-frame {
   width: 100%;
   min-height: 620px;
-  border: 1px solid #d8e0dc;
+  border: 1px solid #dfd3c9;
   border-radius: 8px;
-  background: #fff;
+  background: #f6ede5;
 }
 
 .empty-panel {
@@ -693,10 +693,10 @@ textarea {
   min-height: 180px;
   place-items: center;
   padding: 24px;
-  border: 1px dashed #cbd7d1;
+  border: 1px dashed #d6c8bc;
   border-radius: 8px;
-  color: #6c7b74;
-  background: #fbfcfb;
+  color: #7a7066;
+  background: #f6ede5;
   text-align: center;
 }
 
@@ -734,11 +734,11 @@ textarea {
 }
 
 .my-team-row:hover {
-  background: #f5faf7;
+  background: #f6ede5;
 }
 
 .my-team-row.selected {
-  background: #f0f7f3;
+  background: #efe4db;
 }
 
 .my-team-row .ant-list-item-meta {
@@ -752,7 +752,7 @@ textarea {
 
 .my-teams-purpose {
   margin: 0 0 14px;
-  color: #5c6b64;
+  color: #7a7066;
   line-height: 1.6;
 }
 
@@ -766,7 +766,7 @@ textarea {
 
 .my-teams-summary {
   margin-bottom: 16px;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 12px;
 }
 
@@ -826,7 +826,7 @@ textarea {
   flex-direction: column;
   gap: 5px;
   margin-top: 14px;
-  color: #5c6b64;
+  color: #7a7066;
   font-size: 12px;
 }
 
@@ -848,7 +848,7 @@ textarea {
 
 .team-member-row {
   padding: 14px 0;
-  border-bottom: 1px solid #e4eae7;
+  border-bottom: 1px solid #e2d6cc;
 }
 
 .team-member-row:last-child {
@@ -883,7 +883,7 @@ textarea {
 
 .team-member-name,
 .team-member-version {
-  color: #5c6b64;
+  color: #7a7066;
   font-size: 12px;
 }
 
@@ -913,7 +913,7 @@ textarea {
 }
 
 .team-status-good {
-  color: #0f766e;
+  color: #304bc7;
 }
 
 .team-status-bad {
@@ -921,7 +921,7 @@ textarea {
 }
 
 .team-empty-line {
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 12px;
 }
 
@@ -929,7 +929,7 @@ textarea {
   flex-wrap: wrap;
   gap: 10px;
   padding-top: 4px;
-  color: #5c6b64;
+  color: #7a7066;
   font-size: 12px;
 }
 
@@ -941,7 +941,7 @@ textarea {
 
 .team-metric-suffix {
   margin-left: 4px;
-  color: #6c7b74;
+  color: #7a7066;
   font-size: 11px;
 }
 

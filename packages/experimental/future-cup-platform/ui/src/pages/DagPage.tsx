@@ -63,7 +63,7 @@ function ControlCanvas({
             nodesDraggable={false}
             nodesConnectable={false}
           >
-            <Background color="#cbd7d1" gap={22} size={1} />
+            <Background color="#d6c8bc" gap={22} size={1} />
             <MiniMap pannable zoomable />
             <Controls showInteractive={false} />
           </ReactFlow>
@@ -108,7 +108,7 @@ function DagCanvas({ tasks }: { readonly tasks: readonly TaskView[] }) {
           minZoom={0.35}
           maxZoom={1.4}
         >
-          <Background color="#cbd7d1" gap={22} size={1} />
+          <Background color="#d6c8bc" gap={22} size={1} />
           <MiniMap pannable zoomable />
           <Controls />
         </ReactFlow>

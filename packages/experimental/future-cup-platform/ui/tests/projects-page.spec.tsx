@@ -22,7 +22,7 @@ describe('ProjectsPage', () => {
       lastEventSeq: 3,
       latestRunStatus: 'RUNNING',
     }])
-    render(
+    const { container } = render(
       <LocaleProvider>
         <ConfigProvider locale={zhCN}>
           <AntApp>
@@ -37,10 +37,48 @@ describe('ProjectsPage', () => {
         </ConfigProvider>
       </LocaleProvider>,
     )
-    expect(await screen.findByText('运营数据后台')).toBeTruthy()
+    // The project appears in both the focus panel and the project list.
+    expect((await screen.findAllByText('运营数据后台')).length).toBe(2)
     expect(screen.getByText('构建仪表盘与用户管理页')).toBeTruthy()
+    // A running project still shows one active stage with a spinner.
+    await waitFor(() => {
+      expect(container.querySelectorAll('.dag-step.current').length).toBe(1)
+      expect(container.querySelectorAll('.node-spinner').length).toBe(1)
+    })
     fireEvent.click(screen.getByRole('button', { name: /智能配队/ }))
     expect(await screen.findByText('智能配队工作区')).toBeTruthy()
+  })
+
+  it('marks every stage done (and no spinner) for a passed project', async () => {
+    vi.spyOn(api, 'listProjects').mockResolvedValue([{
+      id: 'project-passed',
+      name: '前端生成',
+      requirement: '生成简单的前端项目',
+      createdAt: '2026-10-31T10:00:00.000Z',
+      lastEventSeq: 40,
+      latestRunStatus: 'PASSED',
+    }])
+    const { container } = render(
+      <LocaleProvider>
+        <ConfigProvider locale={zhCN}>
+          <AntApp>
+            <MemoryRouter>
+              <Routes>
+                <Route path="/" element={<ProjectsPage />} />
+              </Routes>
+            </MemoryRouter>
+          </AntApp>
+        </ConfigProvider>
+      </LocaleProvider>,
+    )
+    expect(await screen.findByText('所有阶段均已完成')).toBeTruthy()
+    await waitFor(() => {
+      const steps = [...container.querySelectorAll('.dag-step')]
+      expect(steps.length).toBe(6)
+      expect(steps.every(step => step.classList.contains('done'))).toBe(true)
+      expect(container.querySelectorAll('.node-spinner').length).toBe(0)
+    })
+    expect(container.querySelector('.project-progress strong')?.textContent).toBe('100%')
   })
 
   it('creates an upgrade successor from a passed project', async () => {
