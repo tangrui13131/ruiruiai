@@ -16,3 +16,6 @@ docs/persistence-changes/historical-formats/*.schema.json linguist-generated=tru
 
 # Unified patch blank context lines require their leading space.
 patches/*.patch whitespace=-blank-at-eol
+
+# Generated deliverables are sha256-locked by their manifest; keep bytes intact.
+deliverables/** whitespace=-blank-at-eol,-blank-at-eof

@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100">
+    <defs>
+      <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+        <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#153244" stroke-width="1" opacity="0.55"/>
+      </pattern>
+      <marker id="arrow-teal" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#31d2bd"/>
+      </marker>
+      <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffc45c"/>
+      </marker>
+      <marker id="arrow-coral" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff7b62"/>
+      </marker>
+    </defs>
+    <rect width="1800" height="1100" fill="#07131f"/>
+    <rect width="1800" height="1100" fill="url(#grid)"/>
+    <rect x="28" y="28" width="1744" height="1044" rx="10" fill="none" stroke="#27475a" stroke-width="1.5"/>
+    <text x="64" y="74" font-family="'Cascadia Code', Consolas, monospace" font-size="15" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">07 · DATABASE</text>
+    <text x="64" y="126" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="42" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">核心数据模型与关系</text>
+    <text x="64" y="164" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="19" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">物理表由 SQLite schema v8 和 PostgreSQL migration 实现；本图聚合展示核心实体与生命周期关系。</text>
+    
+      <text x="70" y="215" font-family="'Cascadia Code', Consolas, monospace" font-size="15" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">AGENT REGISTRY &amp; TEAM</text>
+      
+    <rect x="55" y="238" width="340" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="55" y="238" width="340" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="71" y="262" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">agent_definitions</text>
+    <text x="71" y="295" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">id · name · status</text><text x="71" y="317" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">role · purpose</text>
+  
+      
+    <rect x="455" y="238" width="370" height="138" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="455" y="238" width="370" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="471" y="262" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">agent_definition_versions</text>
+    <text x="471" y="295" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">id · definition_id</text><text x="471" y="317" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">model · prompt · capabilities</text><text x="471" y="339" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">tool/memory policy · schemas</text>
+  
+      
+    <rect x="885" y="238" width="330" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="885" y="238" width="330" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="901" y="262" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">agent_teams</text>
+    <text x="901" y="295" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">id · owner_id · status</text><text x="901" y="317" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">name · purpose</text>
+  
+      
+    <rect x="1265" y="238" width="430" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1265" y="238" width="430" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1281" y="262" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">agent_team_versions</text>
+    <text x="1281" y="295" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">id · team_id · version</text><text x="1281" y="317" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">status · members · policies</text>
+  
+      
+    <rect x="455" y="460" width="370" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="455" y="460" width="370" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="471" y="484" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">agent_team_members</text>
+    <text x="471" y="517" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">version_id · instance_id</text><text x="471" y="539" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">department · position</text>
+  
+      
+    <rect x="885" y="460" width="330" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="885" y="460" width="330" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="901" y="484" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">project_team_bindings</text>
+    <text x="901" y="517" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">project_id · team_version_id</text><text x="901" y="539" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">frozen snapshot</text>
+  
+
+      <text x="70" y="675" font-family="'Cascadia Code', Consolas, monospace" font-size="15" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">ORCHESTRATION &amp; EVIDENCE</text>
+      
+    <rect x="55" y="700" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="55" y="700" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="71" y="724" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">projects</text>
+    <text x="71" y="757" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">id · name · requirement</text><text x="71" y="779" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">workflow status</text>
+  
+      
+    <rect x="405" y="700" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="405" y="700" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="421" y="724" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">tasks</text>
+    <text x="421" y="757" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">project_id · status</text><text x="421" y="779" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">revision · assigned_agent</text>
+  
+      
+    <rect x="755" y="700" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="755" y="700" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="771" y="724" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">task_journal</text>
+    <text x="771" y="757" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">project_id · task_id</text><text x="771" y="779" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">revision · snapshot</text>
+  
+      
+    <rect x="1105" y="700" width="300" height="94" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1105" y="700" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1121" y="724" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">scheduler_decisions</text>
+    <text x="1121" y="757" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">task_id · decision_json</text>
+  
+      
+    <rect x="1455" y="710" width="300" height="94" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1455" y="710" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1471" y="734" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">project_memory_entries</text>
+    <text x="1471" y="767" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">kind · key · value</text>
+  
+      
+    <rect x="55" y="875" width="300" height="94" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="55" y="875" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="71" y="899" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">executions</text>
+    <text x="71" y="932" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">task_id · agent_id · session_id</text>
+  
+      
+    <rect x="405" y="875" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="405" y="875" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="421" y="899" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">verification_reports</text>
+    <text x="421" y="932" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">status · failure_signature</text><text x="421" y="954" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">checks · findings</text>
+  
+      
+    <rect x="755" y="875" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="755" y="875" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="771" y="899" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">repair_records</text>
+    <text x="771" y="932" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">round · before/after</text><text x="771" y="954" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">diff · strategy link</text>
+  
+      
+    <rect x="1105" y="875" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1105" y="875" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1121" y="899" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">repair_strategy_decisions</text>
+    <text x="1121" y="932" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">candidates · reasons</text><text x="1121" y="954" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">outcome</text>
+  
+      
+    <rect x="1455" y="875" width="300" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1455" y="875" width="300" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1471" y="899" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">project_runs</text>
+    <text x="1471" y="932" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">status · owner_id</text><text x="1471" y="954" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">workspace · preview</text>
+  
+
+      
+    <rect x="1265" y="460" width="430" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1265" y="460" width="430" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1281" y="484" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">workflow_control_runs</text>
+    <text x="1281" y="517" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">definition · revision</text><text x="1281" y="539" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">snapshot · status</text>
+  
+      
+    <rect x="1265" y="585" width="430" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="1265" y="585" width="430" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="1281" y="609" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">workflow_control_events</text>
+    <text x="1281" y="642" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">entry_seq · graph/node</text><text x="1281" y="664" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">edge · loop · terminal</text>
+  
+      
+    <rect x="885" y="585" width="330" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="885" y="585" width="330" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="901" y="609" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">product_events</text>
+    <text x="901" y="642" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">project_id · seq</text><text x="901" y="664" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">type · payload</text>
+  
+      
+    <rect x="455" y="585" width="370" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="455" y="585" width="370" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="471" y="609" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">outbox_events</text>
+    <text x="471" y="642" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">event_id · claim</text><text x="471" y="664" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">published_at</text>
+  
+      
+    <rect x="55" y="585" width="340" height="116" rx="8" fill="#0d2231" stroke="#27475a"/>
+    <rect x="55" y="585" width="340" height="34" rx="8" fill="#31d2bd" opacity="0.18"/>
+    <text x="71" y="609" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">workflow_leases</text>
+    <text x="71" y="642" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">resource_id · owner</text><text x="71" y="664" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">expiry · fencing_token</text>
+  
+
+      <line x1="395" y1="300" x2="455" y2="300" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <line x1="825" y1="300" x2="885" y2="300" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <line x1="1215" y1="300" x2="1265" y2="300" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <line x1="640" y1="365" x2="640" y2="460" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <line x1="1050" y1="365" x2="1050" y2="460" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="1050" y1="532" x2="1050" y2="585" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="555" y1="700" x2="640" y2="532" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="705" y1="700" x2="755" y2="700" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="855" y1="700" x2="1105" y2="700" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="355" y1="760" x2="405" y2="760" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="705" y1="760" x2="755" y2="760" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="905" y1="760" x2="1105" y2="760" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="355" y1="911" x2="405" y2="911" stroke="#ff7b62" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-coral)"/>
+      <line x1="705" y1="911" x2="755" y2="911" stroke="#ff7b62" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-coral)"/>
+      <line x1="1055" y1="911" x2="1105" y2="911" stroke="#ff7b62" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-coral)"/>
+      <line x1="1405" y1="911" x2="1455" y2="911" stroke="#ff7b62" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-coral)"/>
+      <line x1="1450" y1="532" x2="1450" y2="585" stroke="#72b7f2" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+    
+    <line x1="64" y1="1042" x2="1736" y2="1042" stroke="#27475a"/>
+    <text x="64" y="1072" font-family="'Cascadia Code', Consolas, monospace" font-size="14" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">AGENT VERSIONS · FROZEN TEAMS · DURABLE DAG · VERIFICATION · REPAIR · EVENTS</text>
+    <text x="1736" y="1072" font-family="'Cascadia Code', Consolas, monospace" font-size="14" font-weight="700" fill="#31d2bd" text-anchor="end" opacity="1">FUTURE CUP · INITIAL ROUND</text>
+  </svg>

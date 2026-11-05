@@ -1,0 +1,95 @@
+{
+  "status": "PASSED",
+  "date": "2026-11-03 18:09:43 +08:00",
+  "branch": "main",
+  "commit": "f50c1ce2c6e6e08324a4addde64178ba89ba6c62",
+  "sourceWorktreeClean": true,
+  "systemReport": "../文案/系统报告.md",
+  "focusedTests": {
+    "orchestration": {
+      "files": 20,
+      "passed": 202,
+      "failed": 0
+    },
+    "platform": {
+      "files": 6,
+      "passed": 34,
+      "failed": 0
+    },
+    "ui": {
+      "files": 24,
+      "passed": 91,
+      "failed": 0
+    }
+  },
+  "typechecks": {
+    "orchestration": "PASSED",
+    "platform": "PASSED",
+    "ui": "PASSED"
+  },
+  "build": {
+    "gatesPassed": 10,
+    "gatesFailed": 0,
+    "gatesSkipped": 0,
+    "clientArtifacts": 202
+  },
+  "realTeamE2e": {
+    "status": "PASSED",
+    "durationMs": 1109530,
+    "artifactRoot": ".artifacts/future-cup-m55-live/real-team-GJm5ZY",
+    "initialRun": {
+      "id": "run-8e3e2047-f350-4735-be05-4518e6b6dc15",
+      "status": "PASSED",
+      "startedAt": "2026-11-03T09:44:13.379Z",
+      "completedAt": "2026-11-03T10:01:56.074Z"
+    },
+    "drillRun": {
+      "id": "run-a2d03c04-2a37-4556-b573-a300f762246c",
+      "status": "PASSED",
+      "startedAt": "2026-11-03T10:01:56.298Z",
+      "completedAt": "2026-11-03T10:02:39.690Z"
+    },
+    "projectId": "project-m55-e2e-f83e9de9-68d0-413c-8f6c-71bcdbec1707",
+    "teamVersionId": "team-m55-e2e-e2030cd4-4981-4ce9-a9b6-1454419b28f6:1.0.0",
+    "runtimeHomes": 7,
+    "generationSessions": 6,
+    "repairSessions": 1,
+    "verificationStatuses": [
+      "FAIL",
+      "PASS"
+    ],
+    "browserChecks": {
+      "desktopOverview": "PASS",
+      "desktopUsers": "PASS",
+      "mobileOverview": "PASS",
+      "mobileUsers": "PASS"
+    },
+    "repairStrategy": "typescript-contract",
+    "repairBeforeStatus": "FAIL",
+    "repairAfterStatus": "PASS",
+    "controlEvents": 36,
+    "productEvents": 50,
+    "sessionUsage": {
+      "inputTokens": 29801,
+      "outputTokens": 20849,
+      "cacheReadTokens": 70784,
+      "totalTokens": 121434,
+      "toolCalls": 15,
+      "retryStarts": 22
+    }
+  },
+  "managementBrowserSmoke": {
+    "status": "PASSED",
+    "artifactRoot": ".artifacts/future-cup-final-browser",
+    "desktopRoutes": 11,
+    "mobileViewports": 3,
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "requestFailures": 0,
+    "httpErrors": 0,
+    "horizontalOverflow": 0
+  },
+  "notRun": [
+    "PostgreSQL E2E: FUTURE_CUP_POSTGRES_URL or FUTURE_CUP_DATABASE_URL was not configured."
+  ]
+}

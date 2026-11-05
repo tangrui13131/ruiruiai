@@ -1,0 +1,246 @@
+{
+  "generatedAt": "2026-11-03T11:29:21.886Z",
+  "commit": "f50c1ce2c6e6e08324a4addde64178ba89ba6c62",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1432,
+      "sha256": "a230b9d432454c49807d42bfb1117056299111fc893cf3db1dc092f29c61b6cd"
+    },
+    {
+      "path": "tools/build-deliverables.mjs",
+      "bytes": 50239,
+      "sha256": "e3921d18a1155acd0606b3e7e6413be1f2acd9461fe973c102559f56488459cb"
+    },
+    {
+      "path": "功能截图/01-项目管理.png",
+      "bytes": 104678,
+      "sha256": "e20e8663270e3b2035ad5909c65663ad64c701e886e56b408d9978ac378d3d7e"
+    },
+    {
+      "path": "功能截图/02-Agent管理.png",
+      "bytes": 122490,
+      "sha256": "e59991e794bd2ed818db8d49bbe10a9de882a21008ef44b8aa9d008c0bf428f0"
+    },
+    {
+      "path": "功能截图/03-我的团队.png",
+      "bytes": 33347,
+      "sha256": "21b3f04670980a1f1e63e8ca629942db30da36ee6f8ad910b8b1fd5496d9d047"
+    },
+    {
+      "path": "功能截图/04-智能配队.png",
+      "bytes": 37222,
+      "sha256": "aa1d912fee9edecfa73dabeb70ad84be722154ef947bf3814b34e7b8940fb91b"
+    },
+    {
+      "path": "功能截图/05-项目概览.png",
+      "bytes": 75889,
+      "sha256": "d38799870a3f786a9f00cc2e9d3bdd00516ad05ba01228f8210a4ce5ea248f91"
+    },
+    {
+      "path": "功能截图/06-任务DAG.png",
+      "bytes": 175517,
+      "sha256": "86da24037d3b383a97effa93f35459fee42bd1259e23826efa1ab8d071611b9f"
+    },
+    {
+      "path": "功能截图/07-调度决策.png",
+      "bytes": 85037,
+      "sha256": "6c790e72c673ebd98d79fc3747997de22c1ab048101902eda94bf41f3595c101"
+    },
+    {
+      "path": "功能截图/08-验证报告.png",
+      "bytes": 126134,
+      "sha256": "61f8225fcb2f8a152c800e218cd76ada8a47a3de73996cb694a79897a0b16812"
+    },
+    {
+      "path": "功能截图/09-SelfLoop自愈.png",
+      "bytes": 175384,
+      "sha256": "c2673f4fe83cab700bcf96bc496ea7efb73e0e79eec541fbd4dc6530d91354ca"
+    },
+    {
+      "path": "功能截图/10-事件流.png",
+      "bytes": 1686596,
+      "sha256": "a9e13fb2da056d759abf317c9e910333bbc56e2c353c7831674dee460fd46778"
+    },
+    {
+      "path": "功能截图/11-交付预览.png",
+      "bytes": 50346,
+      "sha256": "949892252ebec7b41f70ea97387b56a54c6622b0a238e1d7afeef7befc72872d"
+    },
+    {
+      "path": "功能截图/12-移动端团队.png",
+      "bytes": 40696,
+      "sha256": "6a8b342e3f35a857e0ebae0c9e1f9106d41967fdc6414bffb01a2a392982c07f"
+    },
+    {
+      "path": "功能截图/13-移动端项目概览.png",
+      "bytes": 80215,
+      "sha256": "c8f0dce5d3341f85bfd44c97a36ba9a156801d0280260fce019bb7fd6d516392"
+    },
+    {
+      "path": "功能截图/14-移动端DAG.png",
+      "bytes": 79206,
+      "sha256": "2c4cb9cf88c1af2fe11462b9efd74089a7b78197add45e32e29d1d5049d50833"
+    },
+    {
+      "path": "功能截图/15-生成工程桌面总览.png",
+      "bytes": 60809,
+      "sha256": "eb9e93974cbfb977205460768c0b6850efd42d1773d226c4a26e89c43e208855"
+    },
+    {
+      "path": "功能截图/16-生成工程桌面用户页.png",
+      "bytes": 84809,
+      "sha256": "9ee3ddc7ca18d109dd78b0867a369591305303fa0a7a73eb619f9ab6cc107f68"
+    },
+    {
+      "path": "功能截图/17-生成工程移动总览.png",
+      "bytes": 62535,
+      "sha256": "fd4d56a979b123cdcc6addaf9025457e25e79544f3b1ff53d1645a2c6487911e"
+    },
+    {
+      "path": "功能截图/18-生成工程移动用户页.png",
+      "bytes": 62554,
+      "sha256": "65b33ac80fd91d58af869fa0c3981a3baf1a1eee8208692e589f0033a4151ae7"
+    },
+    {
+      "path": "功能截图/19-HQ实时大屏.png",
+      "bytes": 824353,
+      "sha256": "4b429c022cd5e0631eb40968aff25db6949d248372beea64f1db845f0763daa9"
+    },
+    {
+      "path": "图表源文件/svg/01-system-architecture.svg",
+      "bytes": 11784,
+      "sha256": "b08172319a02e101d19d3a5614e454c5be831574028e41c7520f09205df25326"
+    },
+    {
+      "path": "图表源文件/svg/02-agent-workflow-dag.svg",
+      "bytes": 12545,
+      "sha256": "464a9a929c1069249ba47d162e818d40f604ab24f663dd31d0e1d646f071ced2"
+    },
+    {
+      "path": "图表源文件/svg/03-scheduling.svg",
+      "bytes": 13204,
+      "sha256": "e9f6aedfd3619315fe49a8ef0953c650b8a6b38a4f6fa625dabbd1d35ffc23ac"
+    },
+    {
+      "path": "图表源文件/svg/04-self-loop.svg",
+      "bytes": 10774,
+      "sha256": "8cc3d5248c1242d8819e9f5f09dc05aef0a7f18fe6ef60ca9e0e81004010f584"
+    },
+    {
+      "path": "图表源文件/svg/05-verification-pipeline.svg",
+      "bytes": 9774,
+      "sha256": "4a7117f469931b13294863288f19ccb9e79da9ae36f2a83a9693c12213149801"
+    },
+    {
+      "path": "图表源文件/svg/06-data-realtime.svg",
+      "bytes": 10457,
+      "sha256": "c0c417c5544d0747914907e948d1c3df0b4a28485f4aeb340cca1f804b2b984f"
+    },
+    {
+      "path": "图表源文件/svg/07-database-er.svg",
+      "bytes": 20306,
+      "sha256": "0c8354eb743c32563442bd2d9e88f09a6013e655e9f87c0896feaa9075e9e14b"
+    },
+    {
+      "path": "图表源文件/架构图总览.html",
+      "bytes": 2240,
+      "sha256": "ab5b8a6f489f184200225c8929d47218d737bff63028401385261eb7394c62bc"
+    },
+    {
+      "path": "文案/初赛方案书.md",
+      "bytes": 27046,
+      "sha256": "e4b53abc88440c8802c8ef1f09431625bd25e2fc673f1e4b07d3d9bbbe4d3113"
+    },
+    {
+      "path": "文案/系统报告.md",
+      "bytes": 15574,
+      "sha256": "741bc1216e4195d76639995168c311518aee69a006476a1e2be82fda78def369"
+    },
+    {
+      "path": "文案/赛题证据矩阵.md",
+      "bytes": 2874,
+      "sha256": "c2f5f7776a685d9945fc6b80637da95f7371ccd0b4b54d5d183b4379c6385973"
+    },
+    {
+      "path": "架构图/01-system-architecture.png",
+      "bytes": 300341,
+      "sha256": "066d9f84518045c28d6625452cf1e86d070f4e6504fed7bd06e8293cda5c8c2c"
+    },
+    {
+      "path": "架构图/02-agent-workflow-dag.png",
+      "bytes": 239961,
+      "sha256": "7080ce48c1d5f92b409ba1ef0ab5396642aab8b91d0707426cb81565a8285a9f"
+    },
+    {
+      "path": "架构图/03-scheduling.png",
+      "bytes": 300027,
+      "sha256": "fc9afd373cf55022d563d841c1a8899fe0c3d086fd9771d506829171da4e13bb"
+    },
+    {
+      "path": "架构图/04-self-loop.png",
+      "bytes": 262313,
+      "sha256": "fb09f9167cb18124f47012cb5f6ab5f4b5388e9373af44b8033ed81932f0d94d"
+    },
+    {
+      "path": "架构图/05-verification-pipeline.png",
+      "bytes": 202935,
+      "sha256": "05a9f4d09b3854302b8a5ab1760f8e1b0d7457f2e2973ecd4896fab31e784d49"
+    },
+    {
+      "path": "架构图/06-data-realtime.png",
+      "bytes": 265977,
+      "sha256": "dc61f2b233698e47f093e0d8ae74f902f4eec39b94770be96af331cf157b1207"
+    },
+    {
+      "path": "架构图/07-database-er.png",
+      "bytes": 310396,
+      "sha256": "565cb853d49d0c834e522ceb64e5a07f96f21ec33819a6544abd2b8f2354be0a"
+    },
+    {
+      "path": "测试截图/01-自动化测试总览.png",
+      "bytes": 290668,
+      "sha256": "9ac55a78b5151363bc9d11872991db1ba140d7b5a106631c692615e8e19aa6ca"
+    },
+    {
+      "path": "测试截图/02-真实E2E闭环.png",
+      "bytes": 296535,
+      "sha256": "34e306f8b32f9dbf42edd42ef78d11daeacbe31e5201e3d97a9d5025e3f9d56b"
+    },
+    {
+      "path": "测试截图/03-安全与能力边界.png",
+      "bytes": 309569,
+      "sha256": "0c3c0207c9915c499718f42d37766620b90fd4bbbec655e77afd2d620ee105c5"
+    },
+    {
+      "path": "测试截图/04-赛题证据矩阵.png",
+      "bytes": 588725,
+      "sha256": "5dfb253bbbb20610a981822450cb7c573f9de49a680c9c6e5376bd161c34c76f"
+    },
+    {
+      "path": "测试截图/测试证据.html",
+      "bytes": 8746,
+      "sha256": "b7ac1b3e14826ff9a6f3a7b455ecf32bc59071f08eb5c582bb1bfbcac3e28af1"
+    },
+    {
+      "path": "测试数据/acceptance.json",
+      "bytes": 2455,
+      "sha256": "5fca6b0c434fdffdff05da19d4d34a0ce8bacdef30650b3b441cc1612255d9b4"
+    },
+    {
+      "path": "测试数据/browser-smoke.json",
+      "bytes": 511,
+      "sha256": "b256dcb1bdcb95bfd5d470c059e30fec0ed337ae20963cb5ba96fed6675974a2"
+    },
+    {
+      "path": "测试数据/real-team-e2e-run-result.json",
+      "bytes": 2712,
+      "sha256": "cad530060f469086d331216dceaf9fc2488e57ebe97338e67be54c211217a39a"
+    },
+    {
+      "path": "赛题证据矩阵.html",
+      "bytes": 5192,
+      "sha256": "10f2c0be6c83919f07846af9437ec931091cb24ec7e1ae9fd827d930075bc043"
+    }
+  ]
+}

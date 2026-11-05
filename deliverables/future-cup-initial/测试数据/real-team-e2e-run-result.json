@@ -1,0 +1,100 @@
+{
+  "artifactRoot": "D:\\Users\\tr666\\Documents\\ChatGPT\\ruiruiai\\.artifacts\\future-cup-m55-live\\real-team-GJm5ZY",
+  "databasePath": "D:\\Users\\tr666\\Documents\\ChatGPT\\ruiruiai\\.artifacts\\future-cup-m55-live\\real-team-GJm5ZY\\platform.sqlite",
+  "status": "PASSED",
+  "teamId": "team-m55-e2e-e2030cd4-4981-4ce9-a9b6-1454419b28f6",
+  "teamVersionId": "team-m55-e2e-e2030cd4-4981-4ce9-a9b6-1454419b28f6:1.0.0",
+  "projectId": "project-m55-e2e-f83e9de9-68d0-413c-8f6c-71bcdbec1707",
+  "memberIds": [
+    "planner-1.0.0:instance-1",
+    "ui-designer-1.0.0:instance-1",
+    "frontend-1.0.0:instance-1",
+    "frontend-1.0.0:instance-2",
+    "integration-1.0.0:instance-1",
+    "tester-1.0.0:instance-1",
+    "repair-1.0.0:instance-1"
+  ],
+  "projectAgentIds": [
+    "planner-1.0.0:instance-1",
+    "ui-designer-1.0.0:instance-1",
+    "frontend-1.0.0:instance-1",
+    "frontend-1.0.0:instance-2",
+    "integration-1.0.0:instance-1",
+    "tester-1.0.0:instance-1",
+    "repair-1.0.0:instance-1"
+  ],
+  "initialRunId": "run-8e3e2047-f350-4735-be05-4518e6b6dc15",
+  "drillRunId": "run-a2d03c04-2a37-4556-b573-a300f762246c",
+  "generationSessions": [
+    "session-bad3694697a44b8faf8fad356bd2d268",
+    "session-c331981f62fb4a77b7365085c6997659",
+    "session-f23df879cb034c34bd4b75e65108185a",
+    "session-9ba6c66142ad4b7c823776e4576062da",
+    "session-9b559d1c8d5f49868452e274976b2d3e",
+    "session-d0b1ecca63a84f58923fbc27062d2f7d"
+  ],
+  "repairSessions": [
+    "session-b03e6013d3e04550b191a45c434983ee"
+  ],
+  "verificationStatuses": [
+    "FAIL",
+    "PASS"
+  ],
+  "browserChecks": [
+    {
+      "name": "browser:desktop:/",
+      "status": "PASS"
+    },
+    {
+      "name": "browser:desktop:/users",
+      "status": "PASS"
+    },
+    {
+      "name": "browser:mobile:/",
+      "status": "PASS"
+    },
+    {
+      "name": "browser:mobile:/users",
+      "status": "PASS"
+    }
+  ],
+  "controlEventTypes": [
+    "run/started",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "loop/evaluated",
+    "edge/selected",
+    "node/entered",
+    "subworkflow/entered",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "subworkflow/exited",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "edge/selected",
+    "node/entered",
+    "node/completed",
+    "run/terminal"
+  ],
+  "runtimeHomeCount": 7
+}

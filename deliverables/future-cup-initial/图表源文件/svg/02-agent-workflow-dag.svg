@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+    <defs>
+      <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+        <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#153244" stroke-width="1" opacity="0.55"/>
+      </pattern>
+      <marker id="arrow-teal" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#31d2bd"/>
+      </marker>
+      <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffc45c"/>
+      </marker>
+      <marker id="arrow-coral" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff7b62"/>
+      </marker>
+    </defs>
+    <rect width="1600" height="900" fill="#07131f"/>
+    <rect width="1600" height="900" fill="url(#grid)"/>
+    <rect x="28" y="28" width="1544" height="844" rx="10" fill="none" stroke="#27475a" stroke-width="1.5"/>
+    <text x="64" y="74" font-family="'Cascadia Code', Consolas, monospace" font-size="15" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">02 · AGENT WORKFLOW</text>
+    <text x="64" y="126" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="42" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Agent 协作与任务 DAG</text>
+    <text x="64" y="164" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="19" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">Planner 生成任务图，Tester 与 Designer 定义实现契约，两个 Frontend 并行，Integration 汇总。</text>
+    
+      
+    <rect x="55" y="225" width="240" height="110" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="55" y="225" width="6" height="110" rx="3" fill="#ffc45c"/>
+    <text x="77" y="253" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">INPUT</text>
+    <text x="77" y="283" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">用户需求</text>
+    <text x="77" y="313" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">页面与交互目标</text>
+  
+      
+    <rect x="355" y="205" width="260" height="140" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="355" y="205" width="6" height="140" rx="3" fill="#ffc45c"/>
+    <text x="377" y="233" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">A01</text>
+    <text x="377" y="263" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Planner</text>
+    <text x="377" y="293" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">页面计划</text><text x="377" y="320" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">DAG 与依赖</text>
+  
+      
+    <rect x="675" y="205" width="260" height="140" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="675" y="205" width="6" height="140" rx="3" fill="#72b7f2"/>
+    <text x="697" y="233" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#72b7f2" text-anchor="start" opacity="1">A02</text>
+    <text x="697" y="263" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">UI Designer</text>
+    <text x="697" y="293" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">设计规范</text><text x="697" y="320" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">颜色 / 字体 / 间距</text>
+  
+      
+    <rect x="995" y="205" width="260" height="140" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="995" y="205" width="6" height="140" rx="3" fill="#72b7f2"/>
+    <text x="1017" y="233" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#72b7f2" text-anchor="start" opacity="1">A03</text>
+    <text x="1017" y="263" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Tester</text>
+    <text x="1017" y="293" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">路由与文本</text><text x="1017" y="320" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">导航验收规格</text>
+  
+      
+    <rect x="1315" y="205" width="225" height="140" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="1315" y="205" width="6" height="140" rx="3" fill="#7ddc8b"/>
+    <text x="1337" y="233" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#7ddc8b" text-anchor="start" opacity="1">SYSTEM</text>
+    <text x="1337" y="263" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Verifier</text>
+    <text x="1337" y="293" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">独立执行</text><text x="1337" y="320" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">不参与生成</text>
+  
+      
+    <rect x="410" y="470" width="330" height="145" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="410" y="470" width="6" height="145" rx="3" fill="#31d2bd"/>
+    <text x="432" y="498" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">A04</text>
+    <text x="432" y="528" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Frontend A</text>
+    <text x="432" y="558" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">Overview 页面</text><text x="432" y="585" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">最多 3 个文件</text>
+  
+      
+    <rect x="850" y="470" width="330" height="145" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="850" y="470" width="6" height="145" rx="3" fill="#31d2bd"/>
+    <text x="872" y="498" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">A05</text>
+    <text x="872" y="528" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Frontend B</text>
+    <text x="872" y="558" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">Users 页面</text><text x="872" y="585" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">最多 3 个文件</text>
+  
+      
+    <rect x="615" y="675" width="360" height="130" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="615" y="675" width="6" height="130" rx="3" fill="#31d2bd"/>
+    <text x="637" y="703" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">A06</text>
+    <text x="637" y="733" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Integration</text>
+    <text x="637" y="763" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">HashRouter / 导航 / 共享组件</text><text x="637" y="790" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">最多 8 个 src 文件</text>
+  
+      
+    <rect x="1310" y="470" width="230" height="145" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="1310" y="470" width="6" height="145" rx="3" fill="#ff7b62"/>
+    <text x="1332" y="498" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ff7b62" text-anchor="start" opacity="1">A07</text>
+    <text x="1332" y="528" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Repair</text>
+    <text x="1332" y="558" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">结构化失败</text><text x="1332" y="585" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">有界源码修复</text>
+  
+      <line x1="295" y1="280" x2="355" y2="280" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <line x1="615" y1="275" x2="675" y2="275" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="935" y1="275" x2="995" y2="275" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="1255" y1="275" x2="1315" y2="275" stroke="#7ddc8b" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <path d="M 805 345 C 805 345, 805 435, 805 435" fill="none" stroke="#72b7f2" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <path d="M 1125 345 C 1125 345, 1125 435, 1125 435" fill="none" stroke="#72b7f2" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="575" y1="615" x2="700" y2="675" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="1015" y1="615" x2="890" y2="675" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <line x1="1050" y1="310" x2="1050" y2="470" stroke="#ff7b62" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#arrow-coral)"/>
+      
+    <rect x="670" y="390" width="150" height="30" rx="15" fill="#72b7f2" opacity="0.14" stroke="#72b7f2" stroke-opacity="0.5"/>
+    <text x="745" y="410" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#72b7f2" text-anchor="middle" opacity="1">依赖约束</text>
+  
+      
+    <rect x="95" y="690" width="250" height="30" rx="15" fill="#31d2bd" opacity="0.14" stroke="#31d2bd" stroke-opacity="0.5"/>
+    <text x="220" y="710" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="middle" opacity="1">每任务独立 Session</text>
+  
+      
+    <rect x="95" y="735" width="280" height="30" rx="15" fill="#ffc45c" opacity="0.14" stroke="#ffc45c" stroke-opacity="0.5"/>
+    <text x="235" y="755" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ffc45c" text-anchor="middle" opacity="1">平台按 writeScope 落盘</text>
+  
+    
+    <line x1="64" y1="842" x2="1536" y2="842" stroke="#27475a"/>
+    <text x="64" y="872" font-family="'Cascadia Code', Consolas, monospace" font-size="14" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">DAG JOURNAL + STRUCTURED OUTPUT + SCOPED WRITES</text>
+    <text x="1536" y="872" font-family="'Cascadia Code', Consolas, monospace" font-size="14" font-weight="700" fill="#31d2bd" text-anchor="end" opacity="1">FUTURE CUP · INITIAL ROUND</text>
+  </svg>

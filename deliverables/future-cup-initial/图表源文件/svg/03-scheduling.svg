@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+    <defs>
+      <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+        <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#153244" stroke-width="1" opacity="0.55"/>
+      </pattern>
+      <marker id="arrow-teal" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#31d2bd"/>
+      </marker>
+      <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffc45c"/>
+      </marker>
+      <marker id="arrow-coral" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff7b62"/>
+      </marker>
+    </defs>
+    <rect width="1600" height="900" fill="#07131f"/>
+    <rect width="1600" height="900" fill="url(#grid)"/>
+    <rect x="28" y="28" width="1544" height="844" rx="10" fill="none" stroke="#27475a" stroke-width="1.5"/>
+    <text x="64" y="74" font-family="'Cascadia Code', Consolas, monospace" font-size="15" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">03 · SCHEDULING</text>
+    <text x="64" y="126" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="42" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">可解释动态调度</text>
+    <text x="64" y="164" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="19" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">候选能力、历史成功率、可用性、优先级与负载共同决定分配，全部依据持久化。</text>
+    
+      
+    <rect x="60" y="220" width="300" height="520" rx="8" fill="#112c3d" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="60" y="220" width="6" height="520" rx="3" fill="#ffc45c"/>
+    <text x="82" y="248" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">INPUT</text>
+    <text x="82" y="278" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">READY 队列</text>
+    <text x="82" y="308" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">按优先级排序</text><text x="82" y="335" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">依赖完成才进入</text>
+  
+      
+        <rect x="85" y="345" width="250" height="56" rx="7" fill="#163548" stroke="#27475a"/>
+        <text x="105" y="369" font-family="'Cascadia Code', Consolas, monospace" font-size="11" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">TASK</text>
+        <text x="105" y="390" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="600" fill="#f2f7f5" text-anchor="start" opacity="1">design-ui</text>
+      
+        <rect x="85" y="427" width="250" height="56" rx="7" fill="#163548" stroke="#27475a"/>
+        <text x="105" y="451" font-family="'Cascadia Code', Consolas, monospace" font-size="11" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">TASK</text>
+        <text x="105" y="472" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="600" fill="#f2f7f5" text-anchor="start" opacity="1">test-plan</text>
+      
+        <rect x="85" y="509" width="250" height="56" rx="7" fill="#163548" stroke="#27475a"/>
+        <text x="105" y="533" font-family="'Cascadia Code', Consolas, monospace" font-size="11" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">TASK</text>
+        <text x="105" y="554" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="600" fill="#f2f7f5" text-anchor="start" opacity="1">build-overview</text>
+      
+        <rect x="85" y="591" width="250" height="56" rx="7" fill="#163548" stroke="#27475a"/>
+        <text x="105" y="615" font-family="'Cascadia Code', Consolas, monospace" font-size="11" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">TASK</text>
+        <text x="105" y="636" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="600" fill="#f2f7f5" text-anchor="start" opacity="1">build-users</text>
+      
+      
+    <rect x="390" y="220" width="420" height="250" rx="8" fill="#112c3d" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="390" y="220" width="6" height="250" rx="3" fill="#31d2bd"/>
+    <text x="412" y="248" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">SCORE</text>
+    <text x="412" y="278" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">评分公式</text>
+    <text x="412" y="308" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">能力 0.50</text><text x="412" y="335" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">成功率 0.20 · 可用性 0.15</text><text x="412" y="362" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">优先级 0.15 · 负载 -0.35</text>
+  
+      
+    <rect x="390" y="500" width="420" height="240" rx="8" fill="#112c3d" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="390" y="500" width="6" height="240" rx="3" fill="#ff7b62"/>
+    <text x="412" y="528" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ff7b62" text-anchor="start" opacity="1">ELIGIBILITY</text>
+    <text x="412" y="558" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">资格校验</text>
+    <text x="412" y="588" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">角色匹配 · 能力覆盖</text><text x="412" y="615" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">并发容量 · 排除上一失败 Agent</text>
+  
+      
+    <rect x="850" y="225" width="300" height="160" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="850" y="225" width="6" height="160" rx="3" fill="#31d2bd"/>
+    <text x="872" y="253" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">CANDIDATE</text>
+    <text x="872" y="283" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Agent A</text>
+    <text x="872" y="313" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">score 0.928</text><text x="872" y="340" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">能力 / 成功 / 负荷</text>
+  
+      
+    <rect x="850" y="410" width="300" height="160" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="850" y="410" width="6" height="160" rx="3" fill="#72b7f2"/>
+    <text x="872" y="438" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#72b7f2" text-anchor="start" opacity="1">CANDIDATE</text>
+    <text x="872" y="468" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">Agent B</text>
+    <text x="872" y="498" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">score 0.741</text><text x="872" y="525" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">可选 · 当前低负载</text>
+  
+      
+    <rect x="850" y="595" width="300" height="145" rx="8" fill="#0d2231" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="850" y="595" width="6" height="145" rx="3" fill="#ffc45c"/>
+    <text x="872" y="623" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ffc45c" text-anchor="start" opacity="1">DEFER</text>
+    <text x="872" y="653" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">无合格实例</text>
+    <text x="872" y="683" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">延后任务</text><text x="872" y="710" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">等待下一调度轮次</text>
+  
+      
+    <rect x="1200" y="225" width="335" height="250" rx="8" fill="#112c3d" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="1200" y="225" width="6" height="250" rx="3" fill="#31d2bd"/>
+    <text x="1222" y="253" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="start" opacity="1">ASSIGN</text>
+    <text x="1222" y="283" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">选中并持久化</text>
+    <text x="1222" y="313" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">decision + candidates</text><text x="1222" y="340" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">score terms + rejection reason</text>
+  
+      
+    <rect x="1200" y="520" width="335" height="220" rx="8" fill="#112c3d" stroke="#27475a" stroke-width="1.5"/>
+    <rect x="1200" y="520" width="6" height="220" rx="3" fill="#72b7f2"/>
+    <text x="1222" y="548" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#72b7f2" text-anchor="start" opacity="1">RUN</text>
+    <text x="1222" y="578" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="700" fill="#f2f7f5" text-anchor="start" opacity="1">启动 Harness Session</text>
+    <text x="1222" y="608" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">独立 Home</text><text x="1222" y="635" font-family="'Bahnschrift', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="400" fill="#96acb8" text-anchor="start" opacity="1">独立执行记录</text>
+  
+      <path d="M 360 470 C 375 470, 375 470, 390 470" fill="none" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <path d="M 810 335 C 830 335, 830 305, 850 305" fill="none" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <path d="M 810 620 C 830 620, 830 665, 850 665" fill="none" stroke="#ffc45c" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-amber)"/>
+      <path d="M 1150 305 C 1175 305, 1175 305, 1200 305" fill="none" stroke="#31d2bd" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      <path d="M 1365 475 C 1365 475, 1365 520, 1365 520" fill="none" stroke="#72b7f2" stroke-width="2.5" stroke-dasharray="" marker-end="url(#arrow-teal)"/>
+      
+    <rect x="100" y="790" width="430" height="30" rx="15" fill="#31d2bd" opacity="0.14" stroke="#31d2bd" stroke-opacity="0.5"/>
+    <text x="315" y="810" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#31d2bd" text-anchor="middle" opacity="1">同分：低负载优先，再按稳定 Agent ID</text>
+  
+      
+    <rect x="570" y="790" width="310" height="30" rx="15" fill="#ff7b62" opacity="0.14" stroke="#ff7b62" stroke-opacity="0.5"/>
+    <text x="725" y="810" font-family="'Cascadia Code', Consolas, monospace" font-size="13" font-weight="700" fill="#ff7b62" text-anchor="middle" opacity="1">失败：可重试时重新排队</text>
+  
+    
+    <line x1="64" y1="842" x2="1536" y2="842" stroke="#27475a"/>
+    <text x="64" y="872" font-family="'Cascadia Code', Consolas, monospace" font-size="14" font-weight="500" fill="#96acb8" text-anchor="start" opacity="1">DETERMINISTIC TIE-BREAK · CAPACITY DEFER · FAILED-AGENT EXCLUSION</text>
+    <text x="1536" y="872" font-family="'Cascadia Code', Consolas, monospace" font-size="14" font-weight="700" fill="#31d2bd" text-anchor="end" opacity="1">FUTURE CUP · INITIAL ROUND</text>
+  </svg>
