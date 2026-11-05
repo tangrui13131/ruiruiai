@@ -26,6 +26,7 @@ tmp/
 .claude/launch.json
 .claude/settings.json
 .vscode/
+.workbuddy/
 .DS_Store
 .idea
 mise.toml
