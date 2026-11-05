@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/future-cup-orchestration/README.md
 /:
-  en: 86d971c587824a33
-  zh: 0d6695be817d3cd3
+  en: e10b6650431d4c73
+  zh: 97d4d6d2ed354ac7
 /deepseek-ai-dsh-experimental-future-cup-orchestration:
   en: 5789bdb212192e16
   zh: de1b10448659aab3
