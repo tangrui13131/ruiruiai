@@ -1,5 +1,5 @@
 ---
-description: "面向 Future Cup 前端平台的持久 DAG、可解释调度、独立浏览器验证与有界修复。"
+description: "面向 Future Cup 多 Agent 调度工作站的持久 DAG、可解释调度、独立浏览器验证与有界修复。"
 kind: "package-reference"
 ---
 

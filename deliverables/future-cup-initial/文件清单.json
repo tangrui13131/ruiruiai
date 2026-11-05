@@ -9,8 +9,8 @@
     },
     {
       "path": "tools/build-deliverables.mjs",
-      "bytes": 50239,
-      "sha256": "e3921d18a1155acd0606b3e7e6413be1f2acd9461fe973c102559f56488459cb"
+      "bytes": 50421,
+      "sha256": "df08e146deb53879457abeebad12c8021ef0128a3062104d6e097cb8bf8893a6"
     },
     {
       "path": "功能截图/01-项目管理.png",
@@ -149,18 +149,18 @@
     },
     {
       "path": "文案/初赛方案书.md",
-      "bytes": 27046,
-      "sha256": "e4b53abc88440c8802c8ef1f09431625bd25e2fc673f1e4b07d3d9bbbe4d3113"
+      "bytes": 27421,
+      "sha256": "5334ad468b3efd40d5812248cf956ec143401b822acf2222b18a5a3e92ca7e85"
     },
     {
       "path": "文案/系统报告.md",
-      "bytes": 15574,
-      "sha256": "741bc1216e4195d76639995168c311518aee69a006476a1e2be82fda78def369"
+      "bytes": 15921,
+      "sha256": "4a56dc1d4c56240012c080d31d48f6eb33a0adec07339ed37a71322d98d0f678"
     },
     {
       "path": "文案/赛题证据矩阵.md",
-      "bytes": 2874,
-      "sha256": "c2f5f7776a685d9945fc6b80637da95f7371ccd0b4b54d5d183b4379c6385973"
+      "bytes": 3050,
+      "sha256": "b9d835a0eabe53d336dd5ab0c3210279ad279b9f40151d309c71e8061bfd4710"
     },
     {
       "path": "架构图/01-system-architecture.png",

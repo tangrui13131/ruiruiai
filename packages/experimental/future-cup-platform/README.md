@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run the Future Cup management platform as a `dsh` plugin: a shared orchestration repository for SQLite and PostgreSQL, a versioned Agent Registry, frozen project teams, recoverable workflow control, explainable adaptive repair strategies, novice team recommendation, a real Harness team launcher, transactional project events with an Outbox, Fastify REST snapshots, Socket.IO replay, a same-origin React management application, and a read-only HQ 3D display.
+Run the Future Cup multi-agent orchestration workbench as a `dsh` plugin: a shared orchestration repository for SQLite and PostgreSQL, a versioned Agent Registry, frozen project teams, recoverable workflow control, explainable adaptive repair strategies, novice team recommendation, a real Harness team launcher, transactional project events with an Outbox, Fastify REST snapshots, Socket.IO replay, a same-origin React management application, and a read-only HQ 3D display.
 
 ## Table of Contents
 

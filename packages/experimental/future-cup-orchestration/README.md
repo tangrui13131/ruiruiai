@@ -1,5 +1,5 @@
 ---
-description: "Durable DAG, explainable scheduling, independent browser verification, and bounded repair for the Future Cup frontend platform."
+description: "Durable DAG, explainable scheduling, independent browser verification, and bounded repair for the Future Cup multi-agent orchestration workbench."
 kind: "package-reference"
 ---
 

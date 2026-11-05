@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-experimental-future-cup-orchestration",
-  "description": "Durable DAG, explainable scheduling, and real Harness Agent team orchestration for the Future Cup frontend platform",
+  "description": "Durable DAG, explainable scheduling, and real Harness Agent team orchestration for the Future Cup multi-agent orchestration workbench",
   "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"

@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-以 `dsh` 插件运行 Future Cup 管理平台：为 SQLite 与 PostgreSQL 提供共享编排仓储、版本化 Agent Registry、项目团队冻结、可恢复工作流控制、可解释自适应修复策略、小白智能配队、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
+以 `dsh` 插件运行 Future Cup 多 Agent 调度工作站：为 SQLite 与 PostgreSQL 提供共享编排仓储、版本化 Agent Registry、项目团队冻结、可恢复工作流控制、可解释自适应修复策略、小白智能配队、真实 Harness 团队启动器、事务性项目事件与 Outbox、Fastify REST 快照、Socket.IO 重放、同源 React 管理应用，以及只读的 HQ 3D 大屏。
 
 ## 目录
 

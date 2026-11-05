@@ -2930,7 +2930,7 @@ function tkRender() {
   [].forEach.call($("tkPri").querySelectorAll("button"), function (b) { setCls(b, +b.getAttribute("data-v") === TK.pri ? "on" : ""); });
 }
 function openTask() {
-  toast("HQ 实时大屏为只读视图，请在 Future Cup 管理平台启动项目");
+  toast("HQ 实时大屏为只读视图，请在 Future Cup 多 Agent 调度工作站启动项目");
 }
 $("tkTpl").addEventListener("click", function (e) { var b = closest(e, "[data-tpl]"); if (!b) return; TK.tpl = +b.getAttribute("data-tpl"); tkRender(); });
 $("tkDepts").addEventListener("click", function (e) { var b = closest(e, "[data-dd]"); if (!b) return; if (TK.custom.length >= 5) { $("tkErr").hidden = false; setTxt($("tkErr"), "自定义流程最多 5 步"); return; } TK.custom.push(+b.getAttribute("data-dd")); $("tkErr").hidden = true; tkRender(); });

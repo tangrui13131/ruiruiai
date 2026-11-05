@@ -1,15 +1,15 @@
 ﻿<#
 .SYNOPSIS
-    Future Cup 多 Agent 前端工程平台 启动脚本 (PowerShell)
+    Future Cup 多 Agent 调度工作站 启动脚本 (PowerShell)
 .DESCRIPTION
     只做启动前校验，不自动构建前端。服务读取 lib/web 下的静态产物，
     前端源码改动后需手动执行 build:ui 才会生效。
 #>
 
-$Host.UI.RawUI.WindowTitle = "Future Cup 多 Agent 前端工程平台"
+$Host.UI.RawUI.WindowTitle = "Future Cup 多 Agent 调度工作站"
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "         Future Cup 多 Agent 前端工程平台 启动程序              " -ForegroundColor Cyan
+Write-Host "         Future Cup 多 Agent 调度工作站 启动程序              " -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
