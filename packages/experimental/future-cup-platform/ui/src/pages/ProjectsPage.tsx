@@ -403,14 +403,13 @@ export function ProjectsPage() {
   const completedTaskCount = focusSnapshot === undefined
     ? projects.filter(item => (item.latestRunStatus ?? item.workflowStatus) === 'PASSED').length * 6
     : focusSnapshot.tasks.filter(task => task.status === 'COMPLETED').length
-  const latestReport = focusSnapshot?.verificationReports.at(-1)
-  const checkTotal = latestReport?.report.checks.length ?? 0
-  const checkPassed = latestReport?.report.checks.filter(item => item.status === 'PASS').length ?? 0
-  const passRateStr = checkTotal > 0
-    ? (checkPassed / checkTotal * 100).toFixed(1)
-    : projects.some(item => item.latestRunStatus === 'PASSED')
-      ? '100'
-      : '00.0'
+  const settledStatuses = projects
+    .map(item => item.latestRunStatus)
+    .filter(status => status === 'PASSED' || status === 'FAILED' || status === 'ESCALATED')
+  const passedProjectCount = settledStatuses.filter(status => status === 'PASSED').length
+  const passRateStr = settledStatuses.length > 0
+    ? (passedProjectCount / settledStatuses.length * 100).toFixed(1)
+    : '00.0'
 
   const activeTeams = teams.filter(item => item.status === 'ACTIVE')
   const currentTeam = activeTeams.length > 0

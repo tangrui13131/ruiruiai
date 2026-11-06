@@ -49,6 +49,32 @@ describe('ProjectsPage', () => {
     expect(await screen.findByText('智能配队工作区')).toBeTruthy()
   })
 
+  it('counts an escalated project as a failure in the pass rate', async () => {
+    const base = { requirement: 'req', createdAt: '2026-10-31T10:00:00.000Z', lastEventSeq: 1 }
+    vi.spyOn(api, 'listProjects').mockResolvedValue([
+      { ...base, id: 'p-passed', name: 'passed-project', latestRunStatus: 'PASSED' },
+      { ...base, id: 'p-escalated', name: 'escalated-project', latestRunStatus: 'ESCALATED' },
+      { ...base, id: 'p-pending', name: 'pending-project' },
+    ])
+    const { container } = render(
+      <LocaleProvider>
+        <ConfigProvider locale={zhCN}>
+          <AntApp>
+            <MemoryRouter>
+              <ProjectsPage />
+            </MemoryRouter>
+          </AntApp>
+        </ConfigProvider>
+      </LocaleProvider>,
+    )
+    await screen.findAllByText('escalated-project')
+    // One passed of two settled projects; the pending project is excluded.
+    await waitFor(() => {
+      const values = [...container.querySelectorAll('.digits')].map(node => node.textContent)
+      expect(values).toContain('50.0')
+    })
+  })
+
   it('marks every stage done (and no spinner) for a passed project', async () => {
     vi.spyOn(api, 'listProjects').mockResolvedValue([{
       id: 'project-passed',

@@ -218,7 +218,7 @@ export const localeDictionaries = {
         completedTasks: '已完成任务',
         tasksNote: '来自最近聚焦项目',
         passRate: '验证通过率',
-        passRateNote: '基于最新验证报告',
+        passRateNote: '各项目最近一次运行',
       },
       activePanel: {
         eyebrow: 'IN PROGRESS',
@@ -766,7 +766,7 @@ export const localeDictionaries = {
         completedTasks: 'Completed tasks',
         tasksNote: 'from active focus project',
         passRate: 'Verification pass rate',
-        passRateNote: 'from latest verification report',
+        passRateNote: 'latest run of each project',
       },
       activePanel: {
         eyebrow: 'IN PROGRESS',
