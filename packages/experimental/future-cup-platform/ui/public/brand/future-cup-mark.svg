@@ -1,0 +1,30 @@
+<!-- Future Cup brand mark: a neumorphic rounded tile carrying the RR monogram,
+     violet-to-blue orbit and spark. Shared by the sidebar and the favicon.
+     The raised outer shadow is supplied by neumorphic.css. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Future Cup">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FDF7F1"/>
+      <stop offset="1" stop-color="#E8DDD2"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#C9B9AA" stop-opacity="0.5"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#AC95FF"/>
+      <stop offset="0.42" stop-color="#7C7BFF"/>
+      <stop offset="1" stop-color="#1B57FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="120" height="120" rx="32" fill="url(#tile)"/>
+  <rect x="1" y="1" width="118" height="118" rx="31" fill="none" stroke="url(#edge)" stroke-width="2"/>
+
+  <g transform="translate(12 25.75) scale(0.2038)" fill-rule="evenodd" stroke-linejoin="round">
+    <path fill="#304BC7" stroke="#304BC7" stroke-width="1.2" d="M88 50L234 50L257 58L274 72L285 90L288 102L288 121L281 143L279 144L274 154L267 160L267 162L265 162L257 170L244 177L241 177L240 179L222 183L224 190L226 191L228 197L238 212L253 242L256 244L258 251L263 257L265 261L264 263L215 276L168 192L159 187L142 187L118 251L107 264L96 269L56 269L73 220L78 210L78 206L88 183L88 179L94 166L105 154L112 150L124 147L208 147L225 138L234 124L236 115L235 105L231 96L224 90L217 87L128 87L120 85L104 74L88 51ZM299 117L328 117L352 124L371 139L382 159L384 169L383 188L380 198L371 214L363 222L361 222L360 225L356 226L349 232L335 238L324 240L344 275L346 276L348 282L352 286L358 299L362 303L367 314L378 327L378 329L331 329L315 322L306 313L300 301L298 300L283 269L278 263L273 251L271 250L268 242L266 241L263 233L261 232L250 212L251 210L303 210L310 208L320 202L320 200L327 193L331 178L328 163L322 157L312 152L290 151L290 147L296 134L299 118Z"/>
+    <path fill="url(#orbit)" stroke="url(#orbit)" stroke-width="1.2" d="M372 103L416 104L443 113L459 127L465 142L465 154L462 165L454 180L451 182L448 188L424 210L406 222L381 235L353 246L336 250L334 248L335 244L338 244L342 240L346 239L348 236L383 213L397 200L399 200L419 180L419 178L424 174L429 164L431 163L436 149L436 137L433 130L429 125L419 120L418 118L388 111L345 109L345 107L372 104ZM65 222L68 223L40 252L40 255L33 265L32 270L32 279L36 288L46 296L60 301L83 304L131 302L168 296L206 287L240 277L269 266L272 268L274 274L241 290L201 306L145 322L117 327L84 330L53 329L37 326L18 317L9 307L6 298L8 282L16 267L24 259L24 257L46 236L65 223Z"/>
+    <path fill="#1B57FF" stroke="#1B57FF" stroke-width="1.2" d="M376 6L383 30L387 38L394 44L418 51L417 53L397 58L387 65L381 79L377 97L375 96L372 81L365 65L355 58L334 52L354 46L360 43L366 37L376 7Z"/>
+  </g>
+</svg>

@@ -178,10 +178,7 @@ export function AppShell({
   const sidebar = (
     <>
       <Link className="app-brand" to="/" onClick={() => { setDrawerOpen(false) }}>
-        <div className="app-brand-mark">
-          <span>r</span>
-          <i aria-hidden="true" />
-        </div>
+        <img className="app-brand-mark" src="/brand/future-cup-mark.svg" alt="" />
         <div className="app-brand-copy">
           <span className="app-brand-title">{dictionary.appName}</span>
           <span className="app-brand-subtitle">{dictionary.appSubtitle}</span>

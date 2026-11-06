@@ -54,18 +54,7 @@ textarea {
   color: #fff;
 }
 
-.app-brand-mark {
-  display: grid;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 1px solid rgb(94 234 212 / 38%);
-  border-radius: 8px;
-  color: #99f6e4;
-  background: rgb(48 75 199 / 28%);
-  font-weight: 500;
-}
+/* The brand mark is defined by neumorphic.css only. */
 
 .app-brand-copy {
   min-width: 0;
