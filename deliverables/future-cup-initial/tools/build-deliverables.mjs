@@ -542,7 +542,7 @@ const evidenceHtml = `<!doctype html>
   </div>
   <div class="checks grid">
     <div><div class="check"><span>编排类型检查</span><span class="pass">PASS</span></div><div class="check"><span>平台类型检查</span><span class="pass">PASS</span></div><div class="check"><span>UI 类型检查</span><span class="pass">PASS</span></div></div>
-    <div><div class="check"><span>真实 DeepSeek E2E</span><span class="pass">PASS</span></div><div class="check"><span>浏览器冒烟</span><span class="pass">PASS</span></div><div class="check"><span>功能截图</span><span class="pass">19 张</span></div></div>
+    <div><div class="check"><span>真实 DeepSeek E2E</span><span class="pass">PASS</span></div><div class="check"><span>浏览器冒烟</span><span class="pass">PASS</span></div><div class="check"><span>功能截图</span><span class="pass">24 张</span></div></div>
     <div><div class="check"><span>PostgreSQL 本轮</span><span class="planned">未重跑</span></div><div class="check"><span>压力测试</span><span class="planned">决赛</span></div><div class="check"><span>容器主链路</span><span class="partial">未接入</span></div></div>
   </div>
   <div class="note">本页数据来自最终候选版本的聚焦测试、完整构建和真实 DeepSeek E2E。压力、并发和长稳测试不纳入初赛结论。</div>
@@ -660,7 +660,7 @@ function deliverablesReadme() {
 
 - 方案书：约 6000 个中文字符，19 张图片引用。
 - 图表：7 张 PNG，配套 7 份 SVG 和 1 个 HTML 总览。
-- 功能截图：19 张。
+- 功能截图：24 张（01–12、19–24 为 2026-11-06 最新界面；13–18 保留旧版证据）。
 - 测试证据截图：4 张。
 - 原始测试数据：3 份 JSON。
 - 文件完整性：见“文件清单.json”。
@@ -736,6 +736,9 @@ async function copyEvidence() {
     ],
     ['future-cup-final-browser/hq-desktop.png', '19-HQ实时大屏.png'],
   ]
+  // 注意：01–12、19 已替换为 2026-11-06 最新界面，并手工追加 20–24
+  //（其中 12、23、24 是移动端 JPG 转 PNG）；这些新图不在 .artifacts 中，
+  // 重跑本脚本会用上面的旧图覆盖，需重新导入。
   for (const [source, target] of images) {
     await copyFile(join(sourceRoot, source), join(outRoot, '功能截图', target))
   }

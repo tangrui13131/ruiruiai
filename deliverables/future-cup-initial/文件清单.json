@@ -1,76 +1,76 @@
 {
-  "generatedAt": "2026-11-03T11:29:21.886Z",
+  "generatedAt": "2026-11-07T08:13:31.906Z",
   "commit": "f50c1ce2c6e6e08324a4addde64178ba89ba6c62",
   "files": [
     {
       "path": "README.md",
-      "bytes": 1432,
-      "sha256": "a230b9d432454c49807d42bfb1117056299111fc893cf3db1dc092f29c61b6cd"
+      "bytes": 1512,
+      "sha256": "14b19b8d241c7047f16caa9060ec34abff02c7377d087ca48c807e1807aaeef3"
     },
     {
       "path": "tools/build-deliverables.mjs",
-      "bytes": 50421,
-      "sha256": "df08e146deb53879457abeebad12c8021ef0128a3062104d6e097cb8bf8893a6"
+      "bytes": 50754,
+      "sha256": "3ce09c1039b4662700d1991cb1f1aa904ed2242fdd8047312f7fe1fbfeec74df"
     },
     {
       "path": "功能截图/01-项目管理.png",
-      "bytes": 104678,
-      "sha256": "e20e8663270e3b2035ad5909c65663ad64c701e886e56b408d9978ac378d3d7e"
+      "bytes": 498946,
+      "sha256": "98f409ae4c1874a597720d9085c58b570849fe9b42c201c4743a9b78f8cd4db6"
     },
     {
       "path": "功能截图/02-Agent管理.png",
-      "bytes": 122490,
-      "sha256": "e59991e794bd2ed818db8d49bbe10a9de882a21008ef44b8aa9d008c0bf428f0"
+      "bytes": 869978,
+      "sha256": "a7fb9319fdc7d1ec0b5240c09885aaadee61a32308ac18319f6a6ce52f09c4ce"
     },
     {
       "path": "功能截图/03-我的团队.png",
-      "bytes": 33347,
-      "sha256": "21b3f04670980a1f1e63e8ca629942db30da36ee6f8ad910b8b1fd5496d9d047"
+      "bytes": 739921,
+      "sha256": "d01dd0547e4a6b6f7128d60a0dee9280b8afb6d28c0ef4b15768c105b14ec411"
     },
     {
       "path": "功能截图/04-智能配队.png",
-      "bytes": 37222,
-      "sha256": "aa1d912fee9edecfa73dabeb70ad84be722154ef947bf3814b34e7b8940fb91b"
+      "bytes": 232499,
+      "sha256": "c65ddb710a714d121c93002686746b51f596978a0c4e2f33cfd718c589e4b2c5"
     },
     {
       "path": "功能截图/05-项目概览.png",
-      "bytes": 75889,
-      "sha256": "d38799870a3f786a9f00cc2e9d3bdd00516ad05ba01228f8210a4ce5ea248f91"
+      "bytes": 1245389,
+      "sha256": "aee2ec394b25965436fc1512a723c6ed694999ce533bccfd473dc153f80f6629"
     },
     {
       "path": "功能截图/06-任务DAG.png",
-      "bytes": 175517,
-      "sha256": "86da24037d3b383a97effa93f35459fee42bd1259e23826efa1ab8d071611b9f"
+      "bytes": 809251,
+      "sha256": "2f7718db9898dca885b8a936b6ff9b4dd372fe067311fda6beaceb87814c159b"
     },
     {
       "path": "功能截图/07-调度决策.png",
-      "bytes": 85037,
-      "sha256": "6c790e72c673ebd98d79fc3747997de22c1ab048101902eda94bf41f3595c101"
+      "bytes": 709820,
+      "sha256": "1aa0207168b5d19521b4a21ba7d6be0456b1485bf83c3d821868d9b3e063c161"
     },
     {
       "path": "功能截图/08-验证报告.png",
-      "bytes": 126134,
-      "sha256": "61f8225fcb2f8a152c800e218cd76ada8a47a3de73996cb694a79897a0b16812"
+      "bytes": 258775,
+      "sha256": "936749e453af7c64da767b8a0ed16bf1f8a9ad92202b88b5b5bcdfd4e183cd72"
     },
     {
       "path": "功能截图/09-SelfLoop自愈.png",
-      "bytes": 175384,
-      "sha256": "c2673f4fe83cab700bcf96bc496ea7efb73e0e79eec541fbd4dc6530d91354ca"
+      "bytes": 225184,
+      "sha256": "d735b5335ca40bfda4542bf5ede709ed889b6c34c16cfd6c738586b39b59e84f"
     },
     {
       "path": "功能截图/10-事件流.png",
-      "bytes": 1686596,
-      "sha256": "a9e13fb2da056d759abf317c9e910333bbc56e2c353c7831674dee460fd46778"
+      "bytes": 818904,
+      "sha256": "e096e3376e5f85c6ec8948624ab0cf3d1ddb125b8901dbb458184728813b0769"
     },
     {
       "path": "功能截图/11-交付预览.png",
-      "bytes": 50346,
-      "sha256": "949892252ebec7b41f70ea97387b56a54c6622b0a238e1d7afeef7befc72872d"
+      "bytes": 236508,
+      "sha256": "0e5e9c980e78c29ad0feb6a911fb45d70e0c37b069c13c02610780dfabe1924f"
     },
     {
       "path": "功能截图/12-移动端团队.png",
-      "bytes": 40696,
-      "sha256": "6a8b342e3f35a857e0ebae0c9e1f9106d41967fdc6414bffb01a2a392982c07f"
+      "bytes": 586149,
+      "sha256": "f31faeba928089328bcd72a41c07f0e71c2d6866d9bcabeb1ca5762cdf7f28f6"
     },
     {
       "path": "功能截图/13-移动端项目概览.png",
@@ -104,8 +104,33 @@
     },
     {
       "path": "功能截图/19-HQ实时大屏.png",
-      "bytes": 824353,
-      "sha256": "4b429c022cd5e0631eb40968aff25db6949d248372beea64f1db845f0763daa9"
+      "bytes": 1351589,
+      "sha256": "3de9892136add7789630108d532c7817ece798462e84372530001eaf5c468959"
+    },
+    {
+      "path": "功能截图/20-工作台首页.png",
+      "bytes": 940227,
+      "sha256": "85adf5ee6088c77d2a03ca42a8c44b03c5c5c766fff401a5b61c5614dd8a900c"
+    },
+    {
+      "path": "功能截图/21-自愈修复Diff.png",
+      "bytes": 802827,
+      "sha256": "74d4666ff6b90472cec3b90e8d56a3a8c8c670f1ad83d0ed7124e77a721e34c5"
+    },
+    {
+      "path": "功能截图/22-验证与修复控制流.png",
+      "bytes": 534986,
+      "sha256": "6ddc8e73cc5ef1e26bac145536180b4bb955888617e62c56d2923f9e2656e1d5"
+    },
+    {
+      "path": "功能截图/23-移动端工作台首页.png",
+      "bytes": 511737,
+      "sha256": "4384d5c2248ecd31cbb280da603cc46509064d8c85ba65095385a115cab0d92e"
+    },
+    {
+      "path": "功能截图/24-移动端工作台项目进度.png",
+      "bytes": 799356,
+      "sha256": "fd62f08cf1d2449e54c66b1c99a75540b681e7224d50973950b0121b4cd325bc"
     },
     {
       "path": "图表源文件/svg/01-system-architecture.svg",
@@ -148,9 +173,24 @@
       "sha256": "ab5b8a6f489f184200225c8929d47218d737bff63028401385261eb7394c62bc"
     },
     {
+      "path": "文案/Agent团队前端审美改造方案.md",
+      "bytes": 28105,
+      "sha256": "a8a2d8814fa17f457413aaf296198857ad113b5984d1bc0678743280a3c99e12"
+    },
+    {
+      "path": "文案/初赛方案书 - 副本.docx",
+      "bytes": 7907626,
+      "sha256": "2abfec7c661a866c8e9368ff05436e94a4f5d77a72d630f7f4372df779fc8a6e"
+    },
+    {
+      "path": "文案/初赛方案书.docx",
+      "bytes": 7888104,
+      "sha256": "a2fc133d272946a67cce52bbc612c10dd0c7d1e43adafd9c9ec140b2627f5e61"
+    },
+    {
       "path": "文案/初赛方案书.md",
-      "bytes": 27421,
-      "sha256": "5334ad468b3efd40d5812248cf956ec143401b822acf2222b18a5a3e92ca7e85"
+      "bytes": 27406,
+      "sha256": "621b5ea98e416d708c17c600c6b36a97c894a538976cea2862e44e021dbd1b73"
     },
     {
       "path": "文案/系统报告.md",
@@ -220,7 +260,7 @@
     {
       "path": "测试截图/测试证据.html",
       "bytes": 8746,
-      "sha256": "b7ac1b3e14826ff9a6f3a7b455ecf32bc59071f08eb5c582bb1bfbcac3e28af1"
+      "sha256": "4b168cf31702b95dcba120644575fde2b782501b79cf09bcbef588343421dda8"
     },
     {
       "path": "测试数据/acceptance.json",

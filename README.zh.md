@@ -103,7 +103,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 
 `deliverables/future-cup-initial/` 收录方案书、系统报告、赛题证据矩阵、架构图、功能与测试截图、原始测试数据及生成脚本。基线为 2026-11-03 的初赛交付版本；建议先阅读 [交付包说明](deliverables/future-cup-initial/README.md) 与 `文案/初赛方案书.md`。
 
-`文件清单.json` 记录了 48 个文件的字节数与 sha256。改动交付包内任何文件后，必须同步重算对应条目，否则清单不再自洽。
+`文件清单.json` 记录了 55 个文件的字节数与 sha256。改动交付包内任何文件后，必须同步重算对应条目，否则清单不再自洽。
 
 ## 验证
 
