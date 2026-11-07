@@ -101,9 +101,9 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 
 ## Initial-round deliverables
 
-`deliverables/future-cup-initial/` contains the proposal, system report, evidence matrix, architecture diagrams, functional and test screenshots, raw test data, and the generator script. The baseline is the 2026-11-03 initial-round version; start with the [package README](deliverables/future-cup-initial/README.md) and `文案/初赛方案书.md`.
+`deliverables/future-cup-initial/` contains the proposal, system report, evidence matrix, architecture diagrams, functional and test screenshots, and raw test data. The baseline is the 2026-11-03 initial-round version; start with the [package README](deliverables/future-cup-initial/README.md) and `文案/初赛方案书.docx`.
 
-`文件清单.json` records the byte size and sha256 of all 56 shipped files. If you edit any file in the package, recompute the matching entry — otherwise the manifest no longer verifies.
+`文件清单.json` records the byte size and sha256 of all 55 shipped files. If you edit any file in the package, recompute the matching entry — otherwise the manifest no longer verifies.
 
 ## Verification
 

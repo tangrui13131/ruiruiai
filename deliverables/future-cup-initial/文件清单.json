@@ -4,8 +4,8 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 1712,
-      "sha256": "e58a059a13539f2fb222e45c87b5a3eabd87c0e8cdd0a662c7e1f0a3ec8e47ca"
+      "bytes": 1728,
+      "sha256": "6807466cc2ce45b4540ca572ace9699b869543df2fcf22bbe0c6703d964f2b2c"
     },
     {
       "path": "功能截图/01-项目管理.png",
@@ -183,14 +183,9 @@
       "sha256": "a2fc133d272946a67cce52bbc612c10dd0c7d1e43adafd9c9ec140b2627f5e61"
     },
     {
-      "path": "文案/初赛方案书.md",
-      "bytes": 27406,
-      "sha256": "621b5ea98e416d708c17c600c6b36a97c894a538976cea2862e44e021dbd1b73"
-    },
-    {
       "path": "文案/开源技术栈说明.md",
-      "bytes": 9720,
-      "sha256": "bcd1f8f7ded659b6d0e07c6ed06247afa75242544c98cd28d0d9df2928cce8c3"
+      "bytes": 9575,
+      "sha256": "e68674084e382c968ce0dc5f9f030a03c8149a0e2cd7726d3cd847b1962aefab"
     },
     {
       "path": "文案/系统报告.md",
