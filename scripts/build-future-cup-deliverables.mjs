@@ -1,11 +1,14 @@
+// 生成 Future Cup 初赛交付包（deliverables/future-cup-initial/）。
+// 注意：功能截图的 images 映射仍指向 .artifacts 旧图，重跑会覆盖 01–12/19 并丢掉手工补充的 20–24；
+// 只应在交付包重建场景整体重跑，并先确认 .artifacts 证据为当前版本。
 import { createHash } from 'node:crypto'
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const here = import.meta.dirname
-const repoRoot = resolve(here, '../../..')
-const outRoot = resolve(here, '..')
+const repoRoot = resolve(here, '..')
+const outRoot = resolve(repoRoot, 'deliverables/future-cup-initial')
 const sourceRoot = resolve(repoRoot, '.artifacts')
 const playwrightPath = resolve(
   repoRoot,

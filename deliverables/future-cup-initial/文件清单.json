@@ -4,13 +4,8 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 1512,
-      "sha256": "14b19b8d241c7047f16caa9060ec34abff02c7377d087ca48c807e1807aaeef3"
-    },
-    {
-      "path": "tools/build-deliverables.mjs",
-      "bytes": 50754,
-      "sha256": "3ce09c1039b4662700d1991cb1f1aa904ed2242fdd8047312f7fe1fbfeec74df"
+      "bytes": 1688,
+      "sha256": "473ebf81b7d74353da87b3cb803f4605871e7ec3883c40a3680b31402aac3c05"
     },
     {
       "path": "功能截图/01-项目管理.png",
