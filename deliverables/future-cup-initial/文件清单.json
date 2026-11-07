@@ -4,8 +4,8 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 1688,
-      "sha256": "473ebf81b7d74353da87b3cb803f4605871e7ec3883c40a3680b31402aac3c05"
+      "bytes": 1712,
+      "sha256": "e58a059a13539f2fb222e45c87b5a3eabd87c0e8cdd0a662c7e1f0a3ec8e47ca"
     },
     {
       "path": "功能截图/01-项目管理.png",
@@ -168,7 +168,7 @@
       "sha256": "ab5b8a6f489f184200225c8929d47218d737bff63028401385261eb7394c62bc"
     },
     {
-      "path": "文案/Agent团队前端审美改造方案.md",
+      "path": "文案/Agent团队前端审美改造方案-决赛.md",
       "bytes": 28105,
       "sha256": "a8a2d8814fa17f457413aaf296198857ad113b5984d1bc0678743280a3c99e12"
     },
@@ -186,6 +186,11 @@
       "path": "文案/初赛方案书.md",
       "bytes": 27406,
       "sha256": "621b5ea98e416d708c17c600c6b36a97c894a538976cea2862e44e021dbd1b73"
+    },
+    {
+      "path": "文案/开源技术栈说明.md",
+      "bytes": 9720,
+      "sha256": "bcd1f8f7ded659b6d0e07c6ed06247afa75242544c98cd28d0d9df2928cce8c3"
     },
     {
       "path": "文案/系统报告.md",
