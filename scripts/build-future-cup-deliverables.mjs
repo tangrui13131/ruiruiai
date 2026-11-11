@@ -10,6 +10,11 @@ const here = import.meta.dirname
 const repoRoot = resolve(here, '..')
 const outRoot = resolve(repoRoot, 'deliverables/future-cup-initial')
 const sourceRoot = resolve(repoRoot, '.artifacts')
+const deliveryBaseline = {
+  label: 'future-cup-initial-2026-11-03',
+  branch: 'main',
+  date: '2026-11-03',
+}
 const playwrightPath = resolve(
   repoRoot,
   'packages/experimental/future-cup-orchestration/node_modules/playwright/index.mjs',
@@ -158,7 +163,7 @@ function architectureDiagram() {
     kicker: '01 · SYSTEM ARCHITECTURE',
     title: '系统总体架构',
     subtitle: '控制面负责编排与证据，执行面运行独立 Harness Session，展示面消费已提交事件。',
-    footer: 'BASELINE f50c1ce2 · CURRENT STATE',
+    footer: `BASELINE ${deliveryBaseline.label} · CURRENT STATE`,
     body: `
       ${node({ x: 64, y: 205, w: 250, h: 170, title: '自然语言需求', body: ['项目、团队与验收目标'], tag: 'USER', accent: C.amber })}
       ${node({ x: 365, y: 195, w: 590, h: 655, title: 'Future Cup 控制面', body: ['Cordis plugin · Fastify · Zod'], tag: 'CONTROL PLANE', accent: C.teal, fill: C.panel2 })}
@@ -536,7 +541,7 @@ const evidenceHtml = `<!doctype html>
 <section class="panel" data-shot="summary">
   <div class="kicker">FINAL ACCEPTANCE · ${new Date().toISOString().slice(0,10)}</div>
   <h1>初赛系统完成度测试证据</h1>
-  <p class="sub">当前 HEAD f50c1ce2c6e6e08324a4addde64178ba89ba6c62 · 真实运行与构建门禁</p>
+  <p class="sub">当前基线 ${deliveryBaseline.label} · 真实运行与构建门禁</p>
   <div class="grid kpis">
     <div class="card"><div class="label">Orchestration Tests</div><div class="value">202<span class="unit">PASS</span></div><div class="foot">20 files · 0 failed</div></div>
     <div class="card"><div class="label">Platform Tests</div><div class="value">34<span class="unit">PASS</span></div><div class="foot">6 files · 0 failed</div></div>
@@ -609,7 +614,7 @@ function evidenceMatrixHtml() {
 </style></head><body><main>
   <div class="kicker">REQUIREMENT → IMPLEMENTATION → EVIDENCE</div>
   <h1>Future Cup 初赛赛题证据矩阵</h1>
-  <p>基线 f50c1ce2 · 状态使用 PASS / PARTIAL / PLANNED，计划能力不计为已实现。</p>
+  <p>基线 ${deliveryBaseline.label} · 状态使用 PASS / PARTIAL / PLANNED，计划能力不计为已实现。</p>
   <table><thead><tr><th>赛题要求</th><th>项目实现</th><th>状态</th><th>可核验证据</th></tr></thead><tbody>${rows}</tbody></table>
   <div class="foot">证据位置：测试数据/ · 功能截图/ · 测试截图/ · 文案/系统报告.md</div>
 </main></body></html>`
@@ -637,9 +642,9 @@ function deliverablesReadme() {
 
 ## 基线
 
-- 分支：main
-- 提交：f50c1ce2c6e6e08324a4addde64178ba89ba6c62
-- 日期：2026-11-03
+- 基线：${deliveryBaseline.label}
+- 分支：${deliveryBaseline.branch}
+- 日期：${deliveryBaseline.date}
 
 ## 目录
 
@@ -900,7 +905,7 @@ async function writeManifest() {
   }
   await writeFile(manifestPath, `${JSON.stringify({
     generatedAt: new Date().toISOString(),
-    commit: 'f50c1ce2c6e6e08324a4addde64178ba89ba6c62',
+    baseline: deliveryBaseline.label,
     files: entries,
   }, null, 2)}\n`)
 }

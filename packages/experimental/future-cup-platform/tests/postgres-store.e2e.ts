@@ -94,22 +94,12 @@ describe.skipIf(databaseUrl === undefined || databaseUrl === '')('PostgreSQL pla
         cloned.version.id,
       )
       expect(publishedClone.status).toBe('PUBLISHED')
-      const persistedMembers = await (store as unknown as {
-        prisma: {
-          $queryRaw: <T>(strings: TemplateStringsArray, ...values: unknown[]) => Promise<T>
-        }
-      }).prisma.$queryRaw<Array<{ memberId: string; position: number }>>`
-        SELECT "member_id" AS "memberId", "position"
-        FROM "agent_team_members"
-        WHERE "team_version_id" = ${cloned.version.id}
-        ORDER BY "member_id"
-      `
-      expect(persistedMembers.map(row => row.position).sort((a, b) => a - b)).toEqual(
-        publishedClone.members.map(member => member.position).sort((a, b) => a - b),
-      )
       const reloadedRegistry = new PersistentAgentRegistry(store)
       expect(await reloadedRegistry.listTeams('postgres-owner')).toHaveLength(1)
-      expect(await reloadedRegistry.listTeamVersions(cloned.team.id)).toHaveLength(1)
+      const reloadedVersions = await reloadedRegistry.listTeamVersions(cloned.team.id)
+      expect(reloadedVersions).toHaveLength(1)
+      expect(reloadedVersions[0]?.members.map(member => member.position).sort((a, b) => a - b))
+        .toEqual(publishedClone.members.map(member => member.position).sort((a, b) => a - b))
       const binding = await registry.freezeProject(projectId, DEFAULT_AGENT_TEAM_ID)
       const createdAt = new Date().toISOString()
       await store.createProject({

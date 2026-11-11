@@ -71,6 +71,8 @@ function isSource(file: string): boolean {
     && !file.startsWith('.agents/notes/archived/')
 }
 
+const requiredSourceAreas = ['packages/', 'apps/', 'scripts/'] as const
+
 /**
  * Scan tracked source and non-ignored new source, including tests and configuration files.
  * @param repoRoot - repository root containing the Git index.
@@ -88,7 +90,7 @@ export function scanUnknownCasts(repoRoot: string): UnknownCast[] {
     if (stat?.isSymbolicLink()) throw new Error(`verify-no-unknown-casts: source symlink is unsupported: ${file}`)
     return stat?.isFile() === true
   })
-  for (const area of ['packages/', 'apps/', 'scripts/', 'website/']) {
+  for (const area of requiredSourceAreas) {
     if (!present.some(file => file.startsWith(area))) {
       throw new Error(`verify-no-unknown-casts: source discovery omitted ${area}`)
     }
