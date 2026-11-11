@@ -1,12 +1,13 @@
 # Repository Atlas: DeepSeek Harness & Future Cup Platform
 
 ## Project Responsibility
-DeepSeek Harness is an all-plugin Cordis-based agent harness engineered for autonomous software engineering, robust task planning, and scalable sub-agent delegation. It hosts the **Future Cup Multi-Agent Frontend Engineering Platform**, an end-to-end autonomous development platform capable of taking high-level user requirements, recommending and assembling specialized Agent teams, scheduling topological task DAGs, executing concurrent coding tasks with DeepSeek models, verifying deliverables in sandboxed browsers, and automatically self-healing failures.
+DeepSeek Harness is an all-plugin Cordis-based agent harness engineered for autonomous software engineering, robust task planning, and scalable sub-agent delegation. It hosts the **Future Cup Multi-Agent Frontend Engineering Platform**, an end-to-end autonomous development platform capable of taking high-level user requirements, recommending and assembling specialized Agent teams, scheduling topological task DAGs, executing concurrent coding tasks with DeepSeek models, verifying deliverables in sandboxed browsers, automatically self-healing failures, and exposing the resulting workflow to external MCP clients.
 
 ## System Entry Points
 - **`启动平台.bat` / `start.bat`**: Windows 一键启动脚本，自动读取 `E:\密钥\apikeydeepseek.txt` 或 `.env` 中的 DeepSeek API Key，拉起平台并在浏览器中自动打开 `http://127.0.0.1:3090/`。
 - **`apps/cli/src/bin.ts`**: 主命令行入口，解析 CLI 参数、装配 Cordis 插件容器并启动 Web 或 Headless 运行模式。
 - **`packages/experimental/future-cup-platform/src/server.ts`**: 平台后端服务入口，提供 Fastify RESTful 接口、Socket.IO 实时通信网关及预构建静态资源托管。
+- **`packages/experimental/future-cup-platform/src/mcp-server.ts`**: 官方 MCP SDK 服务端入口，提供 Streamable HTTP 协议、工具、资源、提示词及 loopback 请求防护。
 - **`packages/experimental/future-cup-platform/ui/src/main.tsx`**: 前端单页应用 (SPA) 入口，挂载 Ant Design 6 主题、React Router 路由及 XyFlow DAG 可视化画布。
 - **`packages/experimental/future-cup-orchestration/src/index.ts`**: 多 Agent 编排引擎核心，包含 DAG 依赖调度器、Agent 团队装配器、自愈修复循环与自动化验证器。
 - **`package.json`**: 根工作空间依赖清单与构建/运行脚本（`pnpm start`、`pnpm run build`、`pnpm run test` 等）。
@@ -32,12 +33,12 @@ DeepSeek Harness is an all-plugin Cordis-based agent harness engineered for auto
 | **`packages/experimental/`** | Specialized incubation workspaces and competition platforms. | [View Map](packages/experimental/codemap.md) |
 | **`packages/experimental/future-cup-orchestration/`** | Future Cup multi-agent orchestration engine, DAG scheduler, and repair. | [View Map](packages/experimental/future-cup-orchestration/codemap.md) |
 | **`packages/experimental/future-cup-orchestration/src/`** | Core engine files: DagEngine, AgentRegistry, TeamRecommender, AdaptiveRepair. | [View Map](packages/experimental/future-cup-orchestration/src/codemap.md) |
-| **`packages/experimental/future-cup-platform/`** | Full-stack Web & API platform plugin hosting port 3090. | [View Map](packages/experimental/future-cup-platform/codemap.md) |
-| **`packages/experimental/future-cup-platform/src/`** | Fastify REST controllers, WebSocket pub-sub gateway, and static assets. | [View Map](packages/experimental/future-cup-platform/src/codemap.md) |
+| **`packages/experimental/future-cup-platform/`** | Full-stack Web, API, realtime, and MCP Server platform plugin hosting port 3090. | [View Map](packages/experimental/future-cup-platform/codemap.md) |
+| **`packages/experimental/future-cup-platform/src/`** | Fastify REST controllers, official MCP transport, WebSocket gateway, and static assets. | [View Map](packages/experimental/future-cup-platform/src/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/`** | Single Page Application (SPA) frontend build workspace (React 18 + Vite). | [View Map](packages/experimental/future-cup-platform/ui/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/src/`** | Frontend source root: App layout, Ant Design styling, and global routing. | [View Map](packages/experimental/future-cup-platform/ui/src/codemap.md) |
-| **`packages/experimental/future-cup-platform/ui/src/api/`** | Typed API contracts, REST client, and Socket.IO real-time connection. | [View Map](packages/experimental/future-cup-platform/ui/src/api/codemap.md) |
-| **`packages/experimental/future-cup-platform/ui/src/components/`** | Reusable UI components: Agent cards, status pills, metrics, and progress bars. | [View Map](packages/experimental/future-cup-platform/ui/src/components/codemap.md) |
+| **`packages/experimental/future-cup-platform/ui/src/api/`** | Typed REST/event contracts, MCP discovery client, and Socket.IO real-time connection. | [View Map](packages/experimental/future-cup-platform/ui/src/api/codemap.md) |
+| **`packages/experimental/future-cup-platform/ui/src/components/`** | Reusable UI components including Agent cards, status displays, MCP access guidance, and progress indicators. | [View Map](packages/experimental/future-cup-platform/ui/src/components/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/src/diff/`** | Code diff viewer and file modification visual inspection tools. | [View Map](packages/experimental/future-cup-platform/ui/src/diff/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/src/graph/`** | XyFlow DAG canvas, animated edge paths, and topological auto-layout. | [View Map](packages/experimental/future-cup-platform/ui/src/graph/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/src/hooks/`** | Custom React hooks for project querying and live event stream subscriptions. | [View Map](packages/experimental/future-cup-platform/ui/src/hooks/codemap.md) |

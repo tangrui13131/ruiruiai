@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This repository contains the **Future Cup multi-agent orchestration workbench** and its initial-round deliverables. It is built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), an everything-is-a-plugin agent harness powered by [Cordis](https://github.com/cordiverse/cordis). Harness supplies agents, sessions, tools and model adapters; Future Cup adds the control plane on top.
+This repository contains the **Future Cup multi-agent orchestration workbench** and its initial-round deliverables. It is built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), an everything-is-a-plugin agent harness powered by [Cordis](https://github.com/cordiverse/cordis). Harness supplies agents, sessions, tools and model adapters; Future Cup adds the control plane and an MCP Server for external clients.
 
 The workbench turns a natural-language requirement into a durable task DAG, assembles and freezes a versioned agent team, schedules concurrent work, runs independent browser verification, applies bounded self-repair, and produces a runnable project with execution evidence. **The frontend engineering crew is one built-in team, not the product itself** — the platform is a general multi-agent orchestration workbench.
 
@@ -13,10 +13,11 @@ The workbench turns a natural-language requirement into a durable task DAG, asse
 | Item | Detail |
 |---|---|
 | Base | DeepSeek Harness (`dsh`) + Cordis, everything-is-a-plugin |
-| Platform package | `packages/experimental/future-cup-platform` — REST / Socket.IO server, React management SPA, read-only HQ 3D screen |
+| Platform package | `packages/experimental/future-cup-platform` — REST / Socket.IO server, official MCP Server transport, React management SPA, read-only HQ 3D screen |
 | Orchestration package | `packages/experimental/future-cup-orchestration` — durable DAG, explainable scheduling, verification and bounded repair |
-| Management UI | `/` — light neumorphic theme, project metrics, six-stage progress, crew panels |
+| Management UI | `/` — light neumorphic theme, project metrics, six-stage progress, crew panels, MCP connection guide |
 | HQ screen | `/hq/index.html?projectId=<id>` — read-only live projection |
+| MCP Server | `/api/v1/mcp` — official stateless Streamable HTTP endpoint; `/api/v1/mcp/info` provides browser discovery |
 | Default port | `3090`, loopback only |
 | Storage | SQLite for local runs, PostgreSQL after configuration |
 | License | MIT; HQ 3D assets use PolyForm Noncommercial 1.0.0 |
@@ -28,6 +29,7 @@ Key capabilities:
 - Explainable scheduling, independent build/browser verification and up to three bounded repair rounds.
 - Transactional project events with Outbox replay over Socket.IO, REST snapshots and delivery previews.
 - A real Harness team launcher, one frozen team per project, and evidence-first delivery.
+- An official MCP SDK server exposing eight delegation tools, four read-only resources and two workflow prompts to loopback clients.
 
 <a id="run"></a>
 
@@ -70,6 +72,12 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 `build:ui` runs two Vite builds in sequence: the management SPA into `lib/web/`, then the HQ screen into `lib/web/hq/` (producing `hq-bridge.js`). `lib/web/` is gitignored build output, not source. After any change under `ui/src`, rebuild and refresh the page (Ctrl+F5 if the hashed bundle is cached). Check that `lib/web/hq/hq-bridge.js` exists before starting the platform.
 
 > Do not pipe the build through `head`: closing the pipe early sends SIGPIPE to the second Vite process and silently drops `hq-bridge.js`. Redirect to a log file instead.
+
+## MCP Server
+
+The platform exposes its project workflow through an official MCP SDK server at `/api/v1/mcp`. It supports protocol negotiation, JSON-RPC notifications, structured tool errors, loopback Host/Origin validation and graceful shutdown. Eight tools cover team recommendation, project creation, run control, status, verification and project derivation; four resources expose projects, published teams, project memory and latest verification evidence; two prompts guide new-project delegation and verified-project upgrades.
+
+Browser discovery is separate at `/api/v1/mcp/info`, and the management header provides an MCP access guide with the endpoint and client configuration. The MCP direction is outbound: external clients call Future Cup, while calling external MCP servers from the platform's own Agent loop is outside the current product scope.
 
 ## Common commands
 
@@ -115,7 +123,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform test:ui
 pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 ```
 
-The UI suite currently covers 24 test files / 94 cases. Lefthook runs lint on staged files, `git diff --cached --check` and the vendor manifest guard at commit time, and the full `pnpm run typecheck` (6 gates) before pushing.
+The UI suite currently covers 25 test files / 98 cases. Lefthook runs lint on staged files, `git diff --cached --check` and the vendor manifest guard at commit time, and the full `pnpm run typecheck` (6 gates) before pushing.
 
 Both READMEs are a bilingual pair. After editing either side, bring the other along and re-record the section hashes:
 

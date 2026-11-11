@@ -60,6 +60,16 @@ import {
 } from './api-contracts.ts'
 import { registerFutureCupArtifacts } from './artifact-server.ts'
 import {
+  createFutureCupMcpRuntime,
+  FUTURE_CUP_MCP_ENDPOINT_PATH,
+  FUTURE_CUP_MCP_INFO_PATH,
+  getFutureCupMcpServerInfo,
+} from './mcp-server.ts'
+import type {
+  FutureCupMcpOperations,
+  FutureCupMcpRuntime,
+} from './mcp-server.ts'
+import {
   ProjectDerivationError,
   ProjectDerivationService,
 } from './project-derivation.ts'
@@ -264,30 +274,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     async (request, reply) => {
       const { projectId } = projectParamsSchema.parse(request.params)
       const body = deriveProjectSchema.parse(request.body)
-      const targetProjectId = ProjectId(`project-${randomUUID()}`)
-      const derivation = new ProjectDerivationService({ store: options.store })
-      try {
-        const project = await derivation.derive({
-          sourceProjectId: ProjectId(projectId),
-          targetProjectId,
-          name: body.name,
-          mode: body.mode,
-          ...body.changeRequest === undefined ? {} : { changeRequest: body.changeRequest },
-        })
-        const { runId } = await requireLauncher().start(project)
-        return await reply.code(201).send({ project, runId })
-      } catch (error: unknown) {
-        if (error instanceof ProjectDerivationError) {
-          throw new ApiError(projectDerivationStatus(error.code), error.code, error.message)
-        }
-        if (error instanceof ProjectRunConflictError) {
-          throw new ApiError(409, error.code, error.message)
-        }
-        if (error instanceof ProjectRunStartError) {
-          throw new ApiError(503, error.code, error.message)
-        }
-        throw error
-      }
+      return await reply.code(201).send(await deriveAndStartProject(projectId, body))
     },
   )
 
@@ -766,17 +753,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     '/api/v1/team-recommendations/adopt',
     async (request, reply) => {
       const body = teamRecommendationAdoptRequestSchema.parse(request.body)
-      const built = await recommendationCall(() => buildRecommendation(body))
-      const teamVersion = await saveRecommendedTeam(body.projectName, built)
-      const project = await createProjectWithTeam({
-        name: body.projectName,
-        requirement: body.requirement,
-        teamVersionId: teamVersion.id,
-      })
-      return await reply.code(201).send(teamRecommendationAdoptionResponseSchema.parse({
-        projectId: project.id,
-        teamVersion: publicSavedTeamVersion(teamVersion),
-      }))
+      return await reply.code(201).send(await adoptRecommendationAndCreateProject(body))
     },
   )
 
@@ -882,24 +859,78 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
 
   app.post<{ Params: unknown }>('/api/v1/projects/:projectId/runs', async (request, reply) => {
     const { projectId } = projectParamsSchema.parse(request.params)
-    try {
-      const result = await requireLauncher().start(await requireProject(projectId))
-      return await reply.code(202).send(projectRunStartSchema.parse(result))
-    } catch (error: unknown) {
-      if (error instanceof ProjectRunConflictError) {
-        throw new ApiError(409, error.code, error.message)
-      }
-      if (error instanceof ProjectRunStartError) {
-        throw new ApiError(503, error.code, error.message)
-      }
-      throw error
-    }
+    return await reply.code(202).send(await startProjectRun(projectId))
   })
 
   app.post<{ Params: unknown }>('/api/v1/projects/:projectId/cancel', async (request, reply) => {
     const { projectId } = projectParamsSchema.parse(request.params)
-    await requireProject(projectId)
-    return await reply.send({ cancelled: await requireLauncher().cancel(projectId) })
+    return await reply.send(await cancelProjectRun(projectId))
+  })
+
+  const mcpOperations: FutureCupMcpOperations = {
+    async recommendTeam(input) {
+      const built = await recommendationCall(() => buildRecommendation(input))
+      return built.plan
+    },
+    adoptAndCreateProject: adoptRecommendationAndCreateProject,
+    async createProject(input) {
+      return await createProjectWithTeam({
+        ...(input.id === undefined ? {} : { id: input.id }),
+        name: input.name,
+        requirement: input.requirement,
+        teamVersionId: input.teamVersionId ?? options.defaultTeamVersionId,
+      })
+    },
+    startRun: startProjectRun,
+    cancelRun: cancelProjectRun,
+    async getProjectSnapshot(projectId) {
+      return publicProjectSnapshot(await requireSnapshot(projectId))
+    },
+    async listProjectMemory(projectId) {
+      await requireProject(projectId)
+      return await options.store.listProjectMemoryEntries(projectId)
+    },
+    deriveProject: deriveAndStartProject,
+    async listProjects() {
+      return await options.store.listProjects()
+    },
+    async listPublishedTeams() {
+      const records = await options.store.listAgentTeamVersions()
+      return records
+        .map(record => record.teamVersion)
+        .filter(version => version.status === 'PUBLISHED')
+        .map(publicTeamVersion)
+    },
+  }
+
+  const mcpRuntime: FutureCupMcpRuntime = createFutureCupMcpRuntime(mcpOperations, options.onError)
+  app.get(FUTURE_CUP_MCP_INFO_PATH, () => getFutureCupMcpServerInfo())
+  app.register(function registerFutureCupMcpTransport(scope) {
+    scope.addContentTypeParser(
+      'application/json',
+      { parseAs: 'buffer' },
+      (_request, body, done) => {
+        done(null, body)
+      },
+    )
+    scope.route<{ Body: unknown }>({
+      method: ['GET', 'POST', 'DELETE'],
+      url: FUTURE_CUP_MCP_ENDPOINT_PATH,
+      handler: async (request, reply) => {
+        reply.hijack()
+        await mcpRuntime.handleRequest(request.raw, reply.raw, request.body)
+      },
+    })
+    scope.route({
+      method: ['PUT', 'PATCH', 'OPTIONS'],
+      url: FUTURE_CUP_MCP_ENDPOINT_PATH,
+      handler: async (_request, reply) => {
+        return await reply
+          .header('allow', 'GET, POST, DELETE')
+          .code(405)
+          .send({ error: 'METHOD_NOT_ALLOWED' })
+      },
+    })
   })
 
   app.get<{ Params: unknown }>(
@@ -956,6 +987,72 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       }
     },
   )
+
+  async function adoptRecommendationAndCreateProject(
+    body: z.infer<typeof teamRecommendationAdoptRequestSchema>,
+  ) {
+    const built = await recommendationCall(() => buildRecommendation(body))
+    const teamVersion = await saveRecommendedTeam(body.projectName, built)
+    const project = await createProjectWithTeam({
+      name: body.projectName,
+      requirement: body.requirement,
+      teamVersionId: teamVersion.id,
+    })
+    return teamRecommendationAdoptionResponseSchema.parse({
+      projectId: project.id,
+      teamVersion: publicSavedTeamVersion(teamVersion),
+    })
+  }
+
+  async function deriveAndStartProject(
+    projectId: string,
+    body: z.infer<typeof deriveProjectSchema>,
+  ): Promise<{ readonly project: PlatformProjectSummary; readonly runId: string }> {
+    const targetProjectId = ProjectId(`project-${randomUUID()}`)
+    const derivation = new ProjectDerivationService({ store: options.store })
+    try {
+      const project = await derivation.derive({
+        sourceProjectId: ProjectId(projectId),
+        targetProjectId,
+        name: body.name,
+        mode: body.mode,
+        ...body.changeRequest === undefined ? {} : { changeRequest: body.changeRequest },
+      })
+      const { runId } = await requireLauncher().start(project)
+      return { project, runId }
+    } catch (error: unknown) {
+      if (error instanceof ProjectDerivationError) {
+        throw new ApiError(projectDerivationStatus(error.code), error.code, error.message)
+      }
+      if (error instanceof ProjectRunConflictError) {
+        throw new ApiError(409, error.code, error.message)
+      }
+      if (error instanceof ProjectRunStartError) {
+        throw new ApiError(503, error.code, error.message)
+      }
+      throw error
+    }
+  }
+
+  async function startProjectRun(projectId: string) {
+    try {
+      const result = await requireLauncher().start(await requireProject(projectId))
+      return projectRunStartSchema.parse(result)
+    } catch (error: unknown) {
+      if (error instanceof ProjectRunConflictError) {
+        throw new ApiError(409, error.code, error.message)
+      }
+      if (error instanceof ProjectRunStartError) {
+        throw new ApiError(503, error.code, error.message)
+      }
+      throw error
+    }
+  }
+
+  async function cancelProjectRun(projectId: string) {
+    await requireProject(projectId)
+    return { cancelled: await requireLauncher().cancel(projectId) }
+  }
 
   async function createProjectWithTeam(input: {
     readonly id?: string | undefined
@@ -1352,6 +1449,11 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       const errors: unknown[] = []
       try {
         await io.close()
+      } catch (error: unknown) {
+        errors.push(error)
+      }
+      try {
+        await mcpRuntime.close()
       } catch (error: unknown) {
         errors.push(error)
       }

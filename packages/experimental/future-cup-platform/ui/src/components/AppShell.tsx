@@ -31,6 +31,7 @@ import type { ReactNode } from 'react'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import type { ProjectStoreState } from '../state/project-store.ts'
 import { ConnectionBadge } from './ConnectionBadge.tsx'
+import { McpAccessButton } from './McpAccessModal.tsx'
 import { ProjectActions } from './ProjectActions.tsx'
 import { StatusBadge } from './StatusBadge.tsx'
 
@@ -249,6 +250,7 @@ export function AppShell({
           </div>
           <div className="app-header-actions">
             {projectId === undefined ? null : <ProjectActions projectId={projectId} compact />}
+            <McpAccessButton />
             <LanguageMenu />
           </div>
         </Header>

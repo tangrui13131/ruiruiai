@@ -6,6 +6,7 @@ import {
   createTeamDraftRequestSchema,
   deleteResponseSchema,
   faultDrillModeSchema,
+  mcpServerInfoResponseSchema,
   projectDeliverySchema,
   projectDrillInfoSchema,
   publicAgentTeamVersionSchema,
@@ -36,6 +37,7 @@ export {
   createTeamDraftRequestSchema,
   deleteResponseSchema,
   faultDrillModeSchema,
+  mcpServerInfoResponseSchema,
   projectDrillInfoSchema,
   publicAgentTeamVersionSchema,
   publicTeamVersionResponseSchema,
@@ -530,3 +532,4 @@ export type FaultDrillMode = z.infer<typeof faultDrillModeSchema>
 export type ProjectDrillInfoView = z.infer<typeof projectDrillInfoSchema>
 export type StartSelfHealDrillRequestView = z.infer<typeof startSelfHealDrillRequestSchema>
 export type StartSelfHealDrillResponseView = z.infer<typeof startSelfHealDrillResponseSchema>
+export type McpServerInfoResponseView = z.infer<typeof mcpServerInfoResponseSchema>

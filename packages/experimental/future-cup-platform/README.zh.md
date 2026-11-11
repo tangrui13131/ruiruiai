@@ -112,6 +112,8 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `GET` | `/api/v1/projects/:projectId/screenshots/:fileName` | 单张已记录验证截图 |
 | `GET` | `/preview/:projectId/*` | 生成工程生产构建预览 |
 | `GET` | `/hq/index.html?projectId=:projectId` | 从 REST 与 Socket.IO 投影的只读 HQ 大屏 |
+| `GET` | `/api/v1/mcp/info` | 浏览器使用的 MCP 能力描述 |
+| `GET`, `POST`, `DELETE` | `/api/v1/mcp` | 官方 MCP Streamable HTTP 端点 |
 | `POST` | `/api/v1/team-recommendations/profile` | 从小白需求生成结构化项目画像与最多三个澄清问题 |
 | `POST` | `/api/v1/team-recommendations` | 从已发布 Agent 与团队模板推荐完整团队 |
 | `POST` | `/api/v1/team-recommendations/adjust` | 重放受控自然语言团队调整 |
@@ -119,6 +121,8 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform exec prisma migr
 | `POST` | `/api/v1/team-recommendations/adopt` | 保存团队并创建已冻结项目 |
 
 已挂载 profile 在 `/` 提供管理 SPA。REST 与 Socket.IO 继续在同一来源的专用路径提供。
+
+MCP 端点使用官方 SDK 的无状态 Streamable HTTP 传输。它协商支持的协议版本，校验 loopback Host 与 Origin 请求头，对通知返回 `202`，并公开八个工具、四个资源与两个提示词模板。`/api/v1/mcp/info` 是浏览器发现路径，不属于 MCP 传输本身。
 
 ### 实时重放
 
@@ -141,6 +145,7 @@ HQ 大屏使用共享判别联合校验事件，只应用已提交事件，检�
 | `src/adaptive-repair.ts` | 根据验证 finding 选择受控修复策略并保留候选评分 |
 | `src/team-recommender.ts` | 项目画像、澄清、完整团队推荐与受控调整 |
 | `src/artifact-server.ts` | 管理资源、截图、交付与生成工程预览 |
+| `src/mcp-server.ts` | 官方 MCP SDK 服务端、工具、资源、提示词与 loopback HTTP 传输防护 |
 | `src/postgres-store.ts` | 共享编排仓储的 Prisma PostgreSQL 适配器 |
 | `ui/src/hq/` | HQ 状态投影与 REST/Socket.IO 桥接 |
 | `ui/src/hq/animation.ts` | 产品事件到真实场景动作的纯映射 |
@@ -176,11 +181,11 @@ HQ 的普通部门进度来自 DAG 任务，自愈部进度来自持久 Repair �
 
 #### What the model sees
 
-无。本包不注册 prompt section、工具 schema、Session 记录或模型请求字段。Agent 包拥有各自的模型可见输入。
+平台自身 Agent 循环中没有新增输入。本包不注册 prompt section、工具 schema、Session 记录或模型请求字段，Agent 包拥有各自的模型可见输入。外部 MCP 客户端则会收到服务端公开的八个工具 schema、四个资源与两个提示词模板。
 
 #### Token effect
 
-直接 token 影响为零。
+对平台自身 Agent 的直接 token 影响为零。外部 MCP 客户端产生的 token 使用量由该客户端决定。
 
 #### KV Cache effect
 
@@ -191,6 +196,7 @@ HQ 的普通部门进度来自 DAG 任务，自愈部进度来自持久 Repair �
 - **没有 mid-turn cancel：** Harness TypeScript SDK 没有 prompt-cancel 请求。取消会关闭运行拥有的 runtime、等待结算并记录 `CANCELLED`。
 - **每个项目一次生成：** 当前 MVP 为每个项目保留一组任务。终态运行后如需重新生成，请新建项目。
 - **高级 Registry 编辑器延后：** 小白配队入口已覆盖推荐、调整、保存与采用；任意角色、任意工具和自由团队编辑器仍属于 M5.5 之后的工作。
+- **MCP 方向为对外提供：** Future Cup 将自身工作流暴露给外部 MCP Client；从平台内部 Agent 循环调用其他外部 MCP Server 不属于当前产品范围。
 - **Loopback 传输：** 服务器拒绝非 loopback 主机。带认证的公网部署与 TLS 终止仍属于部署工作。
 - **单一存储生命周期：** 关闭服务器会关闭其拥有的存储。消费者不得在关闭后继续共享该实例。
 - **Outbox 至少一次投递：** Dispatcher 崩溃后，claim 过期会触发重放。客户端必须按 `projectId + seq` 去重。

@@ -11,6 +11,7 @@ import {
   agentSchema,
   apiErrorSchema,
   deliverySchema,
+  mcpServerInfoResponseSchema,
   projectRunSchema,
   projectSchema,
   projectSnapshotSchema,
@@ -39,6 +40,7 @@ import type {
   DeriveProjectRequest,
   DeriveProjectResponse,
   FaultDrillMode,
+  McpServerInfoResponseView,
   ProjectDrillInfoView,
   ProjectRunView,
   ProjectSnapshotView,
@@ -409,6 +411,10 @@ export const api = {
         body: JSON.stringify({ mode }),
       },
     ))
+  },
+
+  async getMcpServerInfo(): Promise<McpServerInfoResponseView> {
+    return mcpServerInfoResponseSchema.parse(await request('/api/v1/mcp/info'))
   },
 }
 

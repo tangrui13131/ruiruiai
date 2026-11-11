@@ -641,3 +641,54 @@ export const startSelfHealDrillResponseSchema = z.object({
 })
 /** Accepted self-healing drill launch. */
 export type StartSelfHealDrillResponse = z.infer<typeof startSelfHealDrillResponseSchema>
+
+/** One MCP tool exposed by the Future Cup platform server. */
+export const mcpToolDescriptorSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  inputSchema: z.record(z.string(), z.unknown()),
+}).strict()
+/** Browser-safe MCP tool descriptor. */
+export type McpToolDescriptor = z.infer<typeof mcpToolDescriptorSchema>
+
+/** One MCP resource or resource template exposed by the Future Cup platform server. */
+export const mcpResourceDescriptorSchema = z.object({
+  uri: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  mimeType: z.string().min(1),
+  isTemplate: z.boolean(),
+}).strict()
+/** Browser-safe MCP resource descriptor. */
+export type McpResourceDescriptor = z.infer<typeof mcpResourceDescriptorSchema>
+
+/** One MCP prompt argument exposed by the Future Cup platform server. */
+export const mcpPromptArgumentDescriptorSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  required: z.boolean(),
+}).strict()
+/** Browser-safe MCP prompt argument descriptor. */
+export type McpPromptArgumentDescriptor = z.infer<typeof mcpPromptArgumentDescriptorSchema>
+
+/** One MCP workflow prompt exposed by the Future Cup platform server. */
+export const mcpPromptDescriptorSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  arguments: z.array(mcpPromptArgumentDescriptorSchema),
+}).strict()
+/** Browser-safe MCP prompt descriptor. */
+export type McpPromptDescriptor = z.infer<typeof mcpPromptDescriptorSchema>
+
+/** Public discovery payload for the Future Cup MCP endpoint. */
+export const mcpServerInfoResponseSchema = z.object({
+  name: z.string().min(1),
+  version: z.string().min(1),
+  protocolVersion: z.string().min(1),
+  endpointPath: z.string().min(1),
+  tools: z.array(mcpToolDescriptorSchema),
+  resources: z.array(mcpResourceDescriptorSchema),
+  prompts: z.array(mcpPromptDescriptorSchema),
+}).strict()
+/** Browser-safe MCP server discovery response. */
+export type McpServerInfoResponse = z.infer<typeof mcpServerInfoResponseSchema>

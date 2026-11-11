@@ -10,4 +10,4 @@ Component-based architecture organized into pages, shared components, hooks, and
 main.tsx -> App.tsx (Theme & Router) -> Page Components -> Real-time event subscription.
 
 ## Integration
-Renders DAG nodes, agent status cards, execution metrics, and logs.
+Renders DAG nodes, agent status cards, execution metrics, logs, and the MCP access guide in the application shell.

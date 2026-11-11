@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本仓库是 **Future Cup 多 Agent 调度工作站** 的实现与初赛交付材料。底座为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）——由 [Cordis](https://github.com/cordiverse/cordis) 驱动的「一切皆插件」agent harness。Harness 提供 Agent、Session、工具与模型适配能力，Future Cup 在其之上实现平台控制层。
+本仓库是 **Future Cup 多 Agent 调度工作站** 的实现与初赛交付材料。底座为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）——由 [Cordis](https://github.com/cordiverse/cordis) 驱动的「一切皆插件」agent harness。Harness 提供 Agent、Session、工具与模型适配能力，Future Cup 在其之上实现平台控制层与面向外部客户端的 MCP Server。
 
 工作站把自然语言需求转为持久任务 DAG，装配并冻结版本化 Agent 团队，并发调度任务，执行独立浏览器验证，进行有界自愈修复，最终交付可运行的工程与执行证据。**前端工程团队只是内置的一个团队，不是平台本身**——平台定位是通用的多 Agent 调度工作站。
 
@@ -13,10 +13,11 @@
 | 项目 | 内容 |
 |---|---|
 | 底座 | DeepSeek Harness（`dsh`）+ Cordis，一切皆插件 |
-| 平台包 | `packages/experimental/future-cup-platform`：REST / Socket.IO 服务、React 管理应用、只读 HQ 3D 大屏 |
+| 平台包 | `packages/experimental/future-cup-platform`：REST / Socket.IO 服务、官方 MCP Server 传输、React 管理应用、只读 HQ 3D 大屏 |
 | 编排包 | `packages/experimental/future-cup-orchestration`：持久 DAG、可解释调度、独立验证与有界修复 |
-| 管理界面 | `/`：浅色拟态主题、项目指标、六阶段进度、团队面板 |
+| 管理界面 | `/`：浅色拟态主题、项目指标、六阶段进度、团队面板、MCP 接入指引 |
 | HQ 大屏 | `/hq/index.html?projectId=<id>`：只读实时投影 |
+| MCP Server | `/api/v1/mcp`：官方无状态 Streamable HTTP 端点；`/api/v1/mcp/info` 提供浏览器发现数据 |
 | 默认端口 | `3090`，仅绑定 loopback |
 | 存储 | 本地运行用 SQLite，配置后可用 PostgreSQL |
 | 许可 | MIT；HQ 3D 资产采用 PolyForm Noncommercial 1.0.0 |
@@ -28,6 +29,7 @@
 - 可解释调度、独立构建/浏览器验证与最多三轮有界修复。
 - 事务性项目事件与 Outbox 重放（Socket.IO）、REST 快照与交付预览。
 - 真实 Harness 团队启动器、项目冻结团队，以及「以执行证据为准」的交付。
+- 官方 MCP SDK 服务端向 loopback 客户端提供八个委托工具、四个只读资源和两个工作流提示词。
 
 <a id="run"></a>
 
@@ -70,6 +72,12 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 `build:ui` 串跑两个 Vite：管理 SPA 输出到 `lib/web/`，HQ 大屏输出到 `lib/web/hq/`（生成 `hq-bridge.js`）。`lib/web/` 是被 gitignore 的构建产物，不是源码。改动 `ui/src` 后必须重新构建并刷新页面（产物带内容 hash，必要时 Ctrl+F5）。启动平台前请确认 `lib/web/hq/hq-bridge.js` 存在。
 
 > 不要用 `| head` 截断构建输出：管道提前关闭会让第二个 Vite 收到 SIGPIPE，静默丢掉 `hq-bridge.js`。请重定向到日志文件再查看。
+
+## MCP Server
+
+平台通过官方 MCP SDK 在 `/api/v1/mcp` 暴露项目工作流，支持协议协商、JSON-RPC 通知、结构化工具错误、loopback Host/Origin 校验与优雅关闭。八个工具覆盖团队推荐、项目创建、运行控制、状态查询、验证证据与项目派生；四个资源提供项目目录、已发布团队、项目记忆与最新验证证据；两个提示词分别指导新项目委托和已验证项目升级。
+
+浏览器发现数据单独位于 `/api/v1/mcp/info`，管理界面顶部提供 MCP 接入指引、端点地址和客户端配置。MCP 方向为对外提供：外部客户端调用 Future Cup；从平台内部 Agent 循环调用其他外部 MCP Server 不属于当前产品范围。
 
 ## 常用命令
 
@@ -115,7 +123,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform test:ui
 pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 ```
 
-UI 测试当前覆盖 24 个测试文件 / 94 个用例。lefthook 在提交时运行暂存文件 lint、`git diff --cached --check` 与 vendor manifest 校验，在推送前运行全仓 `pnpm run typecheck`（6 个 gate）。
+UI 测试当前覆盖 25 个测试文件 / 98 个用例。lefthook 在提交时运行暂存文件 lint、`git diff --cached --check` 与 vendor manifest 校验，在推送前运行全仓 `pnpm run typecheck`（6 个 gate）。
 
 两份 README 是双语配对文档。改动任意一侧后要同步另一侧，并重新记录段落哈希：
 

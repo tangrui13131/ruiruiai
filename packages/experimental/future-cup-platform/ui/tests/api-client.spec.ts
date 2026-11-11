@@ -140,4 +140,29 @@ describe('project Agent API', () => {
       '/api/v1/team-recommendations/adopt',
     ])
   })
+
+  it('loads the MCP server discovery descriptor from /api/v1/mcp/info', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      name: 'future-cup-platform-mcp',
+      version: '1.0.0',
+      protocolVersion: '2025-11-25',
+      endpointPath: '/api/v1/mcp',
+      tools: [],
+      resources: [],
+      prompts: [],
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getMcpServerInfo()).resolves.toMatchObject({
+      name: 'future-cup-platform-mcp',
+      endpointPath: '/api/v1/mcp',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/mcp/info',
+      expect.objectContaining({ headers: expect.objectContaining({ accept: 'application/json' }) }),
+    )
+  })
 })

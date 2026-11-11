@@ -3,17 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
 /future-cup-multi-agent-orchestration-workbench:
-  en: 2f6072623241d422
-  zh: 6d95e682d4f758a1
+  en: 81a8c5701bddb22b
+  zh: 974ff2cc62535d14
 /future-cup-multi-agent-orchestration-workbench/what-this-is:
-  en: fae08cb4642fd835
-  zh: 283f839a3fe13e6e
+  en: bbcc2de24c7c686f
+  zh: 6582da49b7336ffc
 /future-cup-multi-agent-orchestration-workbench/quick-start:
   en: 4d89bd85b33010c9
   zh: 07e6c08320af027e
 /future-cup-multi-agent-orchestration-workbench/build-the-ui:
   en: 9d670de16561a52f
   zh: 87a071b48ad96f74
+/future-cup-multi-agent-orchestration-workbench/mcp-server:
+  en: 08213e3bc54d6f88
+  zh: 5f806a5f9e7c672f
 /future-cup-multi-agent-orchestration-workbench/common-commands:
   en: d9cd8886ded60482
   zh: aa009ea9a1598733
@@ -24,8 +27,8 @@
   en: dc0deed4db948711
   zh: 9af44dcc02f5c9a0
 /future-cup-multi-agent-orchestration-workbench/verification:
-  en: b53169450518c42f
-  zh: 37c630653e671464
+  en: 99a1bd9636b0e44d
+  zh: 416d94b738577908
 /future-cup-multi-agent-orchestration-workbench/secrets-and-ci:
   en: 09793c556349ef21
   zh: 8ce04560d169ac46

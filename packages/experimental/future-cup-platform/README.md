@@ -112,6 +112,8 @@ The server binds only to a loopback host. Its current routes are:
 | `GET` | `/api/v1/projects/:projectId/screenshots/:fileName` | one recorded verification screenshot |
 | `GET` | `/preview/:projectId/*` | generated production build preview |
 | `GET` | `/hq/index.html?projectId=:projectId` | read-only HQ display projected from REST and Socket.IO |
+| `GET` | `/api/v1/mcp/info` | browser-facing MCP capability descriptor |
+| `GET`, `POST`, `DELETE` | `/api/v1/mcp` | official MCP Streamable HTTP endpoint |
 | `POST` | `/api/v1/team-recommendations/profile` | structure a novice requirement into a profile and up to three questions |
 | `POST` | `/api/v1/team-recommendations` | recommend a complete team from published Agents and templates |
 | `POST` | `/api/v1/team-recommendations/adjust` | replay controlled natural-language team adjustments |
@@ -119,6 +121,8 @@ The server binds only to a loopback host. Its current routes are:
 | `POST` | `/api/v1/team-recommendations/adopt` | save a team and create a frozen project |
 
 The mounted profile starts the management SPA at `/`. REST and Socket.IO remain under their dedicated paths on the same origin.
+
+The MCP endpoint uses the official SDK's stateless Streamable HTTP transport. It negotiates supported protocol revisions, validates loopback Host and Origin headers, returns `202` for notifications, and exposes eight tools, four resources, and two prompts. `/api/v1/mcp/info` is the browser discovery path and is not part of the MCP transport.
 
 ### Realtime replay
 
@@ -140,6 +144,7 @@ The HQ display validates events against the shared discriminated union. It appli
 | `src/adaptive-repair.ts` | select controlled repair strategies with scored verification findings |
 | `src/team-recommender.ts` | project profiles, clarification, complete-team recommendation, and controlled adjustments |
 | `src/artifact-server.ts` | Management assets, screenshots, delivery, and generated-project preview |
+| `src/mcp-server.ts` | Official MCP SDK server, tools, resources, prompts, and loopback HTTP transport guards |
 | `src/postgres-store.ts` | Prisma PostgreSQL adapter for the shared orchestration store |
 | `ui/src/hq/` | HQ state projection and REST/Socket.IO bridge |
 | `ui/src/hq/animation.ts` | pure product-event to scene-action mapping |
@@ -175,11 +180,11 @@ The HQ derives ordinary department progress from DAG tasks and derives self-heal
 
 #### What the model sees
 
-None. The public `OrchestrationStore` contract registers no prompt section, tool schema, Session record, or model request field. Agent packages own their model-facing inputs.
+None in the platform's own Agent loop. The public `OrchestrationStore` contract registers no prompt section, tool schema, Session record, or model request field. Agent packages own their model-facing inputs. External MCP clients separately receive the server's eight tool schemas, four resources, and two prompt templates.
 
 #### Token effect
 
-Zero direct token effect.
+Zero direct token effect for the platform's own Agents. Token use by an external MCP client depends on that client.
 
 #### KV Cache effect
 
@@ -190,6 +195,7 @@ The package does not invalidate a reusable request prefix. Model adapters and pr
 - **No mid-turn cancellation:** the Harness TypeScript SDK has no prompt-cancel request. Cancel closes the run-owned runtime, waits for settlement, and records `CANCELLED`.
 - **One generation per project:** the current MVP keeps one task set per project. Create a new project to generate again after a terminal run.
 - **Advanced Registry editor deferred:** the novice flow now covers recommendation, adjustment, saving, and adoption; arbitrary roles, arbitrary tools, and free-form team authoring remain post-M5.5 work.
+- **MCP direction is outbound:** Future Cup exposes its workflow to external MCP clients. Calling unrelated external MCP servers from its own Agent loop is outside this product scope.
 - **Loopback transport:** the server rejects non-loopback hosts. Authenticated public deployment and TLS termination remain deployment work.
 - **Single store lifecycle:** closing the server closes its owned store. Consumers must not share that instance after shutdown.
 - **Outbox at-least-once delivery:** a crashed dispatcher can cause replay after its claim expires. Client deduplication by `projectId + seq` is required.
