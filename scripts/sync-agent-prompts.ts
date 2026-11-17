@@ -59,8 +59,12 @@ async function main(): Promise<void> {
   }
 
   const requiredCapabilities: Record<string, number> = {}
-  for (const template of templates) {
-    if (template.role === 'verifier') continue
+  const runtimeTemplates = templates.filter(template => template.role !== 'verifier')
+  const sharedInputSchema = runtimeTemplates[0]?.inputSchema
+  if (sharedInputSchema === undefined) {
+    throw new Error('no runtime Agent role template is available')
+  }
+  for (const template of runtimeTemplates) {
     for (const [capability, value] of Object.entries(template.defaultCapabilities)) {
       requiredCapabilities[capability] = Math.max(requiredCapabilities[capability] ?? 0, value)
     }
@@ -83,10 +87,8 @@ async function main(): Promise<void> {
       allowedKinds: ['requirement', 'design-decision', 'failure-signature', 'accepted-artifact-summary'],
       requiredKinds: ['requirement', 'design-decision', 'failure-signature'],
     },
-    inputSchema: templates[0]?.inputSchema ?? { type: 'object' },
-    requiredOutputSchemas: templates
-      .filter(template => template.role !== 'verifier')
-      .map(template => template.outputSchema),
+    inputSchema: sharedInputSchema,
+    requiredOutputSchemas: runtimeTemplates.map(template => template.outputSchema),
   })
 
   console.log('')
