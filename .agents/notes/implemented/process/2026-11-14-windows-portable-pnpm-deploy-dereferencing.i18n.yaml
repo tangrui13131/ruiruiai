@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-14-windows-portable-pnpm-deploy-dereferencing.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-11-14-windows-portable-pnpm-deploy-dereferencing.md
+/agent-note-windows-portable-packaging-and-pnpm-deploy-symlink-dereferencing:
+  en: db1f35fda20df65a
+  zh: b43b19d21805e711
+/agent-note-windows-portable-packaging-and-pnpm-deploy-symlink-dereferencing/problem:
+  en: 2e32491cdccaa804
+  zh: 204a9b8a4ccd727f
+/agent-note-windows-portable-packaging-and-pnpm-deploy-symlink-dereferencing/decision:
+  en: cf02331f47b84bcb
+  zh: 6668e9debbfb687d
+/agent-note-windows-portable-packaging-and-pnpm-deploy-symlink-dereferencing/consequences:
+  en: fa840a81778016cd
+  zh: cb29f2eb635b073e
+/agent-note-windows-portable-packaging-and-pnpm-deploy-symlink-dereferencing/alternatives-considered:
+  en: c1d0b07d04329bd0
+  zh: 256b32a8c56c3292
