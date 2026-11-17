@@ -20,6 +20,7 @@ const BASE_FILES: Readonly<Record<string, string>> = {
     },
     dependencies: {
       antd: '^5.24.0',
+      '@ant-design/icons': '^5.6.1',
       react: '^18.3.1',
       'react-dom': '^18.3.1',
       'react-router-dom': '^6.28.0',

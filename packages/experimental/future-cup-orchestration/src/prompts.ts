@@ -5,7 +5,7 @@ export const PLANNER_INSTRUCTIONS = [
   'Analyze the user requirement and produce the project page list and executable DAG.',
   'Create exactly one ui-designer task.',
   'Create exactly one tester task that depends on the ui-designer task and requires capability testing >= 0.6.',
-  'Create exactly two frontend tasks with distinct pageId values.',
+  'Create one frontend task for each planned page, with distinct pageId values.',
   'Create exactly one integration task.',
   'Every frontend task must depend on both the ui-designer and tester tasks and require capability frontend >= 0.6.',
   'The integration task must depend on every frontend task and the tester task, and require capability integration >= 0.6.',
@@ -17,10 +17,10 @@ export const PLANNER_INSTRUCTIONS = [
   'Do not introduce dependencies that could form a cycle.',
 ].join('\n')
 
-/** UI Designer instructions shared across both frontend page tasks. */
+/** UI Designer instructions shared across every frontend page task. */
 export const UI_DESIGNER_INSTRUCTIONS = [
   'Create a concise visual system for the requested Ant Design dashboard.',
-  'Return a written designSpec and compact design tokens for both pages.',
+  'Return a written designSpec and compact design tokens for all planned pages.',
   'The platform will render CSS from your tokens; do not return CSS.',
   'Do not inspect the workspace for this design task; the page requirements are in the input.',
   'Keep designSpec under 6,000 characters.',
@@ -38,6 +38,7 @@ export const FRONTEND_INSTRUCTIONS = [
   'Do not embed large CSS blocks; the shared design stylesheet is already provided.',
   'The component must render without requiring backend data.',
   'Import only npm packages or files returned by this same task. Do not import shared helper modules that this task does not create.',
+  'Use react, react-dom, antd, and @ant-design/icons from the generated project dependencies. Do not import any other npm package.',
   'Do not use Ant Design message or notification APIs, modal submission feedback, or a global mutable API bridge.',
   'Do not use deprecated Ant Design props. Never emit bordered, destroyOnClose, or deprecated APIs in this generated page.',
 ].join('\n')
@@ -80,6 +81,7 @@ export const REPAIR_INSTRUCTIONS = [
   'Diagnose the verification findings using the supplied source, report, and prior repair summaries.',
   'Return only source files that directly address the reported failure.',
   'Every file path must remain under src/ and every file must be complete, not a patch fragment.',
+  'Modify the existing file that contains the defect. Never work around a defect by creating a new file beside it, and never add a file whose only purpose is to replace an existing module under a different name or extension.',
   'Do not use deprecated Ant Design props or introduce remote assets.',
   'The generated application routing contract is HashRouter only. Never introduce BrowserRouter.',
   'Preserve existing behavior and routes that are not part of the failure.',
