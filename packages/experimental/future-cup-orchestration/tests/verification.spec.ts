@@ -7,9 +7,10 @@ import type {
   VerificationCommandResult,
   VerificationCommandRunner,
 } from '../src/build-verifier.ts'
-import { verifyProjectBuild } from '../src/build-verifier.ts'
+import { localVerificationCommandRunner, verifyProjectBuild } from '../src/build-verifier.ts'
 import { createFailureSignature } from '../src/failure-signature.ts'
 import { writeProjectScaffold } from '../src/project-scaffold.ts'
+import { verificationFindingSchema } from '../src/schemas.ts'
 import type { TesterOutput, VerificationFinding } from '../src/types.ts'
 import { verifyProject } from '../src/verification.ts'
 
@@ -126,6 +127,49 @@ describe('build verification', () => {
     expect(verification.status).toBe('FAIL')
     expect(verification.findings[0]?.code).toBe('DEPENDENCY_INSTALL_FAILED')
     expect(runner.calls).toEqual(['npm install --no-audit --no-fund'])
+  })
+
+  it('produces a non-empty finding message when a command fails without output', async () => {
+    const runner = new QueueRunner([
+      result('npm install', 1, '   \n  '),
+    ])
+    const verification = await verifyProjectBuild('C:\\generated', {
+      timeoutMs: 1_000,
+      runner,
+    })
+    expect(verification.status).toBe('FAIL')
+    expect(verification.findings[0]?.code).toBe('DEPENDENCY_INSTALL_FAILED')
+    expect(verification.findings[0]?.message).toBe('npm install exited with code 1')
+    expect(() => verificationFindingSchema.parse(verification.findings[0])).not.toThrow()
+  })
+
+  it('populates non-empty stderr in localVerificationCommandRunner when a child process fails silently or times out', async () => {
+    const silentFailure = await localVerificationCommandRunner.run(
+      process.execPath,
+      ['-e', 'process.exit(2)'],
+      process.cwd(),
+      5_000,
+    )
+    expect(silentFailure.exitCode).toBe(2)
+    expect(silentFailure.stderr).toContain('Command failed:')
+
+    const timedOut = await localVerificationCommandRunner.run(
+      process.execPath,
+      ['-e', 'setTimeout(() => {}, 5000)'],
+      process.cwd(),
+      50,
+    )
+    expect(timedOut.exitCode).toBe(1)
+    expect(timedOut.stderr).toContain('SIGTERM')
+
+    const explicitStderr = await localVerificationCommandRunner.run(
+      process.execPath,
+      ['-e', 'process.stderr.write("boom"); process.exit(3)'],
+      process.cwd(),
+      5_000,
+    )
+    expect(explicitStderr.exitCode).toBe(3)
+    expect(explicitStderr.stderr).toBe('boom')
   })
 })
 

@@ -76,15 +76,24 @@ export const localVerificationCommandRunner: VerificationCommandRunner = {
     } catch (error: unknown) {
       const failure = error as {
         code?: number | string
+        signal?: string
         stdout?: string
         stderr?: string
         message?: string
       }
+      const exitCode = typeof failure.code === 'number' ? failure.code : 1
+      const fallbackMessage =
+        nonEmptyText(failure.message) ??
+        nonEmptyText(String(error)) ??
+        `${command} ${args.join(' ')} exited with code ${exitCode}`
+      const stderr =
+        nonEmptyText(failure.stderr) ??
+        (failure.signal ? `${fallbackMessage} (${failure.signal})` : fallbackMessage)
       return {
         command: `${command} ${args.join(' ')}`,
-        exitCode: typeof failure.code === 'number' ? failure.code : 1,
+        exitCode,
         stdout: failure.stdout ?? '',
-        stderr: failure.stderr ?? failure.message ?? String(error),
+        stderr,
       }
     }
   },
@@ -157,20 +166,26 @@ export async function verifyProjectBuild(
 }
 
 /** Build one generic command failure with a bounded actionable diagnostic. */
+function nonEmptyText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
 function commandFinding(
   category: VerificationFinding['category'],
   code: string,
   result: VerificationCommandResult,
   workspace: string,
 ): VerificationFinding {
+  const normalized = normalizeVerificationMessage(
+    [result.stderr, result.stdout].filter(Boolean).join('\n').slice(-8_000),
+    workspace,
+  )
   return {
     category,
     code,
     severity: 'error',
-    message: normalizeVerificationMessage(
-      [result.stderr, result.stdout].filter(Boolean).join('\n').slice(-8_000),
-      workspace,
-    ),
+    message: normalized || `${result.command} exited with code ${result.exitCode}`,
     target: result.command,
   }
 }
