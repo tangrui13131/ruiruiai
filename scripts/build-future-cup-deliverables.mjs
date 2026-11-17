@@ -483,9 +483,11 @@ const matrixRows = [
   ['条件分支与 Self-loop', '条件边、有界循环、Repair 子工作流、升级', 'PASS', '`workflow-control.ts`；36 条控制事件'],
   ['自适应修复策略', '8 类 finding、候选评分、策略切换、完整复验', 'PASS', '`adaptive-repair.ts`；`09-SelfLoop自愈.png`'],
   ['真实模型执行', 'DeepSeek 七人团队、7 个 Home、6 生成 + 1 Repair Session', 'PASS', '真实 E2E `PASSED`'],
+  ['动态多页规划', '按需求规划页面数量，3 页真实生成；6/6 浏览器检查通过', 'PASS', '`real-team-3page-run-result.json`；生成工程 3 页 6 截图'],
+  ['真实错误自愈', '真实 TypeScript 错误（非注入）→ 定位 → 修复 → 复验 PASS', 'PASS', '`repair_records`；`FAIL → PASS` 一轮修复'],
   ['工具权限控制', 'read / read_image / working_directory；Shell 和写入禁用', 'PASS', '`harness-agents.ts`；Session request header'],
   ['独立构建验证', '依赖、TypeScript、Vite', 'PASS', '`build-verifier.ts`；`08-验证报告.png`'],
-  ['真实浏览器验证', '桌面和移动、文本、导航、控制台、网络、截图', 'PASS', '4/4 Browser Checks；Playwright 截图'],
+  ['真实浏览器验证', '桌面和移动、文本、导航、控制台、网络、截图', 'PASS', '6/6 Browser Checks（3 页 × 2 视口）；Playwright 截图'],
   ['实时事件与重连', '项目序号、Outbox、Socket.IO、缺口重同步', 'PASS', '`10-事件流.png`；browser smoke'],
   ['SQLite / PostgreSQL', '共享 Store 抽象、迁移、lease、fencing', 'PASS', 'SQLite v9；既有 PostgreSQL E2E'],
   ['管理平台', '11 个桌面路由、3 个移动页面、无错误', 'PASS', '`browser-smoke.json`；功能截图'],
@@ -550,7 +552,7 @@ const evidenceHtml = `<!doctype html>
   </div>
   <div class="checks grid">
     <div><div class="check"><span>编排类型检查</span><span class="pass">PASS</span></div><div class="check"><span>平台类型检查</span><span class="pass">PASS</span></div><div class="check"><span>UI 类型检查</span><span class="pass">PASS</span></div></div>
-    <div><div class="check"><span>真实 DeepSeek E2E</span><span class="pass">PASS</span></div><div class="check"><span>浏览器冒烟</span><span class="pass">PASS</span></div><div class="check"><span>功能截图</span><span class="pass">24 张</span></div></div>
+    <div><div class="check"><span>真实 DeepSeek E2E</span><span class="pass">PASS</span></div><div class="check"><span>浏览器冒烟</span><span class="pass">PASS</span></div><div class="check"><span>功能截图</span><span class="pass">27 张</span></div></div>
     <div><div class="check"><span>PostgreSQL 本轮</span><span class="planned">未重跑</span></div><div class="check"><span>压力测试</span><span class="planned">决赛</span></div><div class="check"><span>容器主链路</span><span class="partial">未接入</span></div></div>
   </div>
   <div class="note">本页数据来自最终候选版本的聚焦测试、完整构建和真实 DeepSeek E2E。压力、并发和长稳测试不纳入初赛结论。</div>
@@ -566,7 +568,7 @@ const evidenceHtml = `<!doctype html>
     <div class="step"><div class="dot">3</div><h3>故障注入与复验</h3><p>注入 TypeScript 契约错误；策略 typescript-contract 修复，FAIL → PASS。</p></div>
   </div>
   <div class="grid kpis" style="margin-top:42px">
-    <div class="card"><div class="label">Browser Checks</div><div class="value">4/4</div><div class="foot">Desktop + Mobile</div></div>
+    <div class="card"><div class="label">Browser Checks</div><div class="value">6/6</div><div class="foot">3 Pages × Desktop + Mobile</div></div>
     <div class="card"><div class="label">Control Events</div><div class="value">36</div><div class="foot">condition · loop · subworkflow</div></div>
     <div class="card"><div class="label">Product Events</div><div class="value">50</div><div class="foot">committed and replayable</div></div>
     <div class="card"><div class="label">Total Tokens</div><div class="value">121k</div><div class="foot">29.8k in · 20.8k out</div></div>
@@ -668,7 +670,7 @@ function deliverablesReadme() {
 
 - 方案书：约 6000 个中文字符，19 张图片引用。
 - 图表：7 张 PNG，配套 7 份 SVG 和 1 个 HTML 总览。
-- 功能截图：24 张（01–12、19–24 为 2026-11-06 最新界面；13–18 保留旧版证据）。
+- 功能截图：27 张（01–12、19–24 为 2026-11-06 最新界面；13–18 保留旧版证据；25–27 为真实三页运行截图）。
 - 测试证据截图：4 张。
 - 原始测试数据：3 份 JSON。
 - 文件完整性：见“文件清单.json”。
@@ -700,6 +702,7 @@ async function copyEvidence() {
   const copies = [
     ['.artifacts/future-cup-final-test/acceptance.json', '测试数据/acceptance.json'],
     ['.artifacts/future-cup-m55-live/real-team-GJm5ZY/run-result.json', '测试数据/real-team-e2e-run-result.json'],
+    ['.artifacts/future-cup-3page/run-result.json', '测试数据/real-team-3page-run-result.json'],
     ['.artifacts/future-cup-final-browser/browser-smoke.json', '测试数据/browser-smoke.json'],
     ['.artifacts/future-cup-final-test/system-report.md', '文案/系统报告.md'],
   ]
@@ -743,6 +746,18 @@ async function copyEvidence() {
       '18-生成工程移动用户页.png',
     ],
     ['future-cup-final-browser/hq-desktop.png', '19-HQ实时大屏.png'],
+    [
+      'future-cup-runs/future-cup-run-d24fd402-dfa2-4aa2-86aa-dfb1598f822f/screenshots/desktop-home.png',
+      '25-三页生成工程首页.png',
+    ],
+    [
+      'future-cup-runs/future-cup-run-d24fd402-dfa2-4aa2-86aa-dfb1598f822f/screenshots/desktop-hooks.png',
+      '26-三页生成工程Hooks页.png',
+    ],
+    [
+      'future-cup-runs/future-cup-run-d24fd402-dfa2-4aa2-86aa-dfb1598f822f/screenshots/desktop-components.png',
+      '27-三页生成工程组件页.png',
+    ],
   ]
   // 注意：01–12、19 已替换为 2026-11-06 最新界面，并手工追加 20–24
   //（其中 12、23、24 是移动端 JPG 转 PNG）；这些新图不在 .artifacts 中，
