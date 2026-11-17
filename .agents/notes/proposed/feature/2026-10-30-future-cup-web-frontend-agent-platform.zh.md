@@ -93,11 +93,17 @@ M5 将团队作为用户可配置的一等对象。默认配队入口不要求�
 
 ### Verification and self-loop
 
-验证结合项目结构检查、TypeScript 与 ESLint、依赖与构建结果、服务器启动、Playwright 浏览器测试、页面可见性、关键交互、失败请求和浏览器控制台错误。报告使用 `PASS`、`FAIL`、`WARNING` 或 `INCOMPLETE`；Agent 的自然语言回复不能在没有执行证据时宣布任务成功。
+验证结合项目结构检查、TypeScript 与 ESLint、依赖与构建结果、产物覆盖检查、服务器启动、Playwright 浏览器测试、页面可见性、关键交互、失败请求和浏览器控制台错误。报告使用 `PASS`、`FAIL`、`WARNING` 或 `INCOMPLETE`；Agent 的自然语言回复不能在没有执行证据时宣布任务成功。
+
+产物覆盖检查发生在构建之后、浏览器检查之前。生成的 Vite 配置记录实际进入生产产物的每一个模块，验证器在某个生成源码或样式表从未进入产物时判失败。这一步不可省略：Vite 解析 `./pages/Comp` 时先命中 `Comp.jsx` 而非 `Comp.tsx`，同名兄弟模块会让一次修复静默失效并通过其后的全部检查。范围写入器同时拒绝这类遮蔽写入，迫使 Repair Agent 修改真正生效的模块。
 
 Verifier 独立于产生该修订的 Agent。确定性检查与 Agent 判定冲突时，以确定性证据为准。
 
 Self-loop 从结构化报告开始，经过诊断、Repair Agent 修改与完整复验。默认最多允许三轮自动修复，保留每轮报告与代码差异，记录修复前后结果，并在重复等价失败时停止。修复耗尽、超时或没有进展时必须进入可见的人工介入状态，不能无限重试。
+
+### Agent prompt 版本
+
+`packages/experimental/future-cup-orchestration/src/prompts.ts` 存放各角色指令。已存储的 Agent 版本不可变，而 `ensureDefaultTeam` 在库中已有团队时直接返回旧版本，因此只改代码不会让运行中的 Agent 生效。`scripts/sync-agent-prompts.ts` 为每个角色注册携带当前指令的新版本并发布引用它们的团队版本；该脚本只新增记录，已有项目、团队和版本不受影响。项目在启动时冻结团队版本，所以新指令只对之后创建的项目生效。
 
 ### HQ and real events
 

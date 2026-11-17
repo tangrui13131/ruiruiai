@@ -4,6 +4,8 @@ DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.
 
 **Project context.** Read the [Future Cup platform note](.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md) before planning or changing code; it owns the competition constraints, architecture, milestones, and current scope.
 
+**Future Cup Agent prompts.** `packages/experimental/future-cup-orchestration/src/prompts.ts` holds the role instructions, but stored Agent versions are immutable, so editing it changes nothing at runtime. Run `pnpm exec tsx scripts/sync-agent-prompts.ts` to register a version that carries the new text and publish a team version that uses it; existing projects keep their frozen team.
+
 ## Pre-stable APIs and released Session data
 
 Public APIs are pre-stable; update every consumer. Follow [version/status](docs/session-format-status.md) and [type acknowledgements](docs/cookbook/reviewing-persistence-type-changes.md). [Adjacent migration](.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md) may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.

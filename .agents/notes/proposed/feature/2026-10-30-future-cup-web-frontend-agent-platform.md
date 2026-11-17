@@ -93,11 +93,17 @@ Every assignment, requeue, cancellation, failure, and DAG change becomes a persi
 
 ### Verification and self-loop
 
-Verification combines project structure checks, TypeScript and ESLint checks, dependency and build results, server startup, Playwright browser tests, page visibility, key interactions, failed requests, and browser console errors. Reports use `PASS`, `FAIL`, `WARNING`, or `INCOMPLETE`; Agent prose cannot declare a task successful without execution evidence.
+Verification combines project structure checks, TypeScript and ESLint checks, dependency and build results, bundle coverage checks, server startup, Playwright browser tests, page visibility, key interactions, failed requests, and browser console errors. Reports use `PASS`, `FAIL`, `WARNING`, or `INCOMPLETE`; Agent prose cannot declare a task successful without execution evidence.
+
+Bundle coverage runs after the build and before the browser stage. The generated Vite config records every module that reached the production bundle, and verification fails when a generated source or stylesheet never reached it. The step cannot be skipped: Vite resolves `./pages/Comp` to `Comp.jsx` before `Comp.tsx`, so a sibling module with the same basename makes a repair silently ineffective while every later check still passes. The scoped writer rejects the same shadowing write, forcing the Repair Agent to modify the module that is actually in charge.
 
 The Verifier is independent from the Agent that produced the revision. When deterministic checks disagree with an Agent verdict, the deterministic evidence is authoritative.
 
 The self-loop runs from a structured report through diagnostics, Repair Agent changes, and complete re-verification. It permits at most three automatic repair rounds by default, preserves each report and code diff, records before-and-after results, and stops on repeated equivalent failure. Exhaustion, timeout, or lack of progress produces a visible manual-intervention state instead of an unbounded retry.
+
+### Agent prompt versions
+
+`packages/experimental/future-cup-orchestration/src/prompts.ts` holds the role instructions. Stored Agent versions are immutable, and `ensureDefaultTeam` returns the stored team when one already exists, so editing the file changes nothing at runtime. `scripts/sync-agent-prompts.ts` registers one new version per role carrying the current instructions and publishes a team version that uses them; the script only adds rows, so existing projects, teams, and versions stay untouched. A project freezes its team version when it starts, so new instructions reach only later projects.
 
 ### HQ and real events
 

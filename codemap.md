@@ -10,6 +10,7 @@ DeepSeek Harness is an all-plugin Cordis-based agent harness engineered for auto
 - **`packages/experimental/future-cup-platform/src/mcp-server.ts`**: 官方 MCP SDK 服务端入口，提供 Streamable HTTP 协议、工具、资源、提示词及 loopback 请求防护。
 - **`packages/experimental/future-cup-platform/ui/src/main.tsx`**: 前端单页应用 (SPA) 入口，挂载 Ant Design 6 主题、React Router 路由及 XyFlow DAG 可视化画布。
 - **`packages/experimental/future-cup-orchestration/src/index.ts`**: 多 Agent 编排引擎核心，包含 DAG 依赖调度器、Agent 团队装配器、自愈修复循环与自动化验证器。
+- **`scripts/sync-agent-prompts.ts`**: 把 `prompts.ts` 里的最新角色指令注册为新的 Agent 版本并发布团队版本；存储的 Agent 版本不可变，只改代码不会让运行中的 Agent 生效。
 - **`package.json`**: 根工作空间依赖清单与构建/运行脚本（`pnpm start`、`pnpm run build`、`pnpm run test` 等）。
 
 ---
@@ -32,7 +33,7 @@ DeepSeek Harness is an all-plugin Cordis-based agent harness engineered for auto
 | **`packages/llm/llm-pi-ai/src/`** | Implementation of ModelProvider plugin and Server-Sent Events (SSE) parser. | [View Map](packages/llm/llm-pi-ai/src/codemap.md) |
 | **`packages/experimental/`** | Specialized incubation workspaces and competition platforms. | [View Map](packages/experimental/codemap.md) |
 | **`packages/experimental/future-cup-orchestration/`** | Future Cup multi-agent orchestration engine, DAG scheduler, and repair. | [View Map](packages/experimental/future-cup-orchestration/codemap.md) |
-| **`packages/experimental/future-cup-orchestration/src/`** | Core engine files: DagEngine, AgentRegistry, TeamRecommender, AdaptiveRepair. | [View Map](packages/experimental/future-cup-orchestration/src/codemap.md) |
+| **`packages/experimental/future-cup-orchestration/src/`** | Core engine files: DagEngine, AgentRegistry, TeamRecommender, AdaptiveRepair, BundleManifest. | [View Map](packages/experimental/future-cup-orchestration/src/codemap.md) |
 | **`packages/experimental/future-cup-platform/`** | Full-stack Web, API, realtime, and MCP Server platform plugin hosting port 3090. | [View Map](packages/experimental/future-cup-platform/codemap.md) |
 | **`packages/experimental/future-cup-platform/src/`** | Fastify REST controllers, official MCP transport, WebSocket gateway, and static assets. | [View Map](packages/experimental/future-cup-platform/src/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/`** | Single Page Application (SPA) frontend build workspace (React 18 + Vite). | [View Map](packages/experimental/future-cup-platform/ui/codemap.md) |
@@ -49,3 +50,10 @@ DeepSeek Harness is an all-plugin Cordis-based agent harness engineered for auto
 | **`packages/experimental/future-cup-platform/ui/src/routes/`** | Application routing hierarchy and view transition navigation map. | [View Map](packages/experimental/future-cup-platform/ui/src/routes/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/src/state/`** | Global state stores for active project runs, selection, and theme mode. | [View Map](packages/experimental/future-cup-platform/ui/src/state/codemap.md) |
 | **`packages/experimental/future-cup-platform/ui/src/team/`** | Multi-agent team builder, role editor, and concurrency allocation UI. | [View Map](packages/experimental/future-cup-platform/ui/src/team/codemap.md) |
+| **`scripts/`** | Repository gates and generators, including the Future Cup prompt sync and deliverables builder. | — |
+
+---
+
+## 生成工程的验证链路
+
+生成的 React 工程走固定流水线：结构检查、依赖安装、`tsc --noEmit`、Vite 构建、产物覆盖检查，最后在桌面与移动两种视口下用 Chromium 验证。产物覆盖检查比对实际进入 bundle 的模块与生成源码，因为同名兄弟模块会遮蔽目标文件，让一次修复在其后的全部检查中静默失效。
