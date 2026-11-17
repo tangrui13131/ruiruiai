@@ -114,6 +114,8 @@ The UI Designer returns design tokens rather than a large stylesheet. The packag
 
 The Verifier checks required project files, requires `HashRouter` instead of `BrowserRouter`, installs dependencies, runs `tsc --noEmit`, creates a Vite production bundle, starts a loopback preview server, and drives Chromium through Playwright at desktop and mobile widths. A PASS requires every expected route to render non-empty content, required text and navigation interactions to succeed, and the browser to report no `pageerror`, `console.error`, Ant Design deprecation warning, failed request, or HTTP 4xx/5xx response.
 
+Bundle coverage is checked between the build and the browser stage. The generated Vite config records every module that reached the production bundle, and the Verifier fails the run when a generated source or stylesheet never reached it. This catches a repair that changed the wrong file: Vite resolves `./pages/Comp` to `Comp.jsx` before `Comp.tsx`, so a corrected `Comp.tsx` written beside an existing `Comp.jsx` would otherwise pass every downstream check while changing nothing. The scoped writer rejects the same shadowing write outright, so the Repair Agent has to modify the module that is actually in charge.
+
 Findings are normalized into a deterministic SHA-256 `failureSignature`. The self-loop permits the configured number of Repair Agent rounds, runs the complete verification pipeline after every repair, stores the real source diff and before/after statuses, and stops with `ESCALATED` on repeated signatures, timeout, verifier incompleteness, or exhausted rounds. Every Repair call uses its own Harness Session.
 
 ### Realtime product events
@@ -137,6 +139,7 @@ The M4.0 gate verified this envelope against real PostgreSQL sequencing and the 
 | `src/harness-agents.ts` | Real TypeScript SDK Agent adapters and read-only profile |
 | `src/team-orchestrator.ts` | Planner, role execution, parallel frontend calls, Integration, and self-loop composition |
 | `src/build-verifier.ts` | Independent dependency, TypeScript, and Vite build checks |
+| `src/bundle-manifest.ts` | Bundle coverage check for generated sources and stylesheets |
 | `src/browser-verifier.ts` | Playwright route, interaction, console, page error, and network verification |
 | `src/preview-server.ts` | Owned loopback preview server with atomic port allocation and quiescent close |
 | `src/failure-signature.ts` | Diagnostic normalization and stable repeated-failure hashing |

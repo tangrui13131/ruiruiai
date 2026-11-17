@@ -1,7 +1,7 @@
 /** Deterministic React/Vite/Ant Design scaffold and scoped structured-file writer. */
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, relative, resolve, sep } from 'node:path'
+import { dirname, extname, relative, resolve, sep } from 'node:path'
 import type { FilePlan } from './types.ts'
 import type { UiDesignTokens } from './types.ts'
 
@@ -57,8 +57,25 @@ const BASE_FILES: Readonly<Record<string, string>> = {
   'vite.config.ts': [
     "import { defineConfig } from 'vite'",
     "import react from '@vitejs/plugin-react'",
+    "import type { Plugin } from 'vite'",
     '',
-    'export default defineConfig({ base: \'./\', plugins: [react()] })',
+    '// Records every module that actually reached the production bundle so the',
+    '// platform can prove that no source file was silently bypassed.',
+    'function moduleManifest(): Plugin {',
+    '  return {',
+    "    name: 'future-cup-module-manifest',",
+    '    generateBundle(_options, bundle) {',
+    '      const modules: string[] = []',
+    '      for (const chunk of Object.values(bundle)) {',
+    "        if (!('modules' in chunk)) continue",
+    '        for (const id of Object.keys(chunk.modules)) modules.push(id)',
+    '      }',
+    "      this.emitFile({ type: 'asset', fileName: 'module-manifest.txt', source: modules.join('\\n') })",
+    '    },',
+    '  }',
+    '}',
+    '',
+    "export default defineConfig({ base: './', plugins: [react(), moduleManifest()] })",
     '',
   ].join('\n'),
   'index.html': [
@@ -124,6 +141,34 @@ export function writeProjectScaffold(
   }
 }
 
+/** Source file extensions that can shadow one another through an extensionless import. */
+const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.mts'] as const
+
+/**
+ * List sibling source files that would shadow the proposed path.
+ *
+ * Vite resolves `./pages/Comp` to `Comp.jsx` before `Comp.tsx`, so writing a
+ * corrected `Comp.tsx` next to an existing `Comp.jsx` changes nothing. A
+ * generated application must never contain two modules with one basename.
+ * @param workspace - generated project root.
+ * @param path - proposed repository-relative path.
+ * @returns shadowing sibling paths relative to the workspace.
+ */
+function findShadowingSiblings(workspace: string, path: string): string[] {
+  const extension = extname(path)
+  if (!SOURCE_EXTENSIONS.includes(extension as (typeof SOURCE_EXTENSIONS)[number])) {
+    return []
+  }
+  const base = path.slice(0, path.length - extension.length)
+  const siblings: string[] = []
+  for (const candidate of SOURCE_EXTENSIONS) {
+    if (candidate === extension) continue
+    const sibling = `${base}${candidate}`
+    if (existsSync(resolve(workspace, sibling))) siblings.push(sibling)
+  }
+  return siblings.sort()
+}
+
 /**
  * Apply validated structured file plans without escaping the project workspace.
  * @param workspace - generated project root.
@@ -149,6 +194,13 @@ export function writeScopedFiles(
     const relativePath = relative(root, target).replaceAll('\\', '/')
     if (relativePath.startsWith('../') || relativePath === '..' || target.includes(`${sep}..${sep}`)) {
       throw new Error(`Agent file path "${file.path}" escapes the project workspace`)
+    }
+    const shadows = findShadowingSiblings(root, file.path)
+    if (shadows.length > 0) {
+      throw new Error(
+        `Agent file path "${file.path}" would shadow existing source ${shadows.join(', ')}. `
+        + 'Modify the existing module instead of adding a second file with the same basename.',
+      )
     }
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, file.content)

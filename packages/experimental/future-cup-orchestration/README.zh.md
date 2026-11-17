@@ -114,6 +114,8 @@ UI Designer 返回设计 token，而不是大型样式表。本包根据 token �
 
 Verifier 检查必需工程文件、要求使用 `HashRouter` 而非 `BrowserRouter`、安装依赖、运行 `tsc --noEmit`、创建 Vite 生产构建、启动 loopback 预览服务，并让 Playwright 在桌面与移动宽度下驱动 Chromium。只有全部预期路由渲染出非空内容、必需文本与导航交互成功，并且浏览器没有 `pageerror`、`console.error`、Ant Design 弃用告警、失败请求或 HTTP 4xx/5xx 响应时，状态才能为 PASS。
 
+构建完成与浏览器检查之间会执行一次产物覆盖校验。生成的 Vite 配置会记录实际进入生产产物的每一个模块，Verifier 在某个生成源码或样式表从未进入产物时判失败。这能抓出“改错了文件”的修复：Vite 解析 `./pages/Comp` 时先命中 `Comp.jsx` 而非 `Comp.tsx`，因此写在既有 `Comp.jsx` 旁边的修正版 `Comp.tsx` 会通过其后的全部检查却毫无效果。范围写入器会直接拒绝同类遮蔽写入，迫使 Repair Agent 修改真正生效的那个模块。
+
 全部 finding 会规范化为确定性的 SHA-256 `failureSignature`。Self-loop 按显式配置允许 Repair Agent 轮次，每次修复后运行完整验证，保存真实源码 Diff 与修复前后状态；重复签名、超时、验证环境不完整或轮次耗尽时以 `ESCALATED` 终止。每次 Repair 调用使用独立 Harness Session。
 
 ### 实时产品事件
@@ -137,6 +139,7 @@ M4.0 门禁已用真实 PostgreSQL 序号与 TypeScript SDK 通知流验证该�
 | `src/harness-agents.ts` | 真实 TypeScript SDK Agent 适配器与只读 profile |
 | `src/team-orchestrator.ts` | Planner、角色执行、Frontend 并行调用、Integration 与 Self-loop 组合 |
 | `src/build-verifier.ts` | 独立依赖、TypeScript 与 Vite 构建检查 |
+| `src/bundle-manifest.ts` | 生成源码与样式表的产物覆盖校验 |
 | `src/browser-verifier.ts` | Playwright 路由、交互、控制台、页面错误与网络验证 |
 | `src/preview-server.ts` | 原子分配端口的自有 loopback 预览服务与静默关闭 |
 | `src/failure-signature.ts` | 诊断规范化与稳定的重复失败哈希 |

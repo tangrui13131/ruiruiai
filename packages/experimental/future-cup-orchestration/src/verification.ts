@@ -3,6 +3,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
+import { findBypassedSources } from './bundle-manifest.ts'
 import { verifyBrowser } from './browser-verifier.ts'
 import type { BrowserVerification } from './browser-verifier.ts'
 import { verifyProjectBuild } from './build-verifier.ts'
@@ -79,6 +80,24 @@ export async function verifyProject(
   findings.push(...build.findings)
   if (build.status !== 'PASS') {
     checks.push({ name: 'browser', status: 'SKIPPED', summary: 'Browser checks require a passing build.' })
+    return finalize(workspace, spec, checks, findings, screenshots, incomplete)
+  }
+
+  const bypassed = await findBypassedSources(workspace)
+  checks.push({
+    name: 'bundle-coverage',
+    status: bypassed.length === 0 ? 'PASS' : 'FAIL',
+    summary: bypassed.length === 0
+      ? 'Every generated source reached the production bundle.'
+      : 'Some generated sources never reached the production bundle.',
+  })
+  findings.push(...bypassed)
+  if (bypassed.length > 0) {
+    checks.push({
+      name: 'browser',
+      status: 'SKIPPED',
+      summary: 'Browser checks require every generated source to reach the bundle.',
+    })
     return finalize(workspace, spec, checks, findings, screenshots, incomplete)
   }
 
