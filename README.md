@@ -104,14 +104,7 @@ Browser discovery is separate at `/api/v1/mcp/info`, and the management header p
 | `packages/*/*`, `vendor/` | Harness plugin packages and vendored Cordis |
 | `docs/`, `.agents/notes/` | Architecture, development guides and design notes |
 | `scripts/`, `.github/workflows/` | Gates, generators and CI workflows |
-| `deliverables/future-cup-initial/` | Initial-round deliverables (see below) |
 | `python/`, `native/`, `benchmarks/` | Python SDK, native addon sources and performance gates |
-
-## Initial-round deliverables
-
-`deliverables/future-cup-initial/` contains the proposal, system report, evidence matrix, architecture diagrams, functional and test screenshots, and raw test data. The baseline is the 2026-11-03 initial-round version; start with the [package README](deliverables/future-cup-initial/README.md) and `文案/初赛方案书.docx`.
-
-`文件清单.json` records the byte size and sha256 of all 55 shipped files. If you edit any file in the package, recompute the matching entry — otherwise the manifest no longer verifies.
 
 ## Verification
 
@@ -143,7 +136,6 @@ This repository keeps **no secrets**: no committed `.env`, no hard-coded API key
 - [Architecture](docs/architecture.md) and [development guide](docs/development.md)
 - [Platform package README](packages/experimental/future-cup-platform/README.md) — REST API and implementation notes
 - [Safety notice](SAFETY.md) and [contributing guide](CONTRIBUTING.md)
-- [Initial-round deliverables README](deliverables/future-cup-initial/README.md)
 - Competition constraints and milestones live in `.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md`
 
 ## License

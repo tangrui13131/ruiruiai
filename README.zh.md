@@ -104,14 +104,7 @@ pnpm --filter @deepseek-ai/dsh-experimental-future-cup-platform build:ui
 | `packages/*/*`、`vendor/` | Harness 插件包与内置的 Cordis |
 | `docs/`、`.agents/notes/` | 架构、开发指南与设计笔记 |
 | `scripts/`、`.github/workflows/` | 门禁、生成脚本与 CI 工作流 |
-| `deliverables/future-cup-initial/` | 初赛交付包（见下文） |
 | `python/`、`native/`、`benchmarks/` | Python SDK、原生插件源码与性能门禁 |
-
-## 初赛交付包
-
-`deliverables/future-cup-initial/` 收录方案书、系统报告、赛题证据矩阵、架构图、功能与测试截图及原始测试数据。基线为 2026-11-03 的初赛交付版本；建议先阅读 [交付包说明](deliverables/future-cup-initial/README.md) 与 `文案/初赛方案书.docx`。
-
-`文件清单.json` 记录了 55 个文件的字节数与 sha256。改动交付包内任何文件后，必须同步重算对应条目，否则清单不再自洽。
 
 ## 验证
 
@@ -143,7 +136,6 @@ pnpm run verify-translation-pairing --write README.md
 - [架构文档](docs/architecture.zh.md) 与 [开发指南](docs/development.zh.md)
 - [平台包 README](packages/experimental/future-cup-platform/README.zh.md)：REST API 与实现说明
 - [安全说明](SAFETY.zh.md) 与 [贡献指南](CONTRIBUTING.zh.md)
-- [初赛交付包说明](deliverables/future-cup-initial/README.md)
 - 赛题约束与里程碑记录在 `.agents/notes/proposed/feature/2026-10-30-future-cup-web-frontend-agent-platform.zh.md`
 
 ## 许可
