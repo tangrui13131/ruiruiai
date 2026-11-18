@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
 /future-cup-multi-agent-orchestration-workbench:
-  en: 81a8c5701bddb22b
-  zh: 974ff2cc62535d14
+  en: 9782e60c59b91aa1
+  zh: 94d5b56b9c80b643
 /future-cup-multi-agent-orchestration-workbench/what-this-is:
   en: bbcc2de24c7c686f
   zh: 6582da49b7336ffc

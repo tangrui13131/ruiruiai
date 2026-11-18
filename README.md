@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This repository contains the **Future Cup multi-agent orchestration workbench** and its initial-round deliverables. It is built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), an everything-is-a-plugin agent harness powered by [Cordis](https://github.com/cordiverse/cordis). Harness supplies agents, sessions, tools and model adapters; Future Cup adds the control plane and an MCP Server for external clients.
+This repository contains the **Future Cup multi-agent orchestration workbench**. It is built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), an everything-is-a-plugin agent harness powered by [Cordis](https://github.com/cordiverse/cordis). Harness supplies agents, sessions, tools and model adapters; Future Cup adds the control plane and an MCP Server for external clients.
 
 The workbench turns a natural-language requirement into a durable task DAG, assembles and freezes a versioned agent team, schedules concurrent work, runs independent browser verification, applies bounded self-repair, and produces a runnable project with execution evidence. **The frontend engineering crew is one built-in team, not the product itself** — the platform is a general multi-agent orchestration workbench.
 

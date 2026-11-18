@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本仓库是 **Future Cup 多 Agent 调度工作站** 的实现与初赛交付材料。底座为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）——由 [Cordis](https://github.com/cordiverse/cordis) 驱动的「一切皆插件」agent harness。Harness 提供 Agent、Session、工具与模型适配能力，Future Cup 在其之上实现平台控制层与面向外部客户端的 MCP Server。
+本仓库是 **Future Cup 多 Agent 调度工作站** 的实现。底座为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）——由 [Cordis](https://github.com/cordiverse/cordis) 驱动的「一切皆插件」agent harness。Harness 提供 Agent、Session、工具与模型适配能力，Future Cup 在其之上实现平台控制层与面向外部客户端的 MCP Server。
 
 工作站把自然语言需求转为持久任务 DAG，装配并冻结版本化 Agent 团队，并发调度任务，执行独立浏览器验证，进行有界自愈修复，最终交付可运行的工程与执行证据。**前端工程团队只是内置的一个团队，不是平台本身**——平台定位是通用的多 Agent 调度工作站。
 
