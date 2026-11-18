@@ -1,4 +1,5 @@
-// 生成 Future Cup 初赛交付包（deliverables/future-cup-initial/）。
+// 生成 Future Cup 初赛交付包（默认输出到 deliverables/future-cup-initial/）。
+// 输出目录优先级：`--out <dir>` > 环境变量 FUTURE_CUP_OUT_DIR > 仓库内默认路径。
 // 注意：功能截图的 images 映射仍指向 .artifacts 旧图，重跑会覆盖 01–12/19 并丢掉手工补充的 20–24；
 // 只应在交付包重建场景整体重跑，并先确认 .artifacts 证据为当前版本。
 import { createHash } from 'node:crypto'
@@ -8,7 +9,22 @@ import { pathToFileURL } from 'node:url'
 
 const here = import.meta.dirname
 const repoRoot = resolve(here, '..')
-const outRoot = resolve(repoRoot, 'deliverables/future-cup-initial')
+
+/**
+ * 解析交付包输出目录。
+ * @param argv - 去掉 node 与脚本路径后的参数列表。
+ * @returns 绝对输出目录：`--out` 的值优先，其次 `FUTURE_CUP_OUT_DIR`，都没有时回落到仓库内默认路径。
+ */
+function resolveOutRoot(argv) {
+  const flagIndex = argv.indexOf('--out')
+  const fromFlag = flagIndex >= 0 ? argv[flagIndex + 1] : undefined
+  if (flagIndex >= 0 && fromFlag === undefined) throw new Error('--out 需要一个目录参数')
+  const candidate = fromFlag ?? process.env.FUTURE_CUP_OUT_DIR
+  return candidate ? resolve(candidate) : resolve(repoRoot, 'deliverables/future-cup-initial')
+}
+
+const outRoot = resolveOutRoot(process.argv.slice(2))
+console.log(`[future-cup-deliverables] 输出目录：${outRoot}`)
 const sourceRoot = resolve(repoRoot, '.artifacts')
 const deliveryBaseline = {
   label: 'future-cup-initial-2026-11-03',
