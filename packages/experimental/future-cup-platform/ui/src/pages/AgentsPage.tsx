@@ -548,7 +548,7 @@ export function AgentsPage() {
                   return (
                     <List.Item
                       className={selectedDefinition?.id === definition.id
-                        ? 'my-team-row my-team-row-active'
+                        ? 'my-team-row selected'
                         : 'my-team-row'}
                       onClick={() => { setSelectedId(definition.id) }}
                       actions={[
@@ -586,11 +586,11 @@ export function AgentsPage() {
                         title={(
                           <Space wrap size={6}>
                             <Text strong>{definition.name}</Text>
-                            <Tag color={isBuiltin ? 'blue' : 'cyan'}>
+                            <Tag>
                               {isBuiltin ? dictionary.agents.builtinTag : dictionary.agents.customTag}
                             </Tag>
                             {latest === undefined ? null : (
-                              <Tag color="geekblue">{roleLabel(latest.role)}</Tag>
+                              <Tag>{roleLabel(latest.role)}</Tag>
                             )}
                             <Tag color={statusTagColor(definition.status)}>
                               {statusLabel(definition.status)}
@@ -630,7 +630,7 @@ export function AgentsPage() {
               title={(
                 <Space wrap>
                   <Text strong>{selectedDefinition.name}</Text>
-                  <Tag color={selectedDefinition.builtin === true ? 'blue' : 'cyan'}>
+                  <Tag>
                     {selectedDefinition.builtin === true
                       ? dictionary.agents.builtinTag
                       : dictionary.agents.customTag}
@@ -721,7 +721,7 @@ export function AgentsPage() {
                       <Space orientation="vertical" style={{ width: '100%' }} size={6}>
                         <Space wrap>
                           <Text strong>{ver.version}</Text>
-                          <Tag color="geekblue">{roleLabel(ver.role)}</Tag>
+                          <Tag>{roleLabel(ver.role)}</Tag>
                           <Tag color={statusTagColor(verStatus)}>{statusLabel(verStatus)}</Tag>
                           <Tag>{dictionary.agents.model}: {ver.model}</Tag>
                           {ver.maxConcurrency === undefined ? null : (
@@ -737,22 +737,14 @@ export function AgentsPage() {
                         </Space>
                         <Space wrap size={4}>
                           {Object.entries(ver.capabilities).map(([cap, weight]) => (
-                            <Tag key={cap} color="cyan">
+                            <Tag key={cap}>
                               {cap}: {String(weight)}
                             </Tag>
                           ))}
                         </Space>
                         {ver.prompt === undefined ? null : (
                           <Paragraph
-                            style={{
-                              marginBottom: 0,
-                              padding: '8px 12px',
-                              background: '#f6f8fa',
-                              borderRadius: 6,
-                              whiteSpace: 'pre-wrap',
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                            }}
+                            className="code-block"
                             ellipsis={{ rows: 3, expandable: true, symbol: dictionary.common.details }}
                           >
                             {ver.prompt}

@@ -32,12 +32,12 @@ function ReportBody({ report, projectId }: {
   ]
   return (
     <div className="page-stack">
-      <div className="page-heading-actions">
+      <div className="collapse-heading">
         <Tag>{report.report.verifier}</Tag>
         <StatusBadge status={report.status} />
         {report.failureSignature === undefined
           ? null
-          : <Tag color="red">{dictionary.verification.signature}: {report.failureSignature.slice(0, 16)}</Tag>}
+          : <Tag>{dictionary.verification.signature}: {report.failureSignature.slice(0, 16)}</Tag>}
       </div>
       <Table
         rowKey="name"
@@ -109,10 +109,10 @@ export function VerificationPage() {
           items={reports.map(report => ({
             key: report.id,
             label: (
-              <span className="page-heading-actions">
+              <span className="collapse-heading">
                 <StatusBadge status={report.status} />
-                <span>{report.id}</span>
-                <span className="event-time">{new Date(report.createdAt).toLocaleString()}</span>
+                <span className="collapse-heading-id" title={report.id}>{report.id}</span>
+                <span className="collapse-heading-time">{new Date(report.createdAt).toLocaleString()}</span>
               </span>
             ),
             children: <ReportBody report={report} projectId={snapshot.project.id} />,

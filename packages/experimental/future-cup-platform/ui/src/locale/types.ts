@@ -22,6 +22,7 @@ export const localeDictionaries = {
     common: {
       loading: '正在加载',
       refresh: '刷新',
+      replayBoot: '系统重启',
       retry: '重试',
       open: '打开',
       close: '关闭',
@@ -340,6 +341,7 @@ export const localeDictionaries = {
       type: '事件',
       payload: '载荷',
       noEvents: '还没有项目事件',
+      autoScroll: '自动滚动',
     },
     delivery: {
       title: '交付与预览',
@@ -569,7 +571,7 @@ export const localeDictionaries = {
   },
   en: {
     appName: 'Future Cup',
-    appSubtitle: 'Multi-agent orchestration workbench',
+    appSubtitle: 'Multi-agent workbench',
     appDescription: 'Multi-agent orchestration workbench · Built-in frontend engineering team',
     language: 'Language',
     chinese: '中文',
@@ -590,6 +592,7 @@ export const localeDictionaries = {
     common: {
       loading: 'Loading',
       refresh: 'Refresh',
+      replayBoot: 'System reboot',
       retry: 'Retry',
       open: 'Open',
       close: 'Close',
@@ -908,6 +911,7 @@ export const localeDictionaries = {
       type: 'Event',
       payload: 'Payload',
       noEvents: 'No project events yet',
+      autoScroll: 'Auto-scroll',
     },
     delivery: {
       title: 'Delivery and preview',

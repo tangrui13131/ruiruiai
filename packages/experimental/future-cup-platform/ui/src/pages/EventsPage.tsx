@@ -1,5 +1,5 @@
 import { Input, Select } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EmptyPanel } from '../components/EmptyPanel.tsx'
 import { PageHeading } from '../components/PageHeading.tsx'
 import { useLocale } from '../locale/LocaleProvider.tsx'
@@ -12,6 +12,9 @@ export function EventsPage() {
   const [type, setType] = useState<string>()
   const [agent, setAgent] = useState<string>()
   const [search, setSearch] = useState('')
+  const [autoScroll, setAutoScroll] = useState(true)
+  const listEndRef = useRef<HTMLDivElement>(null)
+  const mountedRef = useRef(false)
   const events = state.events
   const types = useMemo(() => [...new Set(events.map(event => event.type))].sort(), [events])
   const agents = useMemo(
@@ -26,6 +29,15 @@ export function EventsPage() {
     }
     return true
   }), [events, type, agent, search])
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      return
+    }
+    if (!autoScroll) return
+    listEndRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' })
+  }, [filtered.length, autoScroll])
 
   return (
     <div className="page-stack">
@@ -53,6 +65,22 @@ export function EventsPage() {
           value={search}
           onChange={(event) => { setSearch(event.target.value) }}
         />
+        <div className="event-auto-scroll">
+          <span>{dictionary.events.autoScroll}</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoScroll}
+            aria-label={dictionary.events.autoScroll}
+            className={autoScroll ? 'neu-switch is-on' : 'neu-switch'}
+            onClick={() => { setAutoScroll(current => !current) }}
+          >
+            <span className="neu-switch-track">
+              <span className="neu-switch-fill" />
+              <span className="neu-switch-thumb" />
+            </span>
+          </button>
+        </div>
       </div>
       {filtered.length === 0 ? <EmptyPanel text={dictionary.events.noEvents} /> : (
         <div className="event-list">
@@ -74,6 +102,7 @@ export function EventsPage() {
               <pre className="event-payload">{JSON.stringify(event.payload, null, 2)}</pre>
             </article>
           ))}
+          <div ref={listEndRef} />
         </div>
       )}
     </div>

@@ -87,7 +87,7 @@ export function SchedulerPage() {
               <div className="page-stack">
                 <div className="section-panel-heading">
                   <h3>{selected.taskId}</h3>
-                  <Tag color="cyan">{selected.selectedAgentId}</Tag>
+                  <Tag>{selected.selectedAgentId}</Tag>
                 </div>
                 <div>
                   <div className="agent-metric-label">{dictionary.scheduler.reason}</div>

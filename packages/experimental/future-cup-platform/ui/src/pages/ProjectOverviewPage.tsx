@@ -38,7 +38,7 @@ function AgentHistorySummary({ agent }: { readonly agent: AgentView }) {
         size="small"
         percent={successPercent}
         showInfo={false}
-        strokeColor={hasHistory ? '#304bc7' : '#d8ccc2'}
+        strokeColor={hasHistory ? '#3b6a9c' : '#eceae3'}
       />
       <div className="agent-history-detail">{historySummary}</div>
     </div>

@@ -11,7 +11,6 @@ import {
   Alert,
   App,
   Button,
-  Empty,
   Form,
   Input,
   InputNumber,
@@ -26,6 +25,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client.ts'
 import { localizedApiError } from '../api/errors.ts'
+import { EmptyPanel } from '../components/EmptyPanel.tsx'
 import type {
   AgentDefinitionView,
   AgentTeamPageView,
@@ -430,7 +430,7 @@ export function MyTeamsPage() {
       <div className="my-teams-layout">
         <section className="section-panel my-teams-list-panel">
           {page === undefined || page.items.length === 0 ? (
-            <Empty description={dictionary.myTeams.empty} />
+            <EmptyPanel text={dictionary.myTeams.empty} />
           ) : (
             <List
               dataSource={page.items}
@@ -511,7 +511,7 @@ export function MyTeamsPage() {
         </section>
         <section className="section-panel my-teams-detail-panel">
           {selectedTeam === undefined ? (
-            <Empty description={dictionary.myTeams.empty} />
+            <EmptyPanel text={dictionary.myTeams.empty} />
           ) : (
             <>
               <div className="section-panel-heading">
@@ -558,7 +558,7 @@ export function MyTeamsPage() {
               </div>
               <h3>{dictionary.myTeams.versions}</h3>
               {versions.length === 0 ? (
-                <Empty description={dictionary.myTeams.empty} />
+                <EmptyPanel text={dictionary.myTeams.empty} />
               ) : (
                 <List
                   dataSource={[...versions].reverse()}

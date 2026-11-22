@@ -253,6 +253,12 @@ export function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const deriveMode = Form.useWatch('mode', deriveForm) ?? 'UPGRADE'
 
+  /** Replay the first-paint boot animation without reloading the page. */
+  function replayBootAnimation(): void {
+    const bootWindow = window as Window & { __FC_BOOT_REPLAY__?: () => void }
+    bootWindow.__FC_BOOT_REPLAY__?.()
+  }
+
   async function load(): Promise<void> {
     setLoading(true)
     try {
@@ -388,9 +394,10 @@ export function ProjectsPage() {
     { key: 'verification', label: dictionary.projects.activePanel.stages.verification, role: 'VERIFIER' },
     { key: 'delivery', label: dictionary.projects.activePanel.stages.delivery, role: 'DELIVERY' },
   ]
+  /* 聚焦项目:优先当前正在运行的;没有运行中的,展示最近创建的 */
   const focusProject = projects.find(
     item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
-  ) ?? projects[0]
+  ) ?? [...projects].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
   const activeStage = computeActiveStage(focusProject, focusSnapshot, stageItems.length)
   const stagePercent = focusProject === undefined
     ? 0
@@ -451,6 +458,13 @@ export function ProjectsPage() {
               icon={<ReloadOutlined />}
               aria-label={dictionary.common.refresh}
               onClick={() => { void load() }}
+            />
+          </Tooltip>
+          <Tooltip title={dictionary.common.replayBoot}>
+            <Button
+              icon={<PlayCircleOutlined />}
+              aria-label={dictionary.common.replayBoot}
+              onClick={() => { replayBootAnimation() }}
             />
           </Tooltip>
           <Button
