@@ -44,7 +44,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1b1713}
 .gl.drag{cursor:grabbing}
 .gl.pick{cursor:pointer}
 .fx{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
-.vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 78% 82% at 50% 50%,transparent 62%,rgba(0,0,0,.38) 100%)}
+.vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 78% 82% at 50% 50%,transparent 62%,rgba(60,48,38,.16) 100%)}
+/* 平台纸面垫层：盖住画布四周，中央留出舞台窗口（几何由 layout() 同步） */
+.pm{position:absolute;left:24%;top:18%;width:52%;height:64%;border-radius:26px;pointer-events:none;box-shadow:0 0 0 200vmax #f2e8e0,0 0 64px 30px rgba(242,232,224,.85),inset 0 0 70px rgba(60,48,38,.1)}
 .nr{position:absolute;inset:0;pointer-events:none}
 .fit{position:absolute;inset:0;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);pointer-events:none}
 .narrow .fit{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -55,18 +57,18 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1b1713}
 /* ---------- 左上标题（与前几款同款） ---------- */
 .topfade{position:absolute;left:-40px;top:0;width:900px;height:280px;background:radial-gradient(ellipse 720px 270px at 0 0,rgba(9,7,5,.92),rgba(9,7,5,.6) 55%,rgba(9,7,5,0) 88%)}
 .botfade{position:absolute;left:0;right:0;bottom:0;height:300px;background:linear-gradient(0deg,rgba(6,8,11,.96),rgba(6,8,11,.88) 55%,rgba(6,8,11,.45) 80%,transparent)}
-.hd{position:absolute;left:10px;top:18px;width:max-content;text-shadow:0 0 6px var(--bg),0 0 14px var(--bg)}
-.eb{width:max-content;font-size:10px;letter-spacing:.26em;color:var(--fg-3);white-space:nowrap}
-.eb b{color:var(--hi);font-weight:500}
-.hd h1{margin:12px 0 0;font-family:var(--display);font-weight:700;font-size:44px;line-height:1.06;letter-spacing:.05em;color:var(--fg)}
+.hd{position:absolute;left:14px;top:18px;width:334px;box-sizing:border-box;padding:16px 20px 14px;border-radius:16px;background:rgba(246,237,229,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 18px 44px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.65)}
+.eb{width:max-content;font-size:10px;letter-spacing:.26em;color:#a19385;white-space:nowrap}
+.eb b{color:#1e7e46;font-weight:600}
+.hd h1{margin:10px 0 0;font-family:var(--display);font-weight:700;font-size:30px;line-height:1.12;letter-spacing:.02em;color:#28241f}
 .hd h1 span{display:block;width:max-content;white-space:nowrap}
-.hd h1 .l1{display:flex;align-items:center;width:max-content}
-.hd h1 em{font-style:normal;font-family:var(--cjk);font-weight:900;font-size:36px;line-height:1;letter-spacing:.08em;margin-left:22px;text-shadow:none;background:linear-gradient(90deg,#ffe3a3,#ff9a62);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 10px rgba(255,170,100,.3))}
+.hd h1 .l1{display:flex;align-items:baseline;width:max-content}
+.hd h1 em{font-style:normal;font-family:var(--cjk);font-weight:600;font-size:11px;line-height:1;letter-spacing:.14em;margin-left:12px;color:#3b6a9c;text-shadow:none;background:none;filter:none;-webkit-text-fill-color:currentColor}
 .sub{width:max-content;margin-top:12px;font-family:var(--cjk);font-size:14px;letter-spacing:.06em;color:var(--fg-2);white-space:nowrap}
 .sub b{color:var(--ai);font-weight:700}
 .sub i{font-style:normal;color:var(--hu);font-weight:700}
-.sub2{width:max-content;margin-top:12px;font-size:10px;letter-spacing:.16em;color:var(--fg-3);white-space:nowrap}
-.sub2 b{color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+.sub2{width:max-content;margin-top:10px;font-family:var(--cjk);font-size:11px;letter-spacing:.08em;color:#7a7066;white-space:nowrap}
+.sub2 b{color:#28241f;font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ---------- 右上按钮（与前几款同款） ---------- */
 .tools{position:absolute;right:10px;top:14px;display:flex;gap:6px}
@@ -115,18 +117,33 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
 .pseg i u{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--c);text-decoration:none}
 .bk{font-family:var(--cjk);font-size:13px;letter-spacing:.12em;color:var(--fg-2);white-space:nowrap}
 .bk em{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--fg-3);margin-left:10px}
-/* 左侧：公司总进度大数字 + 6 个指标（纯文字，无底框） */
-.bgl{position:absolute;left:14px;top:200px;width:310px;text-shadow:0 0 10px var(--bg),0 0 24px var(--bg)}
-.bgl::before,.bgr::before{content:"";position:absolute;left:-90px;top:-70px;right:-90px;bottom:-70px;background:radial-gradient(closest-side,rgba(6,8,11,.5),rgba(6,8,11,0));z-index:-1;pointer-events:none}
-.bv{margin-top:4px;font-size:118px;font-weight:800;line-height:.9;letter-spacing:-.05em;color:var(--hi);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 0 36px rgba(255,196,107,.22)}
-.bv small{font-size:36px;font-weight:600;letter-spacing:0;color:var(--fg-2);margin-left:6px}
-.bgl .pseg{margin-top:16px;width:290px}
-.bs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px;margin-top:26px;width:290px}
+/* 左侧：执行进度胶囊 → 流体展开成完整面板（尺寸/圆角高阻曲线无缝过渡） */
+.bgl{--fluid-e:cubic-bezier(.3,1.18,.32,1);position:absolute;left:14px;top:172px;width:176px;height:44px;box-sizing:border-box;border-radius:22px;background:rgba(246,237,229,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(60,48,38,.16),inset 0 1px 0 rgba(255,255,255,.7);overflow:hidden;pointer-events:auto;cursor:pointer;transition:width .5s var(--fluid-e),height .5s var(--fluid-e),border-radius .5s var(--fluid-e),box-shadow .4s ease}
+.bgl.open{width:334px;border-radius:16px;cursor:default}
+.bgl::before{content:none}
+.bgr::before{content:"";position:absolute;left:-90px;top:-70px;right:-90px;bottom:-70px;background:radial-gradient(closest-side,rgba(6,8,11,.5),rgba(6,8,11,0));z-index:-1;pointer-events:none}
+.bv{margin-top:6px;font-size:72px;font-weight:800;line-height:.95;letter-spacing:-.04em;color:#28241f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bv small{font-size:24px;font-weight:600;letter-spacing:0;color:#a19385;margin-left:4px}
+.bgl .pseg{margin-top:14px;width:100%}
+.bgl .pseg i{background:rgba(40,36,31,.12)}
+.bgl-pill{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 16px 0 18px;border:0;background:transparent;color:#28241f;font:600 12.5px/1 var(--cjk);letter-spacing:.06em;cursor:pointer;text-align:left}
+.bgl-pill .bgl-dot{flex:none;width:8px;height:8px;border-radius:50%;background:#3b6a9c;box-shadow:0 0 0 3px rgba(59,106,156,.14)}
+.bgl-pill .t{letter-spacing:.08em;white-space:nowrap}
+.bgl-pill b{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:700;color:#28241f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bgl-pill em{font-style:normal;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:#a19385;margin-left:8px;white-space:nowrap;opacity:0;transition:opacity .2s ease}
+.bgl-pill .chev{flex:none;width:10px;height:6px;margin-left:4px;color:#a19385;opacity:0;transform:rotate(180deg);transition:transform .5s var(--fluid-e),opacity .2s ease}
+.bgl.open .bgl-pill em,.bgl.open .bgl-pill .chev{opacity:1}
+.bgl.open .bgl-pill .chev{transform:rotate(0deg)}
+.bgl.open .bgl-pill{cursor:pointer}
+.bgl.open .bgl-pill:hover .t{color:#3b6a9c}
+.bgl-body{box-sizing:border-box;width:294px;padding:0 20px 20px;opacity:0;transform:translateY(12px) scale(.985);transform-origin:50% 0;pointer-events:none;transition:opacity .22s ease,transform .4s var(--fluid-e)}
+.bgl.open .bgl-body{opacity:1;transform:none;pointer-events:auto;transition:opacity .3s ease .14s,transform .45s var(--fluid-e) .06s}
+.bs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;margin-top:18px;width:100%}
 .bs div{display:flex;flex-direction:column;gap:4px;min-width:0}
-.bs b{font-size:28px;font-weight:700;line-height:1;color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
-.bs b small{font-size:12px;color:var(--fg-3);margin-left:3px;font-weight:500}
-.bs span{font-family:var(--cjk);font-size:11.5px;letter-spacing:.06em;color:var(--fg-3);white-space:nowrap}
-.bs .w b{color:var(--warn)}
+.bs b{font-size:24px;font-weight:700;line-height:1;color:#28241f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bs b small{font-size:11px;color:#a19385;margin-left:3px;font-weight:500}
+.bs span{font-family:var(--cjk);font-size:11px;letter-spacing:.05em;color:#7a7066;white-space:nowrap}
+.bs .w b{color:#b45309}
 /* 右侧：动态（几行文字，越旧越淡） */
 .bgr{position:absolute;right:14px;top:104px;width:330px;text-align:right;text-shadow:0 0 8px var(--bg),0 0 18px var(--bg)}
 .log{margin-top:12px;display:flex;flex-direction:column;gap:7px;font-size:11.5px;line-height:1.4}
@@ -386,13 +403,90 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
 .look em{font-style:normal;font-size:11.5px;color:var(--fg-3)}
 .toastx{position:absolute;left:50%;bottom:60px;transform:translateX(-50%);z-index:25;max-width:calc(100% - 32px);background:rgba(24,19,14,.95);border:1px solid var(--line-2);border-left:3px solid var(--hi);border-radius:5px;padding:9px 14px;font:13px/1.5 var(--cjk);color:var(--fg);pointer-events:none}
 @media (max-width:640px){.row2,.hf-grid{grid-template-columns:1fr}.hr-r{grid-template-columns:minmax(0,1fr) auto}.hr-r .dp,.hr-r .ro,.hr-r .st{display:none}.hr-r .cft{grid-column:1/2}.mdl-card.wide{max-width:100%}}
-@media (prefers-reduced-motion:reduce){.bar i{transition:none}.lab,.tg,.bb,.dr,.pr{transition:none}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}.lab,.tg,.bb,.dr,.pr{transition:none}.bgl,.bgl-body,.bgl-pill .chev{transition:none}}
+
+/* ---------- 平台纸面主题：舞台周边 HUD 与纸面同色系；房间内 3D 投影标签保持原暗色 ---------- */
+.topfade,.botfade{display:none}
+.hd,.bgl{box-shadow:0 10px 30px rgba(60,48,38,.16),inset 0 1px 0 rgba(255,255,255,.7)}
+/* 顶部中间：运行概览 + 昼夜时钟 */
+.cr{background:rgba(246,237,229,.92);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 12px 30px rgba(60,48,38,.16);color:#7a7066}
+.cr b{color:#28241f}
+.cr .big{color:#28241f}
+.cr em{color:#a19385}
+.cr .cr-n{color:#3b6a9c}
+.cr .pc{color:#3b6a9c}
+.cr-sel{border-color:#3b6a9c;box-shadow:inset 0 -2px 0 #3b6a9c}
+.cr .live-dot::before{background:#1e7e46;box-shadow:none}
+.tod{background:rgba(246,237,229,.92);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 12px 30px rgba(60,48,38,.16);color:#7a7066}
+.tod i{color:#b45309}
+.tod b{color:#28241f}
+button.tb{color:#5c5248;background:rgba(246,237,229,.92);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 12px 30px rgba(60,48,38,.16)}
+button.tb b{color:#28241f}
+button.tb:hover{border-color:#3b6a9c;color:#28241f}
+.cb{color:#5c5248;background:#f6ede5;border-color:#e1d6cd;border-radius:8px}
+.cb:hover{color:#28241f;border-color:#3b6a9c}
+.cb.hi{color:#fff;background:#28241f;border-color:#28241f}
+.cb.hi:hover{background:#3b3733}
+/* 右侧：动态卡片 */
+.bgr{box-sizing:border-box;padding:16px 20px;border-radius:16px;background:rgba(246,237,229,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(60,48,38,.16),inset 0 1px 0 rgba(255,255,255,.7);text-align:right;text-shadow:none}
+.bgr .bk{color:#28241f;font-weight:600}
+.bgr .bk em{color:#a19385}
+.bgr .lr span:first-child{color:#a19385}
+.bgr .lr .a{color:#3b6a9c}
+.bgr .lr .x{color:#5c5248}
+.bgr .lr.fresh .x{color:#28241f}
+.bgr .lr.w .x{color:#b45309}
+.bgr .lr.r .x{color:#b91c1c}
+.bgr .lr.g .x{color:#1e7e46}
+/* 底部 dock：部门 / 项目行改成平台小卡 */
+.dock{text-shadow:none}
+.dock .bar{background:rgba(40,36,31,.12)}
+.dock .pseg i{background:rgba(40,36,31,.12)}
+.dock .s-ok{color:#1e7e46}
+.dock .s-warn{color:#b45309}
+.dock .s-bad{color:#b91c1c}
+.dock .s-dim{color:#a19385}
+.dock .s-done{color:#b45309}
+.dk-h{color:#a19385}
+.dk-t b{color:#28241f}
+.vt button,.sbar button{color:#5c5248;background:#f6ede5;border:1px solid #e1d6cd;border-radius:8px}
+.vt button:hover,.sbar button:hover{border-color:#3b6a9c;color:#28241f}
+.vt button.on{color:#fff;background:#28241f;border-color:#28241f}
+.sbar button.on{color:#fff;background:#28241f;border-color:#28241f}
+.sbar button.on i{background:#fff}
+.dr,.pr{border-radius:12px;background:#f6ede5;padding:8px 10px;box-shadow:0 6px 16px rgba(60,48,38,.1),inset 0 1px 0 rgba(255,255,255,.7)}
+.dr .nm b,.pr .nm b{color:#28241f}
+.dr .nm span{color:#7a7066}
+.dr .pc,.pr .pc{color:color-mix(in srgb,var(--c,#304bc7) 62%,#28241f)}
+.dr .nm u,.pr .nm u{color:color-mix(in srgb,var(--c,#304bc7) 62%,#28241f)}
+.dr .ft{color:#7a7066}
+.dr .ft b{color:#5c5248}
+.dr:hover,.dr.sel{background:#efe4db}
+.dr.sel .nm b{color:color-mix(in srgb,var(--c,#304bc7) 62%,#28241f)}
+/* 通知与页脚 */
+.toastx{background:rgba(246,237,229,.97);border-color:#e1d6cd;border-left-color:#3b6a9c;color:#28241f}
+/* 交付归档弹窗：验收自愈归档完成（run PASSED 终态）时从顶部流体落下 */
+.dx{position:absolute;left:50%;top:64px;z-index:26;width:342px;box-sizing:border-box;padding:15px 18px 16px;border-radius:16px;background:rgba(246,237,229,.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 18px 44px rgba(60,48,38,.26),inset 0 1px 0 rgba(255,255,255,.7);transform:translate(-50%,-150%);opacity:0;transition:transform .55s cubic-bezier(.3,1.18,.32,1),opacity .35s ease;pointer-events:none;cursor:pointer}
+.dx.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.dx-h{display:flex;align-items:center;gap:8px;min-width:0}
+.dx-tag{flex:none;font:700 9.5px/1 var(--cjk);letter-spacing:.12em;color:#fff;background:#3b6a9c;padding:3px 7px;border-radius:4px}
+.dx-h b{font:700 14px/1.2 var(--cjk);color:#28241f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dx-ok{flex:none;margin-left:auto;color:#1e7e46;font:700 10px/1 var(--cjk);letter-spacing:.08em}
+.dx-req{margin-top:7px;color:#7a7066;font:400 11.5px/1.4 var(--cjk);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dx-b{display:flex;align-items:baseline;gap:10px;margin-top:10px}
+.dx-pct{font:800 34px/1 var(--display);letter-spacing:-.02em;color:#28241f;font-variant-numeric:tabular-nums}
+.dx-cnt{font:600 11px/1 var(--mono);color:#7a7066}
+.dx-list{margin-top:9px;display:flex;flex-direction:column;gap:4px}
+.dx-list div{display:flex;justify-content:space-between;gap:8px;font:400 11px/1.4 var(--cjk);color:#5c5248}
+.dx-list em{font-style:normal;color:#1e7e46;font-weight:700}
+.sb .wm{color:#a19385}
 </style>
 
 <div class="app" id="app">
 <canvas class="gl" id="gl" aria-label="Future Cup Agent 总部：真实项目事件驱动的人员、任务、验证与修复状态。拖动旋转镜头，滚轮缩放，双击复位，Esc 返回"></canvas>
 <canvas class="fx" id="fx" aria-hidden="true"></canvas>
 <div class="vig" aria-hidden="true"></div>
+<div class="pm" id="pm" aria-hidden="true"></div>
 <div class="nr" id="nr">
 <div class="fit"><div class="fit-in" id="fitIn">
  <div class="board ov" id="board">
@@ -402,8 +496,8 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
   <div class="tags" id="tags"></div>
   <div class="bubs" id="bubs"></div>
   <header class="hd">
-    <div class="eb">FUTURE CUP · REAL EVENTS · <b>LIVE</b> · HQ</div>
-   <h1><span>AGENT</span><span class="l1">HQ<em>智能总部</em></span></h1>
+    <div class="eb">FUTURE CUP · 真实事件 · <b>LIVE</b></div>
+   <h1><span>智能总部</span><span class="l1">AGENT HQ<em>多 Agent 调度工作站</em></span></h1>
     <div class="sub2">真实项目事件 · <b id="realStatus">连接中</b> · <b id="clock">--:--:--</b></div>
   </header>
   <nav class="crumb pe" aria-label="视图导航">
@@ -417,17 +511,21 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
    <button class="tb" type="button" data-act="mode">视角<b data-f="mode">全景</b></button>
    <button class="tb" type="button" data-act="full" data-f="full">全屏</button>
   </div>
-  <div class="bgl">
-   <div class="bk">公司总进度<em id="cPn">8 个项目加权</em></div>
-   <div class="bv" id="cP">0<small>%</small></div>
-   <div class="pseg" id="cPs"></div>
-   <div class="bs">
-    <div><b id="kDone">0</b><span>已完成任务</span></div>
-    <div><b id="kWip">0</b><span>执行中任务</span></div>
-    <div id="kRevT"><b id="kRev">0</b><span>验证发现</span></div>
-    <div><b id="kLead">0</b><span>失败任务</span></div>
-    <div><b id="kRw">0</b><span>修复轮次</span></div>
-    <div><b id="kTok">0</b><span>项目事件游标</span></div>
+  <div class="bgl" id="bgl">
+   <button class="bgl-pill" id="bglPill" type="button" aria-expanded="false" aria-controls="bglBody">
+    <i class="bgl-dot" aria-hidden="true"></i><span class="t">执行进度</span><b id="bglPct">0%</b><em id="cPn">1 个项目加权</em><svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+   </button>
+   <div class="bgl-body" id="bglBody">
+    <div class="bv" id="cP">0<small>%</small></div>
+    <div class="pseg" id="cPs"></div>
+    <div class="bs">
+     <div><b id="kDone">0</b><span>已完成任务</span></div>
+     <div><b id="kWip">0</b><span>执行中任务</span></div>
+     <div id="kRevT"><b id="kRev">0</b><span>验证发现</span></div>
+     <div><b id="kLead">0</b><span>失败任务</span></div>
+     <div><b id="kRw">0</b><span>修复轮次</span></div>
+     <div><b id="kTok">0</b><span>事件总数</span></div>
+    </div>
    </div>
   </div>
   <div class="bgr">
@@ -508,6 +606,7 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
  </div>
 </div>
 <div class="toastx" id="toastx" hidden></div>
+<div class="dx" id="dx" aria-live="polite"></div>
 <div class="glfail" id="glFail">正在读取真实项目事件…</div>
 </div>
 </template>
@@ -685,7 +784,7 @@ DEPTS.forEach(function (D, k) { var b = document.createElement("button"); b.type
 
 /* 04 动态：每条记录带上关联的部门 / 项目 / 人，切视图时按关联筛选 */
 var LOG = [], logDirty = true;
-function log(a, c, msg, kind, tag) { LOG.unshift({ t: hms(), a: a, c: c, x: msg, k: kind || "", g: tag || {}, fresh: true }); if (LOG.length > 90) LOG.length = 90; logDirty = true; }
+function log(a, c, msg, kind, tag, ts) { LOG.unshift({ t: hms(ts ? new Date(ts) : null), a: a, c: c, x: msg, k: kind || "", g: tag || {}, fresh: true }); if (LOG.length > 90) LOG.length = 90; logDirty = true; }
 var toastT = 0;
 function toast(s) { var el = $("toastx"); el.textContent = s; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2600); }
 
@@ -1696,15 +1795,31 @@ function layout() {
   /* 3D 留给中间：左右各让出背景数据的宽度，下边让出底部一条 */
   if (!L.narrow) { L.rx0 = L.frX + 330 * L.bs; L.rx1 = L.frX + (bw - 330) * L.bs; L.ry0 = L.frY + 70 * L.bs; L.ry1 = L.frY + (bh - 236) * L.bs; }
   else { L.rx0 = 0; L.rx1 = L.w; L.ry0 = 70; L.ry1 = L.h - 170; }
+  var pm = $("pm");
+  if (pm) { pm.style.left = L.rx0 + "px"; pm.style.top = L.ry0 + "px"; pm.style.width = Math.max(60, L.rx1 - L.rx0) + "px"; pm.style.height = Math.max(40, L.ry1 - L.ry0) + "px"; }
+  if (typeof BGL_OPEN === "boolean") bglSet(BGL_OPEN);
   LABELS.concat(RLAB, [CHL]).forEach(function (Lb) { Lb.w = Lb.el.offsetWidth || 180; Lb.h = Lb.el.offsetHeight || 56; });
   L.ok = true;
   if (wasNarrow !== L.narrow) { wasNarrow = L.narrow; snapCam(); }
 }
+/* 执行进度胶囊：流体展开 / 收起（尺寸与圆角走高阻曲线，缓慢过冲、快速稳定） */
+var bgl = $("bgl"), bglBody = $("bglBody"), BGL_OPEN = false;
+function bglSet(open) {
+  BGL_OPEN = open;
+  bgl.classList.toggle("open", open);
+  $("bglPill").setAttribute("aria-expanded", open ? "true" : "false");
+  bgl.style.width = open ? "334px" : "176px";
+  bgl.style.height = (open ? 44 + bglBody.scrollHeight : 44) + "px";
+}
+$("bglPill").addEventListener("click", function (e) { e.stopPropagation(); bglSet(!BGL_OPEN); });
+bglSet(false);
+$("dx").addEventListener("click", function () { clearTimeout(dxT); this.classList.remove("show"); });
+host.__idle = function () { return JSON.stringify(PEOPLE.filter(function (p) { return p.__realAgent; }).map(function (p) { return { n: p.n, ok: realIdleOk(p), idle: Math.round((p.idle || 0) * 10) / 10, max: p.idleMax, atHome: p.at === p.home, mode: p.mode, task: p.task, wait: p.wait } })); };
 
 /* =====================================================================
    15. 昼夜：实时 / 白天 / 黄昏 / 夜晚 / 循环（120 秒一昼夜）
    ===================================================================== */
-var TOD = { mode: 0, names: ["实时", "白天", "黄昏", "夜晚", "循环"], h: 12 };
+var TOD = { mode: 1, names: ["实时", "白天", "黄昏", "夜晚", "循环"], h: 12 };
 var now = 0;
 function todHour() {
   if (TOD.mode === 0) { var d = new Date(); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
@@ -1732,9 +1847,9 @@ function envUpdate() {
   E.gndC = mixL(L3(0.62, 0.55, 0.45, 0.36), L3(0.16, 0.14, 0.15, 0.16), N);
   E.top = mixL(mixL(L3(0.3, 0.53, 0.86, 1), L3(0.3, 0.36, 0.62, 1), K * 0.85), L3(0.02, 0.03, 0.07, 1), N);
   E.hor = mixL(mixL(L3(0.82, 0.86, 0.9, 1), L3(1.0, 0.64, 0.42, 1), K * 0.9), L3(0.07, 0.08, 0.13, 1), N);
-  /* 背景罩：白天深石板灰、黄昏带一点暖、夜里深蓝黑（显示空间颜色，直接输出） */
-  E.bgT = mix3(mix3([0.25, 0.29, 0.34], [0.33, 0.27, 0.28], K * 0.8), [0.075, 0.095, 0.135], N);
-  E.bgB = mix3(mix3([0.10, 0.12, 0.15], [0.13, 0.10, 0.12], K * 0.8), [0.03, 0.035, 0.055], N);
+  /* 背景罩：恒为平台暖纸色，与页面纸面融为一体（昼夜只改变房间光照，不改变舞台底色） */
+  E.bgT = [0.925, 0.882, 0.827]; E.bgB = [0.965, 0.933, 0.886];
+  E.top = [0.937, 0.898, 0.847]; E.hor = [0.961, 0.929, 0.878];
   E.fogL = lin(mix3(E.bgT, E.bgB, 0.4));
   E.night = N; E.win = clamp(N * 1.1 + K * 0.3, 0, 1); E.lamp = clamp(N * 1.2 + K * 0.25, 0, 1);
   E.cloud = clamp(1 - N * 1.4, 0, 1) * 0.6;
@@ -2137,8 +2252,95 @@ function maybeBreak(p) {
   if (nb >= 3 || Math.random() < (p.ai ? 0.45 : 0.6)) return;
   var free = LOUNGE.filter(function (s) { return !s.occ; }); if (!free.length) return;
   var spot = rpick(free);
-  p.task = "lounge"; p.lt0 = p.lt = rr(6, 11);
+  p.task = "lounge"; p.lt0 = p.lt = rr(8, 14);
   walkTo(p, spot, function () { say(p, rpick(["续杯咖啡", "伸个懒腰", "休息两分钟", "眼睛放松一下", "去茶水间坐坐"]), p.ai ? "ai" : "", 0); });
+}
+/* 真实模式待机：空闲的 Agent 小人轮流去茶水区休息、凑够 3 人去会议室碰头；
+   一旦派单（cur/q 到位）立即中断休息走回工位。Chief 不参与。 */
+var REAL_MEET = null, REAL_MEET_T = rr(25, 50), REAL_LOUNGE_T = rr(6, 12), REAL_CHAT_T = rr(2.5, 4);
+var LOUNGE_CHAT = ["这咖啡终于像样了", "页面 B 的留白舒服多了", "昨晚那轮验证报告很干净", "等派单,不急", "歇会儿,下轮继续", "茶水间的杯子又少了", "你那页改完几版了?", "下轮谁牵头?"];
+var LOUNGE_CHAT_BACK = ["嗯,稳住就行", "我也是这么想的", "有活随时喊我", "哈哈,那就多歇会儿", "巧了,我也刚想说"];
+function realIdleOk(p) {
+  return p.__realAgent && !p.gone && p !== CHIEF && p.at === p.home && p.mode !== "walk" &&
+    !p.cur && !p.q.length && !p.inb && !p.task && p.wait <= 0;
+}
+function cancelBreak(person) {
+  if (person.mode === "walk" && person.dest && person.dest !== person.home && person.dest.occ === person) person.dest.occ = null;
+  if (person.at !== person.home || person.task === "lounge" || person.task === "meet") goHome(person);
+}
+function realBreakTick(dt) {
+  if (!REAL_PROJECTION) return;
+  if (REAL_MEET) {
+    REAL_MEET.ppl.forEach(function (p) { if ((p.cur || p.q.length || p.inb) && p.task === "meet") goHome(p); });
+    REAL_MEET.ppl = REAL_MEET.ppl.filter(function (p) { return !p.gone && p.task === "meet"; });
+    if (REAL_MEET.ph === "go") {
+      if (REAL_MEET.arr >= REAL_MEET.ppl.length || now - REAL_MEET.t0 > 22) {
+        REAL_MEET.ph = "on"; REAL_MEET.t1 = now;
+        if (REAL_MEET.ppl.length) { say(REAL_MEET.ppl[0], "趁空档对一下进度", "ai", 2); REAL_MEET.ppl[0].talkT = 1.4; }
+      }
+      return;
+    }
+    REAL_MEET.chat -= dt;
+    if (REAL_MEET.chat <= 0 && REAL_MEET.ppl.length) {
+      REAL_MEET.chat = rr(2.6, 3.8);
+      var sp = rpick(REAL_MEET.ppl);
+      if (sp.at && sp.mode === "sit" && !sp.cur && !sp.q.length) {
+        say(sp, rpick(["上一轮跑完了，歇会儿", "下一个任务还没派下来", "验证口径我记了笔记", "接口契约没问题", "修复轮次比上次快"]), sp.ai ? "ai" : "", 0);
+        sp.talkT = 1.4;
+      }
+    }
+    if (now - REAL_MEET.t1 > REAL_MEET.dur || REAL_MEET.ppl.length < 2) {
+      REAL_MEET.ppl.forEach(function (p) { if (p.task === "meet") { if (p.mode === "walk") p.cb = function () { goHome(p); }; else goHome(p); } });
+      REAL_MEET.seats.forEach(function (s) { if (s.occ && s.occ.task !== "meet") s.occ = null; });
+      REAL_MEET = null; REAL_MEET_T = rr(55, 95);
+      return;
+    }
+    return;
+  }
+  PEOPLE.forEach(function (p) { if (realIdleOk(p)) p.idle += dt; });
+  /* 茶水间闲聊:≥2 人落座时轮流开话头,偶尔有人接一句;单人在座只保留到达时的那句 */
+  var sitters = PEOPLE.filter(function (p) { return p.task === "lounge" && p.mode === "sit" && !p.gone; });
+  REAL_CHAT_T -= dt;
+  if (REAL_CHAT_T <= 0) {
+    REAL_CHAT_T = rr(2.2, 3.6);
+    if (sitters.length >= 2) {
+      var sp = rpick(sitters);
+      say(sp, rpick(LOUNGE_CHAT), "ai", 0); sp.talkT = 1.4;
+      var others = sitters.filter(function (x) { return x !== sp; });
+      if (others.length) setTimeoutSim(rr(0.9, 1.3), function () { var o = rpick(others); if (o && !o.gone && o.mode === "sit" && o.task === "lounge") { say(o, rpick(LOUNGE_CHAT_BACK), "ai", 0); o.talkT = 1.2; } });
+    }
+  }
+  var candidates = PEOPLE.filter(function (p) { return realIdleOk(p) && p.idle >= p.idleMax; });
+  if (candidates.length >= 3 && REAL_MEET_T <= 0) {
+    var seats = MEETSEATS.filter(function (s) { return !s.occ; });
+    if (seats.length >= 3) {
+      var ppl = candidates.slice(0, Math.min(4, seats.length));
+      REAL_MEET = { ppl: ppl, seats: seats, ph: "go", t0: now, dur: rr(10, 16), arr: 0, chat: 3 };
+      ppl.forEach(function (p, i) { var st = seats[i]; st.occ = p; p.task = "meet"; p.idle = 0; p.idleMax = rr(20, 45); walkTo(p, st, function () { if (REAL_MEET) REAL_MEET.arr++; }); });
+      log("小枢", CHIEF_C, "空闲对齐 · " + ppl.length + " 位 Agent 在会议室碰头", "", { d: [], p: ppl.map(function (x) { return x.id; }) });
+      return;
+    }
+  }
+  if (candidates.length) {
+    REAL_MEET_T -= dt;
+    REAL_LOUNGE_T -= dt;
+    if (REAL_MEET_T <= 0 && candidates.length >= 3) {
+      var mseats = MEETSEATS.filter(function (s) { return !s.occ; });
+      if (mseats.length >= 3) {
+        var mppl = candidates.slice(0, Math.min(4, mseats.length));
+        REAL_MEET = { ppl: mppl, seats: mseats, ph: "go", t0: now, dur: rr(10, 16), arr: 0, chat: 3 };
+        mppl.forEach(function (p, i) { var st = mseats[i]; st.occ = p; p.task = "meet"; p.idle = 0; p.idleMax = rr(20, 45); walkTo(p, st, function () { if (REAL_MEET) REAL_MEET.arr++; }); });
+        log("小枢", CHIEF_C, "空闲对齐 · " + mppl.length + " 位 Agent 在会议室碰头", "", { d: [], p: mppl.map(function (x) { return x.id; }) });
+        return;
+      }
+    }
+    if (REAL_LOUNGE_T <= 0) {
+      var who = candidates[0];
+      maybeBreak(who);
+      who.idleMax = rr(20, 45);
+      REAL_LOUNGE_T = rr(3, 6);
+    }
+  }
 }
 /* 会议：围绕某个在推进的项目，牵头部门负责人 + 相关部门的人去大堂会议室；
    偶尔 Chief 召集各部门负责人，在总经理办公室的会议桌开周会 */
@@ -2208,6 +2410,7 @@ function updateSim(dt) {
     }
   }
   for (i = 0; i < PEOPLE.length; i++) updPerson(PEOPLE[i], dt);
+  if (REAL_PROJECTION) realBreakTick(dt);
 }
 var projDirty = true, rosterDirty = true;
 
@@ -2413,6 +2616,13 @@ function drawPerson(p) {
   var bean = pl && pl.pose === "bean", seatY = pl && pl.pose !== "stand" ? pl.sh : SEAT_H;
   var hipY = lerp(0.445, seatY + 0.03, sk), sw = walk ? Math.sin(p.ph) : 0, bob = walk ? Math.abs(Math.cos(p.ph)) * 0.028 : 0;
   var M = m4RT(rotY(p.yaw), [p.x, groundY(p.x, p.z), p.z]), hz = 0.05 * sk, lag = Math.sin(p.ph - 1.3), pi = p.id * 1.7;
+  var it = p.cur, working = home && it && p.mode !== "walk";
+  /* 待机微动：空闲坐姿的小人按各自相位呼吸、慢转身（RM 时整体静止；行走/工作/会议/茶水间不叠加） */
+  var idleT = (!RM && sk > 0.5 && !walk && !working && !p.carry && home) ? 1 : 0;
+  if (idleT) {
+    bob += 0.006 * Math.sin(now * 1.6 + pi * 0.9);
+    M = m4RT(rotY(p.yaw + 0.1 * Math.sin(now * 0.05 + pi * 2)), [p.x, groundY(p.x, p.z), p.z]);
+  }
   if (p.isChief) M = m4mul(M, m4S(1.15));
   var thS = bean ? -1.15 : -Math.PI / 2, shS = bean ? -0.55 : 0;
   for (var sd = -1; sd <= 1; sd += 2) {
@@ -2421,7 +2631,7 @@ function drawPerson(p) {
     batAddM(PH.thigh, m4mul(M, m4RT(rotX(thA), [hx, hipY + bob, hz])), null, null, null);
     batAddM(PH.shin, m4mul(M, m4RT(rotX(shA), [hx, hipY + bob - 0.2 * Math.cos(thA), hz - 0.2 * Math.sin(thA)])), null, null, null);
   }
-  var it = p.cur, working = home && it && p.mode !== "walk", typing = working && it.st === "work", reviewing = working && it.st === "rev";
+  var typing = working && it.st === "work", reviewing = working && it.st === "rev";
   var meet = p.task === "meet" && !walk, lounge = p.task === "lounge" && !walk, talk = p.talkT > 0;
   var lean = typing ? 0.1 : (reviewing ? 0.05 : (bean ? -0.28 : (lounge && sk > 0.5 ? -0.12 : 0)));
   p.lean += (lean - p.lean) * 0.15;
@@ -2435,12 +2645,19 @@ function drawPerson(p) {
   else if (reviewing) { if (p.ai) { xL = xR = -1.15; zL = zR = -0.15; } else { xL = -2.0; zL = -0.55; xR = -1.0; zR = -0.1; } }
   else if (meet) { xL = -0.9; zL = -0.12; xR = talk ? -1.5 + 0.35 * Math.sin(now * 6) : -0.9; zR = -0.12; }
   else if (lounge && sk < 0.5) { xR = -1.7 + 0.25 * Math.sin(now * 0.8 + pi); zR = -0.4; }
-  else if (sk > 0.5) { xL = xR = lounge ? -0.35 : -0.62; zL = zR = -0.05; }
+  else if (sk > 0.5) {
+    xL = xR = lounge ? -0.35 : -0.62; zL = zR = -0.05;
+    if (idleT) {
+      xL += 0.02 * Math.sin(now * 1.1 + pi);
+      xR += 0.02 * Math.sin(now * 1.1 + pi * 1.7) - Math.pow(Math.max(0, Math.sin(now * 0.15 + pi * 2.1)), 6) * 0.35;
+    }
+  }
   else if (talk) { xR = -1.3 + 0.3 * Math.sin(now * 6); zR = 0.1; }
   batAddM(PH.arm, armM(TM, 1, xL, zL), p.shL, null, null);
   batAddM(PH.arm, armM(TM, -1, xR, zR), p.shL, null, null);
   var hx2 = typing || reviewing ? 0.14 + 0.03 * Math.sin(now * 2.2 + pi) : (lounge ? -0.08 : 0), hy = (!walk && !typing && !reviewing && !meet && !p.carry) ? 0.4 * Math.sin(now * 0.33 + pi * 1.3) : 0;
   if (meet) hy = 0.3 * Math.sin(now * 0.5 + pi);
+  if (idleT) { hy += 0.18 * Math.sin(now * 0.117 + pi * 0.6); hx2 += 0.06 * Math.sin(now * 0.21 + pi); }
   var HM = m4mul(TM, m4RT(m3mul(rotY(hy), rotX(hx2)), [0, 0.53, 0]));
   batAddM(PH.head[p.hd], HM, null, null, null);
   batAddM(PH.hair[p.hs], HM, null, p.hcL, null);
@@ -2743,7 +2960,7 @@ function updatePanels(force) {
   liv.forEach(function (p) { if (p.ai) nAI++; else nHu++; });
   setTxt($("subN"), String(liv.length)); setTxt($("subA"), nAI + " 个 Agent"); setTxt($("subH"), nHu + " 位真人督办");
   setTxt($("sStaff"), String(liv.length)); setTxt($("sAI"), String(nAI)); setTxt($("sHu"), String(nHu));
-  setHTML($("cP"), Math.round(cp * 100) + "<small>%</small>");
+  setHTML($("cP"), Math.round(cp * 100) + "<small>%</small>"); setTxt($("bglPct"), Math.round(cp * 100) + "%");
   var wip = 0, blocked = 0, failed = 0, revN = 0;
   PROJS.forEach(function (P) {
     P.items.forEach(function (it) {
@@ -3244,7 +3461,7 @@ var REAL_DEPARTMENTS = [
   { key: "integration", zh: "集成部", en: "INTEGRATION", c: "#84dcc6", fn: "路由、接口与冲突集成" },
   { key: "verification", zh: "验证部", en: "VERIFY", c: "#c8e05a", fn: "构建、浏览器与需求证据" },
   { key: "repair", zh: "自愈部", en: "REPAIR", c: "#b8a1ff", fn: "结构化失败诊断与修复" },
-  { key: "delivery", zh: "交付归档", en: "DELIVERY", c: "#e0b48a", fn: "生产构建与交付证据" }
+  { key: "delivery", zh: "交付归档", en: "DELIVERY", c: "#e0b48a", fn: "验收通过后系统自动归档交付证据" }
 ];
 function configureRealDepartments() {
   REAL_DEPARTMENTS.forEach(function (department, index) {
@@ -3395,7 +3612,10 @@ function realPacket(from, to, color, label) {
   FLYS.push(token);
 }
 function realAgentMotion(person) {
-  if (!person || person.gone || person.mode === "walk" || person.at !== person.home || !person.visit) return;
+  if (!person || person.gone) return;
+  /* 派单打断休息：在茶水区/会议室（或正走过去）的小人先走回工位 */
+  if (person.task === "lounge" || person.task === "meet" || (person.at !== person.home && person.mode !== "walk")) { cancelBreak(person); return; }
+  if (person.mode === "walk" || person.at !== person.home || !person.visit) return;
   person.task = "real-event";
   walkTo(person, person.visit, function () {
     person.wait = 0.7;
@@ -3441,9 +3661,27 @@ function animateRealAction(action) {
     });
   }
   say(CHIEF, action.label, realToneClass(action.tone), 3);
-  if (action.tone === "error" || action.tone === "warning" || action.tone === "success") {
-    toast(action.label);
-  }
+  if (action.tone === "success") deliveryPopup();
+  else toast(action.label);
+}
+var dxT = 0;
+/* 交付归档弹窗：仅验收自愈归档完成（run PASSED 终态）触发，从顶部流体落下，点击或 6.5s 后收回 */
+function deliveryPopup() {
+  var pr = REAL_PROJECTION; if (!pr) return;
+  var done = pr.tasks.filter(function (t) { return t.status === "COMPLETED"; });
+  var pct = pr.tasks.length ? Math.round(done.length / pr.tasks.length * 100) : 100;
+  var h = '<div class="dx-h"><span class="dx-tag">交付归档</span><b>' + esc(pr.projectName) + '</b><span class="dx-ok">● 已归档</span></div>' +
+    '<div class="dx-req">' + esc(pr.requirement) + '</div>' +
+    '<div class="dx-b"><span class="dx-pct">' + pct + '%</span><span class="dx-cnt">' + done.length + " / " + pr.tasks.length + " 任务完成</span></div>";
+  var last = done.slice(-3);
+  if (last.length) h += '<div class="dx-list">' + last.map(function (t) { return '<div><span>' + esc(t.title) + "</span><em>✓</em></div>"; }).join("") + "</div>";
+  var el = $("dx");
+  setHTML(el, h);
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+  clearTimeout(dxT);
+  dxT = setTimeout(function () { el.classList.remove("show"); }, 6500);
 }
 configureRealDepartments();
 configureRealPeople({ agents: [] });
@@ -3468,7 +3706,7 @@ function applyRealProjection(projection) {
       var it = { id: task.id, P: P, k: k, t: task.title, s: k, st: "back", who: null, wk: null, prog: 0, dur: 1, rw: false, rwN: 0, born: now, kind: "work", realStatus: task.status };
       var person = task.assignedAgentId ? realPerson(task.assignedAgentId) : null;
       if (task.status === "COMPLETED") { it.st = "fin"; it.prog = 1; P.done++; }
-      else if (task.status === "RUNNING") { it.st = "work"; it.prog = 0.45; it.who = person; if (person) { person.cur = it; person.task = null; } }
+      else if (task.status === "RUNNING") { it.st = "work"; it.prog = 0.45; it.who = person; if (person) { cancelBreak(person); person.cur = it; person.task = null; } }
       else if (task.status === "READY") { it.st = "q"; it.who = person; if (person) person.q.push(it); }
       else if (task.status === "FAILED" || task.status === "CANCELLED") { it.st = "fin"; it.failed = true; }
       return it;
@@ -3483,7 +3721,7 @@ function applyRealProjection(projection) {
   ST.tokRate = 0;
   LOG.length = 0;
   projection.events.slice(-80).forEach(function (event) {
-    log("HQ", CHIEF_C, event.message, event.type.indexOf("failed") >= 0 || event.type.indexOf("escalated") >= 0 ? "r" : "", { j: projection.projectId, d: [], p: [] });
+    log("HQ", CHIEF_C, event.message, event.type.indexOf("failed") >= 0 || event.type.indexOf("escalated") >= 0 ? "r" : "", { j: projection.projectId, d: [], p: [] }, event.occurredAt);
   });
   setTxt($("realStatus"), projection.runStatus === "RUNNING" ? "实时 · " + projection.lastEventSeq : projection.runStatus + " · " + projection.lastEventSeq);
   setTxt($("mSub"), "智能总部 · 真实项目");

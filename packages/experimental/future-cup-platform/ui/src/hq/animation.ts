@@ -174,13 +174,26 @@ export function animationActionsForEvent(
         tone: 'info',
         label: '项目运行开始',
       }]
-    case 'run.completed':
-      return [{
+    case 'run.completed': {
+      const passed = projection.runStatus === 'PASSED'
+      const terminal: HqAnimationAction = {
         kind: 'terminal',
         eventType: event.type,
-        tone: projection.runStatus === 'PASSED' ? 'success' : 'warning',
-        label: projection.runStatus === 'PASSED' ? '项目验证通过 · 交付归档' : '项目运行结束 · 已升级',
-      }]
+        tone: passed ? 'success' : 'warning',
+        label: passed ? '项目验证通过 · 交付归档' : '项目运行结束 · 已升级',
+      }
+      if (!passed) return [terminal]
+      return [
+        terminal,
+        {
+          kind: 'department',
+          eventType: event.type,
+          tone: 'success',
+          label: '归档完成 · 交付快照已生成',
+          department: 'delivery',
+        },
+      ]
+    }
     case 'run.failed':
       return [{
         kind: 'terminal',

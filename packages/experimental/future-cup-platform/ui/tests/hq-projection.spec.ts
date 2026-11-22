@@ -309,6 +309,35 @@ describe('HQ realtime projection', () => {
     expect(projection.runStatus).toBe('ESCALATED')
   })
 
+  it('seats the planning department on the produced DAG', () => {
+    const withTasks = createProjection(realSnapshot(), [realAgent('planner', 'planner')])
+    expect(withTasks.departments.find(department => department.key === 'planning'))
+      .toMatchObject({ status: 'COMPLETED', progress: 1 })
+
+    const pending = createProjection({ ...realSnapshot(), tasks: [] }, [realAgent('planner', 'planner')])
+    expect(pending.departments.find(department => department.key === 'planning'))
+      .toMatchObject({ status: 'ACTIVE', progress: 0 })
+  })
+
+  it('derives the delivery department from the run status', () => {
+    let projection = createProjection(realSnapshot(), [
+      realAgent('planner', 'planner'),
+    ])
+    expect(projection.departments.find(department => department.key === 'delivery'))
+      .toMatchObject({ status: 'IDLE', progress: 0, totalTasks: 0 })
+
+    projection = applyProductEvent(projection, {
+      type: 'run.completed',
+      projectId: 'project-hq',
+      seq: 4,
+      occurredAt: '2026-11-01T10:00:04.000Z',
+      payload: { runId: 'run-hq', status: 'PASSED' },
+    })
+    expect(projection.runStatus).toBe('PASSED')
+    expect(projection.departments.find(department => department.key === 'delivery'))
+      .toMatchObject({ status: 'COMPLETED', progress: 1 })
+  })
+
   it('validates snapshots and events at the socket boundary', () => {
     expect(parseSnapshot(realSnapshot())?.project.id).toBe('project-hq')
     expect(parseProductEvent({

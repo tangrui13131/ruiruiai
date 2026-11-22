@@ -136,6 +136,30 @@ describe('HQ realtime animation mapping', () => {
     })])
   })
 
+  it('lights the delivery department when a passed run completes', () => {
+    const actions = animationActionsForEvent({
+      type: 'run.completed',
+      projectId: 'project-hq',
+      seq: 7,
+      occurredAt: '2026-11-01T10:00:07.000Z',
+      payload: { status: 'PASSED' },
+    }, projection('PASSED'))
+
+    expect(actions).toEqual([
+      expect.objectContaining({
+        kind: 'terminal',
+        tone: 'success',
+        label: '项目验证通过 · 交付归档',
+      }),
+      expect.objectContaining({
+        kind: 'department',
+        department: 'delivery',
+        tone: 'success',
+        label: '归档完成 · 交付快照已生成',
+      }),
+    ])
+  })
+
   it('does not animate a duplicated projection transition', () => {
     const source = projection()
     const event = {
