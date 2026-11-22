@@ -38,7 +38,7 @@ export function TeamRecommendationDetails({
         <div className="section-panel-heading">
           <h3>{dictionary.teamBuilder.summaryTitle}</h3>
           {recommendation.sourceTemplate === undefined ? null : (
-            <Tag color="cyan">
+            <Tag>
               {format(dictionary.teamBuilder.sourceTemplate, {
                 name: recommendation.sourceTemplate.name,
                 version: recommendation.sourceTemplate.version,
@@ -98,7 +98,7 @@ export function TeamRecommendationDetails({
                     {member.definitionId}@{member.definitionVersion}
                   </span>
                 </div>
-                <Tag color="geekblue">
+                <Tag>
                   {format(dictionary.teamBuilder.memberInstances, {
                     count: String(member.instanceCount),
                   })}
@@ -181,7 +181,7 @@ export function TeamRecommendationDetails({
                   percent={percent}
                   showInfo={false}
                   size="small"
-                  strokeColor={coverage.satisfied ? '#0f766e' : '#dc2626'}
+                  strokeColor={coverage.satisfied ? '#3b6a9c' : '#d93829'}
                 />
               </div>
             )

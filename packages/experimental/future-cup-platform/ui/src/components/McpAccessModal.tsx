@@ -85,7 +85,7 @@ export function McpAccessModal({
       open={open}
       title={(
         <Space>
-          <ApiOutlined style={{ color: '#1677ff' }} />
+          <ApiOutlined style={{ color: 'var(--neu-blue)' }} />
           <span>{dictionary.mcp.modalTitle}</span>
         </Space>
       )}
@@ -123,7 +123,7 @@ export function McpAccessModal({
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label={dictionary.mcp.protocolLabel}>
-                <Tag color="blue">{serverInfo?.protocolVersion ?? '-'}</Tag>
+                <Tag>{serverInfo?.protocolVersion ?? '-'}</Tag>
               </Descriptions.Item>
             </Descriptions>
 
@@ -141,7 +141,7 @@ export function McpAccessModal({
                 </Button>
               )}
             >
-              <pre style={{ margin: 0, fontSize: 12, overflowX: 'auto' }}>
+              <pre className="code-block">
                 <code>{clientConfigJson}</code>
               </pre>
             </Card>
@@ -185,7 +185,7 @@ export function McpAccessModal({
                             <Space orientation="vertical" size={4} style={{ width: '100%' }}>
                               <Space wrap>
                                 <Typography.Text strong code>{resource.uri}</Typography.Text>
-                                <Tag color={resource.isTemplate ? 'purple' : 'green'}>
+                                <Tag>
                                   {resource.isTemplate
                                     ? dictionary.mcp.resourceTemplateTag
                                     : dictionary.mcp.resourceStaticTag}

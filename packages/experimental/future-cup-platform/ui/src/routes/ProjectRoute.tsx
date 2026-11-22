@@ -45,7 +45,7 @@ function ProjectContent({ projectId }: { readonly projectId: string }) {
   return (
     <AppShell projectId={projectId} projectState={state}>
       {state.errorCode === undefined ? null : (
-        <div role="alert" style={{ marginBottom: 12, color: '#b91c1c' }}>
+        <div role="alert" style={{ marginBottom: 12, color: '#d93829' }}>
           {localizedErrorCode(
             state.errorCode,
             dictionary.errors,
