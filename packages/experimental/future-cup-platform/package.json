@@ -42,6 +42,7 @@
   },
   "scripts": {
     "build:ui": "vite build --config ui/vite.config.ts && vite build --config ui/vite.hq.config.ts",
+    "check:boot": "node ui/boot-src/assemble.mjs && git diff --exit-code -- ui/index.html ui/src/boot/boot-markup.generated.ts",
     "postinstall": "prisma generate",
     "test:ui": "vitest run --config ui/vitest.config.ts",
     "typecheck:ui": "tsc -p ui/tsconfig.json --pretty false"
