@@ -35,7 +35,7 @@ function ControlCanvas({
   readonly events: readonly WorkflowControlEventView[]
 }) {
   const { dictionary } = useLocale()
-  const graph = useMemo(() => buildControlGraph(state), [state])
+  const graph = useMemo(() => buildControlGraph(state, dictionary), [state, dictionary])
   const activeCount = state.snapshot.activeNodes.length
   const recent = events.slice(-8).reverse()
   return (
