@@ -25,7 +25,7 @@ import {
   Tooltip,
 } from 'antd'
 import type { MenuProps } from 'antd'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useLocale } from '../locale/LocaleProvider.tsx'
@@ -167,14 +167,51 @@ export function AppShell({
         ? 'agents'
         : location.pathname === '/teams' ? 'teams' : 'projects'
     : selectedKey(location.pathname)
+  const menuWrapRef = useRef<HTMLDivElement>(null)
+  const [indicator, setIndicator] = useState<{ readonly top: number; readonly height: number }>()
+
+  useLayoutEffect(() => {
+    let frame: number | undefined
+    let attempts = 0
+    const measure = (): void => {
+      const item = menuWrapRef.current?.querySelector<HTMLElement>('.ant-menu-item-selected')
+      if (item === null || item === undefined) {
+        attempts += 1
+        if (attempts <= 8) {
+          frame = requestAnimationFrame(measure)
+        } else {
+          setIndicator(undefined)
+        }
+        return
+      }
+      setIndicator({ top: item.offsetTop, height: item.offsetHeight })
+    }
+    measure()
+    return (): void => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
+    }
+  }, [activeKey, location.pathname])
+
   const menu = (
-    <Menu
-      theme="light"
-      mode="inline"
-      selectedKeys={[activeKey]}
-      items={items}
-      onClick={() => { setDrawerOpen(false) }}
-    />
+    <div className="app-sider-menu" ref={menuWrapRef}>
+      {indicator === undefined ? null : (
+        <span
+          aria-hidden="true"
+          className="app-sider-indicator"
+          style={{
+            transform: `translateY(${String(indicator.top)}px)`,
+            height: indicator.height,
+          }}
+        />
+      )}
+      <Menu
+        theme="light"
+        mode="inline"
+        selectedKeys={[activeKey]}
+        items={items}
+        onClick={() => { setDrawerOpen(false) }}
+      />
+    </div>
   )
   const sidebar = (
     <>
@@ -212,10 +249,10 @@ export function AppShell({
           onClose={() => { setDrawerOpen(false) }}
           placement="left"
           size={260}
-          styles={{ body: { padding: 0, background: '#f2e8e0' } }}
+          styles={{ body: { padding: 0, background: 'var(--neu-bg)' } }}
           title={null}
         >
-          {sidebar}
+          <div className="app-sider app-sider-in-drawer">{sidebar}</div>
         </Drawer>
       )}
       <Layout className="app-main">
