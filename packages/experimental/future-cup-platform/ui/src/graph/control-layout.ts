@@ -27,9 +27,10 @@ export function buildControlGraph(state: WorkflowControlStateView): {
         data: { label: `${node.label}\n${node.type}` },
         style: {
           width: 190,
-          border: isActive ? '2px solid #1677ff' : '1px solid #9eb2aa',
-          borderRadius: 8,
-          background: isActive ? '#e6f4ff' : isComplete ? '#e8f5e9' : '#ffffff',
+          border: isActive ? '2px solid #3b6a9c' : '1px solid #d9d7cf',
+          borderRadius: 10,
+          background: isActive ? '#e8f0fa' : isComplete ? '#e3ede2' : '#f9f7ee',
+          color: '#1c1d1f',
           whiteSpace: 'pre-line',
           fontSize: 12,
         },
@@ -45,7 +46,7 @@ export function buildControlGraph(state: WorkflowControlStateView): {
           : edge.condition.status ?? edge.condition.result,
         type: 'smoothstep',
         markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: edge.condition.kind === 'LOOP_RESULT' ? '#7c3aed' : '#60786d' },
+        style: { stroke: edge.condition.kind === 'LOOP_RESULT' ? '#d97706' : '#8e9096' },
       })
     }
   }

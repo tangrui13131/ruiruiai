@@ -68,13 +68,13 @@ describe('control graph layout', () => {
       'main:delivery',
     ])
     expect(graph.nodes.find(node => node.id === 'main:verify')?.style).toMatchObject({
-      background: '#e6f4ff',
+      background: '#e8f0fa',
     })
     expect(graph.nodes.find(node => node.id === 'main:delivery')?.style).toMatchObject({
-      background: '#e8f5e9',
+      background: '#e3ede2',
     })
     expect(graph.edges.map(edge => edge.label)).toContain('FAIL')
     expect(graph.edges.find(edge => edge.id === 'main:loop-to-verify')?.style)
-      .toMatchObject({ stroke: '#7c3aed' })
+      .toMatchObject({ stroke: '#d97706' })
   })
 })

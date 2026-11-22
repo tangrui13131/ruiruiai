@@ -52,8 +52,8 @@ export function buildDagGraph(tasks: readonly TaskView[]): DagGraph {
     id: `${dependency}->${task.id}`,
     source: dependency,
     target: task.id,
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#0f766e' },
-    style: { stroke: '#0f766e', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#8e9096' },
+    style: { stroke: '#8e9096', strokeWidth: 2 },
   })))
   return { nodes, edges }
 }
