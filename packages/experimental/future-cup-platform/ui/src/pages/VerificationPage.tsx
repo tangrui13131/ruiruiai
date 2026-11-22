@@ -9,6 +9,7 @@ import { PageHeading } from '../components/PageHeading.tsx'
 import { StatusBadge } from '../components/StatusBadge.tsx'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import { useProjectState } from '../state/ProjectStoreContext.tsx'
+import { verificationCheckLabel, verificationCheckSummary } from '../verification/check-labels.ts'
 
 interface CheckRow {
   readonly name: string
@@ -22,13 +23,22 @@ function ReportBody({ report, projectId }: {
 }) {
   const { dictionary } = useLocale()
   const columns: ColumnsType<CheckRow> = [
-    { title: dictionary.verification.checks, dataIndex: 'name' },
+    {
+      title: dictionary.verification.checks,
+      dataIndex: 'name',
+      render: (name: string) => verificationCheckLabel(dictionary, name),
+    },
     {
       title: dictionary.projects.status,
       dataIndex: 'status',
       render: (value: string) => <StatusBadge status={value} />,
     },
-    { title: dictionary.verification.findings, dataIndex: 'summary' },
+    {
+      title: dictionary.verification.findings,
+      dataIndex: 'summary',
+      render: (summary: string, row: CheckRow) =>
+        verificationCheckSummary(dictionary, row.name, row.status, summary),
+    },
   ]
   return (
     <div className="page-stack">
