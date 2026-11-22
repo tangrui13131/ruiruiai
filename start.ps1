@@ -109,6 +109,8 @@ foreach ($page in @("index.html", "hq\index.html")) {
     $pagePath = Join-Path $uiRoot $page
     $pageDirectory = Split-Path -Parent $pagePath
     $html = Get-Content -LiteralPath $pagePath -Raw -Encoding UTF8
+    # 只校验标记层引用：剔除行内脚本内容，避免把 JS 里的 location.href 等运行时路由（如 /#/projects/）误判成静态资源；script src 引用仍保留检查
+    $html = [regex]::Replace($html, '(?s)(<script\b[^>]*>).*?(</script>)', '$1$2')
     foreach ($match in [regex]::Matches($html, '(?:src|href)\s*=\s*"([^"]+)"')) {
         $reference = $match.Groups[1].Value.Trim()
         if ($reference -match '^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//|#)') { continue }
