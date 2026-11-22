@@ -8,6 +8,7 @@ import type { HqAnimationAction } from './animation.ts'
 import {
   applyProductEvent,
   createProjection,
+  mergeProjectionEvents,
   needsSnapshotResync,
   parseProductEvent,
   parseSnapshot,
@@ -81,7 +82,8 @@ async function start(projectId: string, adapter: HqRealAdapter): Promise<void> {
     try {
       const next = createProjection(snapshot, await loadAgents(projectId))
       if (next.lastEventSeq < projection.lastEventSeq) return
-      projection = next
+      /* Socket snapshots carry only events after the acknowledged seq; keep the accumulated log. */
+      projection = { ...next, events: mergeProjectionEvents(projection.events, next.events) }
     } catch (error: unknown) {
       console.error(error)
       adapter.error(errorMessage(error))

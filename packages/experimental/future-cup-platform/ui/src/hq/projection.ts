@@ -38,6 +38,7 @@ export interface HqDepartmentProjection {
   readonly activeTaskIds: readonly string[]
   readonly completedTasks: number
   readonly failedTasks: number
+  readonly blockedTasks: number
   readonly totalTasks: number
   readonly completedRepairs: number
   readonly failedRepairs: number
@@ -263,6 +264,21 @@ export function parseSnapshot(value: unknown): ProjectSnapshotView | undefined {
   return parsed.success ? parsed.data : undefined
 }
 
+/**
+ * Merge snapshot-carried events into the existing display log without duplicates or loss.
+ * Socket snapshots carry only events after the acknowledged seq, so adopting an
+ * incremental snapshot alone would drop the accumulated activity log; the merge keeps
+ * previous entries first, appends unseen ones by seq, and caps the log at the same
+ * 100 entries that realtime application keeps.
+ */
+export function mergeProjectionEvents(
+  previous: readonly HqEventProjection[],
+  incoming: readonly HqEventProjection[],
+): readonly HqEventProjection[] {
+  const seen = new Set(previous.map(event => event.seq))
+  return [...previous, ...incoming.filter(event => !seen.has(event.seq))].slice(-100)
+}
+
 /** Validate one Socket.IO event before applying it. */
 export function parseProductEvent(value: unknown): ProductEventView | undefined {
   const parsed = productEventSchema.safeParse(value)
@@ -331,6 +347,7 @@ function departmentsFor(
     const departmentRepairs = department.key === 'repair' ? repairs : []
     const activeTaskIds = departmentTasks.filter(task => task.status === 'RUNNING').map(task => task.id)
     const failedTasks = departmentTasks.filter(task => task.status === 'FAILED').length
+    const blockedTasks = departmentTasks.filter(task => task.status === 'BLOCKED').length
     const completedTasks = departmentTasks.filter(task => task.status === 'COMPLETED').length
     const totalTasks = departmentTasks.length
     const completedRepairs = departmentRepairs.filter(repair =>
@@ -339,10 +356,12 @@ function departmentsFor(
       repair.completed && repair.afterStatus !== 'PASS').length
     const activeRepairs = departmentRepairs.filter(repair => !repair.completed).length
     const totalRepairs = departmentRepairs.length
-    /* 规划部的交付物是任务 DAG 本身：DAG 产出即规划完成，计入一个规划单元避免 0/0 空进度 */
+    /* 规划部的交付物是任务 DAG 本身：DAG 产出即规划完成，计入一个规划单元避免 0/0 空进度；
+       该单元并入 completedTasks，让「历史完成」也反映规划交付。 */
     const planningDelivered = department.key === 'planning' && tasks.length > 0
     const planningUnits = department.key === 'planning' ? 1 : 0
-    const completedUnits = completedTasks + completedRepairs + (planningDelivered ? 1 : 0)
+    const deliveredTasks = completedTasks + (planningDelivered ? 1 : 0)
+    const completedUnits = deliveredTasks + completedRepairs
     const failedUnits = failedTasks + failedRepairs
     const totalUnits = totalTasks + totalRepairs + planningUnits
     const status = failedUnits > 0
@@ -359,8 +378,9 @@ function departmentsFor(
       status,
       progress: totalUnits === 0 ? 0 : completedUnits / totalUnits,
       activeTaskIds,
-      completedTasks,
+      completedTasks: deliveredTasks,
       failedTasks,
+      blockedTasks,
       totalTasks,
       completedRepairs,
       failedRepairs,
@@ -382,8 +402,9 @@ const DELIVERY_DEPARTMENT = {
 /**
  * Project the delivery department from the authoritative run status.
  * No runtime Agent sits in delivery and no product event targets it: a PASSED run
- * completes the immutable delivery snapshot (the archive), while every other state
- * leaves the department idle instead of failed.
+ * completes the immutable delivery snapshot (the archive), counted as one delivered
+ * archive unit so 「历史完成」 reflects the archive; every other state leaves the
+ * department idle instead of failed.
  */
 function deliveryDepartment(runStatus: HqProjection['runStatus']): HqDepartmentProjection {
   const archived = runStatus === 'PASSED'
@@ -392,9 +413,10 @@ function deliveryDepartment(runStatus: HqProjection['runStatus']): HqDepartmentP
     status: archived ? 'COMPLETED' : 'IDLE',
     progress: archived ? 1 : 0,
     activeTaskIds: [],
-    completedTasks: 0,
+    completedTasks: archived ? 1 : 0,
     failedTasks: 0,
-    totalTasks: 0,
+    blockedTasks: 0,
+    totalTasks: archived ? 1 : 0,
     completedRepairs: 0,
     failedRepairs: 0,
     activeRepairs: 0,
