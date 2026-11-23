@@ -30,6 +30,9 @@ import { capture } from './release/process.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
+/** GNU tar on Windows reads a drive letter in an absolute archive path as a remote host. */
+const tarArgs = (args: string[]): string[] => (process.platform === 'win32' ? ['--force-local', ...args] : args)
+
 /** A private temporary root this spec owns, removed with the test. */
 function temporaryDirectory(prefix: string): string {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
@@ -79,7 +82,7 @@ function packFixture(options: {
   writeFileSync(join(staging, 'package', 'lib', 'index.js'), options.source)
   if (options.patch !== undefined) writeFileSync(join(staging, 'package', options.patch), '[]\n')
   const file = `${options.name.replace('@', '').replace('/', '-')}-${options.version}.tgz`
-  capture('tar', ['-czf', join(options.destination, file), '-C', staging, 'package'])
+  capture('tar', tarArgs(['-czf', join(options.destination, file), '-C', staging, 'package']))
   const releaseMember: ReleaseMember = { directory: staging, name: options.name, version: options.version, manifest }
   return {
     member: workspacePackage(options.name, { version: options.version, ...manifest }),
@@ -229,7 +232,7 @@ describe('packed archives', () => {
     writeFileSync(join(staging, 'package', 'package.json'), JSON.stringify({
       name: '@scope/pkg', version: '1.0.0', main: 'lib/index.js', dsh: { bundle: { patch: 'cordis.patch.yml' } },
     }))
-    capture('tar', ['-czf', join(destination, 'scope-pkg-1.0.0.tgz'), '-C', staging, 'package'])
+    capture('tar', tarArgs(['-czf', join(destination, 'scope-pkg-1.0.0.tgz'), '-C', staging, 'package']))
     const member = workspacePackage('@scope/pkg', { version: '1.0.0' })
     const entry: ReleaseEntry = {
       family: releaseFamily('vendor'), member: { directory: staging, name: '@scope/pkg', version: '1.0.0', manifest: member.manifest },
@@ -251,7 +254,7 @@ describe('packed archives', () => {
     }))
     mkdirSync(join(stripped, 'package', 'lib'), { recursive: true })
     writeFileSync(join(stripped, 'package', 'lib', 'index.js'), 'export default 1\n')
-    capture('tar', ['-czf', archive, '-C', stripped, 'package'])
+    capture('tar', tarArgs(['-czf', archive, '-C', stripped, 'package']))
     expect(() => readPackedArtifacts({ destination, members: [member], release: new Map([['@scope/bundle', entry]]) }))
       .toThrow(/@scope\/bundle: packed archive lacks its declared bundle patch cordis\.patch\.yml/u)
   })
