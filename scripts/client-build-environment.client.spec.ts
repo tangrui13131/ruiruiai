@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import yaml from 'js-yaml'
@@ -269,7 +269,10 @@ describe('client build environment', () => {
     expect(clientBuildValueDefines(environment)).toEqual(values)
   })
 
-  it('feeds the same build-process value to dynamic tsdown bundles, their Node faces, and the Vite shell', async () => {
+  // This fork ships no official frontend application, so its Vite shell has no config to import.
+  const webViteConfig = new URL('../apps/web/vite.config.ts', import.meta.url)
+
+  it.skipIf(!existsSync(webViteConfig))('feeds the same build-process value to dynamic tsdown bundles, their Node faces, and the Vite shell', async () => {
     process.env[PROBE_NAME] = 'shared-value'
 
     const configs = clientBundle(join(import.meta.dirname, '../packages/client/ui-sidebar'), [

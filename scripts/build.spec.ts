@@ -5,15 +5,15 @@ import { buildGates, parseBuildArguments } from './build.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
+// This fork builds the Future Cup UI in place of the official frontend and desktop bundle.
 const artifactGraph = {
   'native': [],
   'host-typert': [],
   'host-src': ['native', 'host-typert'],
   'host-bundle': ['host-src'],
-  'desktop-bundle': ['host-bundle'],
-  'client-src': ['desktop-bundle'],
+  'client-src': ['host-bundle'],
   'client-bundle': ['client-src'],
-  'web': ['client-bundle'],
+  'future-cup-ui': [],
 }
 
 function graph(gates: ReturnType<typeof buildGates>): Record<string, string[] | undefined> {
@@ -91,8 +91,9 @@ describe('repository build steps', () => {
 
   it('checks both aggregate programs without artifact predecessors', () => {
     const gates = buildGates(root, 'check')
-    expect(graph(gates)).toEqual({ 'host-check': [], 'client-check': [] })
+    expect(graph(gates)).toEqual({ 'future-cup-ui-check': [], 'host-check': [], 'client-check': [] })
     expect(gates.map(gate => gate.args.slice(-2))).toEqual([
+      ['run', 'typecheck:ui'],
       ['-p', 'tsconfig.host.json'],
       ['-p', 'tsconfig.client.json'],
     ])
@@ -101,6 +102,7 @@ describe('repository build steps', () => {
   it('starts each aggregate check after its own package compilation in the complete build', () => {
     expect(graph(buildGates(root, 'complete'))).toEqual({
       ...artifactGraph,
+      'future-cup-ui-check': [],
       'host-check': ['host-src'],
       'client-check': ['client-src'],
     })
@@ -112,11 +114,13 @@ describe('repository build steps', () => {
       'host-typert': [],
       'host-src': ['host-typert'],
       'client-src': ['host-src'],
+      'future-cup-ui-check': [],
       'host-check': ['host-src'],
       'client-check': ['client-src'],
     })
     expect(gates.find(gate => gate.id === 'host-typert')?.args.at(-1)).toBe(resolve(root, 'scripts/generate-typert.ts'))
     expect(gates.filter(gate => gate.id.endsWith('-check')).map(gate => gate.args.slice(-2))).toEqual([
+      ['run', 'typecheck:ui'],
       ['-b', 'tsconfig.host.json'],
       ['-b', 'tsconfig.client.json'],
     ])
