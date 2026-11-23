@@ -224,7 +224,7 @@ export function MyTeamsPage() {
   }
 
   function addMember(): void {
-    if (members.length >= 7 || publishedAgents.length === 0) return
+    if (members.length >= 8 || publishedAgents.length === 0) return
     const first = publishedAgents[0]
     if (first === undefined) return
     setDraftId(undefined)
@@ -439,12 +439,12 @@ export function MyTeamsPage() {
                   className={team.id === selectedTeam?.id ? 'my-team-row selected' : 'my-team-row'}
                   onClick={() => { void selectTeam(team) }}
                   actions={[
-                    <Tooltip key="edit" title={dictionary.myTeams.edit}>
+                    <Tooltip key="edit" title={team.ownerId === 'system' ? dictionary.myTeams.systemTeamHint : dictionary.myTeams.edit}>
                       <Button
                         type="text"
                         icon={<EditOutlined />}
                         aria-label={dictionary.myTeams.edit}
-                        disabled={team.status === 'ARCHIVED'}
+                        disabled={team.status === 'ARCHIVED' || team.ownerId === 'system'}
                         onClick={(event) => {
                           event.stopPropagation()
                           void openEditor(team)
@@ -453,16 +453,18 @@ export function MyTeamsPage() {
                     </Tooltip>,
                     <Tooltip
                       key="delete"
-                      title={team.projectUsageCount > 0
-                        ? dictionary.myTeams.teamInUseHint
-                        : dictionary.myTeams.deleteTeam}
+                      title={team.ownerId === 'system'
+                        ? dictionary.myTeams.systemTeamHint
+                        : team.projectUsageCount > 0
+                          ? dictionary.myTeams.teamInUseHint
+                          : dictionary.myTeams.deleteTeam}
                     >
                       <Button
                         danger
                         type="text"
                         icon={<DeleteOutlined />}
                         aria-label={dictionary.myTeams.deleteTeam}
-                        disabled={team.projectUsageCount > 0 || pending === 'delete'}
+                        disabled={team.ownerId === 'system' || team.projectUsageCount > 0 || pending === 'delete'}
                         onClick={(event) => {
                           event.stopPropagation()
                           void removeTeam(team)
@@ -528,21 +530,23 @@ export function MyTeamsPage() {
                   <Button
                     type="primary"
                     icon={<EditOutlined />}
-                    disabled={selectedTeam.status === 'ARCHIVED'}
+                    disabled={selectedTeam.status === 'ARCHIVED' || selectedTeam.ownerId === 'system'}
                     onClick={() => { void openEditor(selectedTeam) }}
                   >
                     {dictionary.myTeams.edit}
                   </Button>
                   <Tooltip
-                    title={selectedTeam.projectUsageCount > 0
-                      ? dictionary.myTeams.teamInUseHint
-                      : dictionary.myTeams.deleteTeam}
+                    title={selectedTeam.ownerId === 'system'
+                      ? dictionary.myTeams.systemTeamHint
+                      : selectedTeam.projectUsageCount > 0
+                        ? dictionary.myTeams.teamInUseHint
+                        : dictionary.myTeams.deleteTeam}
                   >
                     <Button
                       danger
                       icon={<DeleteOutlined />}
                       aria-label={dictionary.myTeams.deleteTeam}
-                      disabled={selectedTeam.projectUsageCount > 0 || pending === 'delete'}
+                      disabled={selectedTeam.ownerId === 'system' || selectedTeam.projectUsageCount > 0 || pending === 'delete'}
                       onClick={() => { void removeTeam(selectedTeam) }}
                     >
                       {dictionary.myTeams.deleteTeam}
@@ -715,7 +719,7 @@ export function MyTeamsPage() {
             }}
           />
           <div className="my-team-editor-heading">
-            <span>{dictionary.myTeams.members} ({members.length}/7)</span>
+            <span>{dictionary.myTeams.members} ({members.length}/8)</span>
             <Space size={4}>
               <Button
                 size="small"
@@ -727,17 +731,17 @@ export function MyTeamsPage() {
               >
                 {dictionary.agents.create}
               </Button>
-              {publishedAgents.length >= STARTER_ROLE_LAYOUT.length && members.length < 7 ? (
+              {publishedAgents.length >= STARTER_ROLE_LAYOUT.length && members.length < 8 ? (
                 <Button size="small" onClick={fillStarterTeam}>
                   {dictionary.myTeams.fillStarterTeam}
                 </Button>
               ) : null}
-              <Tooltip title={members.length >= 7 ? dictionary.myTeams.maxMembers : dictionary.myTeams.addMember}>
+              <Tooltip title={members.length >= 8 ? dictionary.myTeams.maxMembers : dictionary.myTeams.addMember}>
                 <Button
                   type="text"
                   icon={<PlusOutlined />}
                   aria-label={dictionary.myTeams.addMember}
-                  disabled={members.length >= 7 || publishedAgents.length === 0}
+                  disabled={members.length >= 8 || publishedAgents.length === 0}
                   onClick={addMember}
                 />
               </Tooltip>
@@ -833,7 +837,7 @@ function buildStarterMembers(
   const next = [...current]
   const occupiedPositions = new Set(next.map(m => `${m.departmentKey}:${String(m.position)}`))
   for (const slot of STARTER_ROLE_LAYOUT) {
-    if (next.length >= 7) break
+    if (next.length >= 8) break
     const candidate = publishedAgents.find(agent => agent.version.role === slot.role)
     if (candidate === undefined) continue
     if (next.some(member => member.agentVersionId === candidate.value)) continue

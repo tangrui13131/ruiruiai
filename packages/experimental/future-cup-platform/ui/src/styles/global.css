@@ -137,6 +137,35 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
+.app-history-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-history-buttons .app-history-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: #f0efea;
+  color: #252421;
+}
+
+.app-history-buttons .app-history-button:not(:disabled):hover {
+  background: #e7e5de;
+  color: #252421;
+}
+
+.app-history-buttons .app-history-button:disabled {
+  background: transparent;
+  color: rgba(37, 36, 33, 0.28);
+}
+
 .app-header-leading,
 .app-header-actions {
   display: flex;

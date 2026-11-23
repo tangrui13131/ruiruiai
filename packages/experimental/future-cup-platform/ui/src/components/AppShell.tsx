@@ -1,6 +1,7 @@
 import {
   ApartmentOutlined,
   ArrowLeftOutlined,
+  ArrowRightOutlined,
   BranchesOutlined,
   DashboardOutlined,
   FundProjectionScreenOutlined,
@@ -26,7 +27,7 @@ import {
 } from 'antd'
 import type { MenuProps } from 'antd'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useLocale } from '../locale/LocaleProvider.tsx'
 import type { ProjectStoreState } from '../state/project-store.ts'
@@ -36,6 +37,46 @@ import { ProjectActions } from './ProjectActions.tsx'
 import { StatusBadge } from './StatusBadge.tsx'
 
 const { Header, Sider, Content } = Layout
+
+function HistoryButtons(): ReactNode {
+  const { dictionary } = useLocale()
+  const navigate = useNavigate()
+  useLocation()
+  const navigationType = useNavigationType()
+  const index = (window.history.state as { idx?: number } | null)?.idx ?? 0
+  const maxIndex = useRef(index)
+  useLayoutEffect(() => {
+    if (navigationType === 'PUSH' || navigationType === 'REPLACE' || index > maxIndex.current) {
+      maxIndex.current = index
+    }
+  }, [index, navigationType])
+  const canGoBack = index > 0
+  const canGoForward = index < maxIndex.current
+  return (
+    <div className="app-history-buttons">
+      <Tooltip title={dictionary.common.back}>
+        <Button
+          className="app-history-button"
+          type="text"
+          icon={<ArrowLeftOutlined />}
+          aria-label={dictionary.common.back}
+          disabled={!canGoBack}
+          onClick={() => { navigate(-1) }}
+        />
+      </Tooltip>
+      <Tooltip title={dictionary.common.forward}>
+        <Button
+          className="app-history-button"
+          type="text"
+          icon={<ArrowRightOutlined />}
+          aria-label={dictionary.common.forward}
+          disabled={!canGoForward}
+          onClick={() => { navigate(1) }}
+        />
+      </Tooltip>
+    </div>
+  )
+}
 
 function useNavigation(projectId?: string): MenuProps['items'] {
   const { dictionary } = useLocale()
@@ -258,6 +299,7 @@ export function AppShell({
       <Layout className="app-main">
         <Header className="app-header">
           <div className="app-header-leading">
+            <HistoryButtons />
             {screens.lg === true ? null : (
               <Tooltip title={dictionary.common.menu}>
                 <Button

@@ -312,15 +312,17 @@ export function ProjectsPage() {
     setSearchParams(nextParams, { replace: true })
   }, [projects, searchParams, setSearchParams])
 
-  const teamOptions = [
-    { value: '', label: dictionary.projects.defaultTeam },
-    ...teams
-      .filter(team => team.status === 'ACTIVE' && team.latestVersion?.status === 'PUBLISHED')
-      .map(team => ({
-        value: team.latestVersion?.id ?? '',
-        label: `${team.name} · ${team.latestVersion?.version ?? ''}`,
-      })),
-  ]
+  const defaultTeamVersionId = 'future-cup-default-team-2.0.1'
+  const availableTeamOptions = teams
+    .filter(team => team.status === 'ACTIVE' && team.latestVersion?.status === 'PUBLISHED')
+    .map(team => ({
+      value: team.latestVersion?.id ?? '',
+      label: `${team.name} · ${team.latestVersion?.version ?? ''}`,
+    }))
+  const preferredTeam = availableTeamOptions.find(option => option.value === defaultTeamVersionId)
+  const teamOptions = preferredTeam === undefined
+    ? availableTeamOptions
+    : [preferredTeam, ...availableTeamOptions.filter(option => option !== preferredTeam)]
 
   async function create(values: CreateProjectValues): Promise<void> {
     setCreating(true)
@@ -819,7 +821,7 @@ export function ProjectsPage() {
           <Form.Item
             name="teamVersionId"
             label={dictionary.projects.team}
-            initialValue=""
+            initialValue={defaultTeamVersionId}
           >
             <Select options={teamOptions} aria-label={dictionary.projects.team} />
           </Form.Item>
