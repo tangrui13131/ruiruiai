@@ -53,7 +53,8 @@ describe('Oxlint executable contract', () => {
   it('discovers the owning TypeScript project for every file class', async () => {
     const suffix = randomUUID()
     const configPath = await writeContractConfig(suffix)
-    const probes = [
+    // This fork removed the documentation site; probes under a missing directory cannot exist.
+    const probes = ([
       ['host package source', 'packages/fs/fs-observation-policy/src', 'packages/fs/fs-observation-policy/tsconfig.json'],
       ['host package test', 'packages/fs/fs-observation-policy/tests', 'tsconfig.host.json'],
       ['client package source', 'packages/client/ui-primitives/src', 'packages/client/ui-primitives/tsconfig.json'],
@@ -62,7 +63,7 @@ describe('Oxlint executable contract', () => {
       ['client package test', 'packages/client/ui-trajectory/tests', 'tsconfig.client.json', '.client.ts'],
       ['CLI profile test', 'apps/cli/tests/profiles/headless/tests', 'tsconfig.host.json'],
       ['website', 'website', 'tsconfig.host.json'],
-    ] as const
+    ] as const).filter(([, parent]) => existsSync(join(repositoryRoot, parent)))
     const source = `export function probePromise(): Promise<void> {
   return Promise.resolve()
 }

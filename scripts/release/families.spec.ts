@@ -80,6 +80,9 @@ describe('release families', () => {
       '@deepseek-ai/dsh-experimental-forge-github',
       '@deepseek-ai/dsh-experimental-forge-session',
       '@deepseek-ai/dsh-experimental-forge',
+      // This fork publishes the Future Cup platform and its orchestration library.
+      '@deepseek-ai/dsh-experimental-future-cup-orchestration',
+      '@deepseek-ai/dsh-experimental-future-cup-platform',
       '@deepseek-ai/dsh-hook-protocol',
       '@deepseek-ai/dsh-hooks-claude-code',
       '@deepseek-ai/dsh-hooks-codex',

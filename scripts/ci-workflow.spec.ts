@@ -138,7 +138,7 @@ describe('CI workflow', () => {
       expect(job.steps).toContainEqual(expect.objectContaining({ run: command }))
     }
     for (const [file, command] of [
-      ['release-publish.yml', 'pnpm run build:official'],
+      ['release-publish.yml', 'pnpm run build:official --serial'],
       ['release-vendor-publish.yml', 'pnpm run build:lib:host'],
     ] as const) {
       expect(workflowJob(loadWorkflow('.github/workflows/' + file), 'pack').steps)
@@ -148,7 +148,8 @@ describe('CI workflow', () => {
     const hostSteps = scripts.scripts['build:lib:host']!.split(' && ')
     expect(hostSteps[0]).toBe('tsx scripts/compile-referenced-projects.ts host-libraries')
     expect(hostSteps).toContain('node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -p tsconfig.host.json')
-    expect(hostSteps.at(-1)).toBe('pnpm --filter @deepseek-ai/dsh-desktop run bundle')
+    // This fork keeps no desktop bundle in the host library build.
+    expect(hostSteps.at(-1)).toBe('node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc -p tsconfig.host.json')
     expect(scripts.scripts['build:lib:client']).toContain('tsc -b tsconfig.client.json')
     expect(scripts.scripts.typecheck).toBe('tsx scripts/build.ts --scope typecheck')
   })

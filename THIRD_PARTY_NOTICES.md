@@ -41,6 +41,7 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`@earendil-works/pi-ai`](https://github.com/earendil-works/pi) | MIT |
 | [`@earendil-works/pi-coding-agent`](https://github.com/earendil-works/pi) | MIT |
 | [`@eslint-community/regexpp`](https://github.com/eslint-community/regexpp) | MIT |
+| [`@fastify/static`](https://github.com/fastify/fastify-static) | MIT |
 | [`@fortune-sheet/core`](https://github.com/ruilisi/fortune-sheet) | MIT |
 | [`@fortune-sheet/react`](https://github.com/ruilisi/fortune-sheet) | MIT |
 | [`@joplin/turndown-plugin-gfm`](https://github.com/laurent22/joplin-turndown-plugin-gfm) | MIT |
@@ -51,7 +52,9 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`@lexical/text`](https://github.com/facebook/lexical) | MIT |
 | [`@lexical/utils`](https://github.com/facebook/lexical) | MIT |
 | [`@modelcontextprotocol/client`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
+| [`@modelcontextprotocol/node`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
+| [`@modelcontextprotocol/server`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) | MIT |
 | [`@octokit/webhooks`](https://github.com/octokit/webhooks.js) | MIT |
 | [`@openai/codex`](https://github.com/openai/codex) | Apache-2.0 |
@@ -63,8 +66,9 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`@opentelemetry/resources`](https://github.com/open-telemetry/opentelemetry-js) | Apache-2.0 |
 | [`@opentelemetry/sdk-logs`](https://github.com/open-telemetry/opentelemetry-js) | Apache-2.0 |
 | [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) | Apache-2.0 |
+| [`@prisma/adapter-pg`](https://github.com/prisma/orm) | Apache-2.0 |
+| [`@prisma/client`](https://github.com/prisma/orm) | Apache-2.0 |
 | [`@puppeteer/browsers`](https://github.com/puppeteer/puppeteer/tree/main/packages/browsers) | Apache-2.0 |
-| [`@shikijs/langs`](https://github.com/shikijs/shiki) | MIT |
 | [`@standard-schema/spec`](https://github.com/standard-schema/standard-schema) | MIT |
 | [`@tanstack/react-virtual`](https://github.com/TanStack/virtual) | MIT |
 | [`@trycua/cua-driver`](https://github.com/trycua/cua) | MIT |
@@ -77,7 +81,6 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`acorn`](https://github.com/acornjs/acorn) | MIT |
 | [`acorn-walk`](https://github.com/acornjs/acorn) | MIT |
 | [`ajv`](https://github.com/ajv-validator/ajv) | MIT |
-| [`anser`](https://github.com/IonicaBizau/anser) | MIT |
 | [`big.js`](https://github.com/MikeMcl/big.js) | MIT |
 | [`birpc`](https://github.com/antfu-collective/birpc) | MIT |
 | [`buffer`](https://github.com/feross/buffer) | MIT |
@@ -90,32 +93,18 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`cross-spawn`](https://github.com/moxystudio/node-cross-spawn) | MIT |
 | [`diff`](https://github.com/kpdecker/jsdiff) | BSD-3-Clause |
 | [`dompurify`](https://github.com/cure53/DOMPurify) | (MPL-2.0 OR Apache-2.0) |
-| [`electron-updater`](https://github.com/electron-userland/electron-builder) | MIT |
 | [`eventsource-parser`](https://github.com/rexxars/eventsource-parser) | MIT |
 | [`exceljs`](https://github.com/exceljs/exceljs) | MIT |
 | [`execa`](https://github.com/sindresorhus/execa) | MIT |
 | [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser) | MIT |
+| [`fastify`](https://github.com/fastify/fastify) | MIT |
 | [`fflate`](https://github.com/101arrowz/fflate) | MIT |
 | [`got`](https://github.com/sindresorhus/got) | MIT |
 | [`hosted-git-info`](https://github.com/npm/hosted-git-info) | ISC |
-| [`immer`](https://github.com/immerjs/immer) | MIT |
 | [`ipaddr.js`](https://github.com/whitequark/ipaddr.js) | MIT |
 | [`js-yaml`](https://github.com/nodeca/js-yaml) | MIT |
-| [`katex`](https://github.com/KaTeX/KaTeX) | MIT |
 | [`koffi`](https://github.com/Koromix/koffi) | MIT |
 | [`lexical`](https://github.com/facebook/lexical) | MIT |
-| [`mdast-util-from-markdown`](https://github.com/syntax-tree/mdast-util-from-markdown) | MIT |
-| [`mdast-util-gfm`](https://github.com/syntax-tree/mdast-util-gfm) | MIT |
-| [`mdast-util-math`](https://github.com/syntax-tree/mdast-util-math) | MIT |
-| [`micromark-core-commonmark`](https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark) | MIT |
-| [`micromark-extension-gfm`](https://github.com/micromark/micromark-extension-gfm) | MIT |
-| [`micromark-extension-math`](https://github.com/micromark/micromark-extension-math) | MIT |
-| [`micromark-factory-space`](https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space) | MIT |
-| [`micromark-util-character`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-character) | MIT |
-| [`micromark-util-classify-character`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character) | MIT |
-| [`micromark-util-decode-string`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-string) | MIT |
-| [`micromark-util-sanitize-uri`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri) | MIT |
-| [`micromark-util-symbol`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol) | MIT |
 | [`mime`](https://github.com/broofa/mime) | MIT |
 | [`mime-types`](https://github.com/jshttp/mime-types) | MIT |
 | [`minisearch`](https://github.com/lucaong/minisearch) | MIT |
@@ -126,7 +115,10 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`p-limit`](https://github.com/sindresorhus/p-limit) | MIT |
 | [`papaparse`](https://github.com/mholt/PapaParse) | MIT |
 | [`pdfjs-dist`](https://github.com/mozilla/pdf.js) | Apache-2.0 |
+| [`pg`](https://github.com/brianc/node-postgres) | MIT |
 | [`picomatch`](https://github.com/micromatch/picomatch) | MIT |
+| [`playwright`](https://github.com/microsoft/playwright) | Apache-2.0 |
+| [`prisma`](https://github.com/prisma/orm) | Apache-2.0 |
 | [`react`](https://github.com/facebook/react) | MIT |
 | [`react-dom`](https://github.com/facebook/react) | MIT |
 | [`readable-stream`](https://github.com/nodejs/readable-stream) | MIT |
@@ -136,8 +128,7 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`sharp`](https://github.com/lovell/sharp) | Apache-2.0 |
 | [`shell-quote`](http://github.com/ljharb/shell-quote) | MIT |
 | [`sherpa-onnx-node`](https://github.com/csukuangfj/sherpa-onnx) | Apache-2.0 |
-| [`shiki`](https://github.com/shikijs/shiki) | MIT |
-| [`simple-icons`](https://github.com/simple-icons/simple-icons) | CC0-1.0 |
+| [`socket.io`](https://github.com/socketio/socket.io) | MIT |
 | [`string_decoder`](https://github.com/nodejs/string_decoder) | MIT |
 | [`supports-color`](https://github.com/chalk/supports-color) | MIT |
 | [`tar`](https://github.com/isaacs/node-tar) | BlueOak-1.0.0 |
@@ -151,17 +142,14 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`xlsx`](https://git.sheetjs.com/SheetJS/sheetjs) | Apache-2.0 |
 | [`yaml`](https://github.com/eemeli/yaml) | ISC |
 | [`zod`](https://github.com/colinhacks/zod) | MIT |
-| [`zustand`](https://github.com/pmndrs/zustand) | MIT |
 
 pnpm applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
 
 - `@botiverse/oar@0.67.0` — [`patches/@botiverse__oar@0.67.0.patch`](patches/@botiverse__oar@0.67.0.patch)
 - `@earendil-works/pi-ai@1.3.0` — [`patches/@earendil-works__pi-ai@1.3.0.patch`](patches/@earendil-works__pi-ai@1.3.0.patch)
-- `@electron/osx-sign@1.3.3` — [`patches/@electron__osx-sign@1.3.3.patch`](patches/@electron__osx-sign@1.3.3.patch)
 - `@fortune-sheet/core@1.0.4` — [`patches/@fortune-sheet__core@1.0.4.patch`](patches/@fortune-sheet__core@1.0.4.patch)
 - `@fortune-sheet/react@1.0.4` — [`patches/@fortune-sheet__react@1.0.4.patch`](patches/@fortune-sheet__react@1.0.4.patch)
 - `@yao-pkg/pkg@6.21.0` — [`patches/@yao-pkg__pkg@6.21.0.patch`](patches/@yao-pkg__pkg@6.21.0.patch)
-- `app-builder-lib@26.17.0` — [`patches/app-builder-lib@26.17.0.patch`](patches/app-builder-lib@26.17.0.patch)
 - `exceljs@4.4.0` — [`patches/exceljs@4.4.0.patch`](patches/exceljs@4.4.0.patch)
 - `lexical@0.49.0` — [`patches/lexical@0.49.0.patch`](patches/lexical@0.49.0.patch)
 - `mdast-util-gfm-autolink-literal@2.0.1` — [`patches/mdast-util-gfm-autolink-literal@2.0.1.patch`](patches/mdast-util-gfm-autolink-literal@2.0.1.patch)
@@ -204,15 +192,11 @@ External packages **directly declared** for development, tests, types, or toolin
 
 | Package | License |
 | --- | --- |
-| [`@braintree/sanitize-url`](https://github.com/braintree/sanitize-url) | MIT |
-| [`@electron/get`](https://github.com/electron/get) | MIT |
-| [`@electron/notarize`](https://github.com/electron/notarize) | MIT |
+| [`@ant-design/icons`](https://github.com/ant-design/ant-design-icons/tree/master/packages/icons-react) | MIT |
 | [`@lexical/headless`](https://github.com/facebook/lexical) | MIT |
-| [`@modelcontextprotocol/node`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
-| [`@modelcontextprotocol/server`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@modelcontextprotocol/server-everything`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |
 | [`@modelcontextprotocol/server-filesystem`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |
-| [`@panzoom/panzoom`](https://github.com/timmywil/panzoom) | MIT |
+| [`@shikijs/langs`](https://github.com/shikijs/shiki) | MIT |
 | [`@stylistic/eslint-plugin`](https://github.com/eslint-stylistic/eslint-stylistic) | MIT |
 | [`@testing-library/dom`](https://github.com/testing-library/dom-testing-library) | MIT |
 | [`@testing-library/react`](https://github.com/testing-library/react-testing-library) | MIT |
@@ -227,6 +211,7 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`@types/negotiator`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/node`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/papaparse`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
+| [`@types/pg`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/picomatch`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/react`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/react-dom`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
@@ -240,45 +225,55 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`@vitejs/plugin-react`](https://github.com/vitejs/vite-plugin-react) | MIT |
 | [`@vitest/coverage-v8`](https://github.com/vitest-dev/vitest) | MIT |
 | [`@vitest/spy`](https://github.com/vitest-dev/vitest) | MIT |
+| [`@xyflow/react`](https://github.com/xyflow/xyflow) | MIT |
 | [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) | MIT |
 | [`@yarnpkg/cli-dist`](https://github.com/yarnpkg/berry) | BSD-2-Clause |
-| [`app-builder-lib`](https://github.com/electron-userland/electron-builder) | MIT |
-| [`cos-nodejs-sdk-v5`](https://github.com/tencentyun/cos-nodejs-sdk-v5) | ISC |
-| [`cytoscape`](https://github.com/cytoscape/cytoscape.js) | MIT |
-| [`cytoscape-cose-bilkent`](https://github.com/cytoscape/cytoscape.js-cose-bilkent) | MIT |
-| [`dayjs`](https://github.com/iamkun/dayjs) | MIT |
-| [`debug`](https://github.com/debug-js/debug) | MIT |
+| [`anser`](https://github.com/IonicaBizau/anser) | MIT |
+| [`antd`](https://github.com/ant-design/ant-design) | MIT |
 | [`electron`](https://github.com/electron/electron) | MIT |
 | [`electron-builder`](https://github.com/electron-userland/electron-builder) | MIT |
 | [`esbuild`](https://github.com/evanw/esbuild) | MIT |
 | [`eslint-plugin-sonarjs`](https://github.com/SonarSource/SonarJS) | LGPL-3.0-only |
 | [`extract-zip`](https://github.com/maxogden/extract-zip) | BSD-2-Clause |
 | [`fast-check`](https://github.com/dubzzz/fast-check) | MIT |
-| [`http-server`](https://github.com/http-party/http-server) | MIT |
+| [`immer`](https://github.com/immerjs/immer) | MIT |
 | [`istanbul-lib-report`](https://github.com/istanbuljs/istanbuljs) | BSD-3-Clause |
 | [`jscpd`](https://github.com/kucherenko/jscpd) | MIT |
 | [`jsdom`](https://github.com/jsdom/jsdom) | MIT |
+| [`katex`](https://github.com/KaTeX/KaTeX) | MIT |
 | [`lefthook`](https://github.com/evilmartians/lefthook) | MIT |
 | [`lightningcss`](https://github.com/parcel-bundler/lightningcss) | MPL-2.0 |
+| [`mdast-util-from-markdown`](https://github.com/syntax-tree/mdast-util-from-markdown) | MIT |
+| [`mdast-util-gfm`](https://github.com/syntax-tree/mdast-util-gfm) | MIT |
+| [`mdast-util-math`](https://github.com/syntax-tree/mdast-util-math) | MIT |
 | [`mermaid`](https://github.com/mermaid-js/mermaid) | MIT |
+| [`micromark-core-commonmark`](https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark) | MIT |
+| [`micromark-extension-gfm`](https://github.com/micromark/micromark-extension-gfm) | MIT |
+| [`micromark-extension-math`](https://github.com/micromark/micromark-extension-math) | MIT |
+| [`micromark-factory-space`](https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space) | MIT |
+| [`micromark-util-character`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-character) | MIT |
+| [`micromark-util-classify-character`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character) | MIT |
+| [`micromark-util-decode-string`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-string) | MIT |
+| [`micromark-util-sanitize-uri`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri) | MIT |
+| [`micromark-util-symbol`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol) | MIT |
 | [`micromark-util-types`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-types) | MIT |
 | [`oxlint`](https://github.com/oxc-project/oxc) | MIT |
 | [`oxlint-tsgolint`](https://github.com/oxc-project/tsgolint) | MIT |
-| [`playwright`](https://github.com/microsoft/playwright) | Apache-2.0 |
 | [`pnpm`](https://github.com/pnpm/pnpm) | MIT |
 | [`publint`](https://github.com/publint/publint) | MIT |
+| [`react-router-dom`](https://github.com/remix-run/react-router) | MIT |
 | [`selfsigned`](https://github.com/jfromaniello/selfsigned) | MIT |
+| [`shiki`](https://github.com/shikijs/shiki) | MIT |
+| [`simple-icons`](https://github.com/simple-icons/simple-icons) | CC0-1.0 |
 | [`smol-toml`](https://github.com/squirrelchat/smol-toml) | BSD-3-Clause |
+| [`socket.io-client`](https://github.com/socketio/socket.io) | MIT |
 | [`spdx-expression-parse`](https://github.com/jslicense/spdx-expression-parse.js) | MIT |
-| [`tencentcloud-sdk-nodejs-teo`](https://github.com/tencentcloud/tencentcloud-sdk-nodejs) | Apache-2.0 |
 | [`tsdown`](https://github.com/rolldown/tsdown) | MIT |
 | [`typescript-language-server`](https://github.com/typescript-language-server/typescript-language-server) | Apache-2.0 |
 | [`vite`](https://github.com/vitejs/vite) | MIT |
 | [`vite-tsconfig-paths`](https://github.com/aleclarson/vite-tsconfig-paths) | MIT |
-| [`vitepress`](https://github.com/vuejs/vitepress) | MIT |
-| [`vitepress-plugin-mermaid`](https://github.com/emersonbottero/vitepress-plugin-mermaid) | MIT |
 | [`vitest`](https://github.com/vitest-dev/vitest) | MIT |
-| [`vue`](https://github.com/vuejs/core) | MIT |
+| [`zustand`](https://github.com/pmndrs/zustand) | MIT |
 
 `eslint-plugin-sonarjs` (LGPL-3.0-only) and `lightningcss` (MPL-2.0) run only as development tooling; their code is not linked into or distributed with any DeepSeek Harness artifact.
 
