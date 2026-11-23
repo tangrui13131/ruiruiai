@@ -1,9 +1,9 @@
 /** Load the PDF renderer only after a PDF body is mounted. */
 import { lazy, Suspense, type ReactNode } from 'react'
 import { LoadingIndicator } from '../LoadingIndicator.tsx'
-import type { PdfBodyProps } from './pdf.tsx'
+import type { PdfBodyProps } from './pdf.ts'
 
-const LoadedPdfBody = lazy(async () => ({ default: (await import('./pdf.tsx')).PdfBody }))
+const LoadedPdfBody = lazy(async () => ({ default: (await import('../pdf/pdf.tsx')).PdfBody }))
 
 /**
  * Suspend while the package-local PDF chunk arrives.

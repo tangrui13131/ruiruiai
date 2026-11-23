@@ -1,35 +1,18 @@
 /** PDF page presentation; binary content and tab information come from the document owner. */
-import { useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
-import type { DocumentPreviewProps } from '../document/contract.ts'
-import type { PdfStore, PdfView } from './store.ts'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PdfBodyProps } from '../contract/pdf.ts'
+import type { PdfView } from '../contract/pdf-store.ts'
 import { renderPdfPage, type PdfDocument } from './document.ts'
 import { openPdf } from './runtime.ts'
 import { PdfWorkerFailure } from './errors.ts'
 import { pdfTextRenderer } from './text.ts'
-import type { ZoomViewportProps } from '../zoom/ZoomViewport.tsx'
-import type { ZoomLabels, ZoomPreference } from '../zoom/types.ts'
+import type { ZoomLabels, ZoomPreference } from '../contract/zoom/types.ts'
 import type {} from './locales.ts'
 import css from './PdfBody.module.css'
 
-/** A record's viewing preferences survive body unmounts and leave with the tab. */
-export interface PdfBodyInjected {
-  /**
-   * Retain viewing preferences until the tab record ends.
-   * @param tabId - owning tab.
-   * @param signal - tab-record lifetime, not body visibility.
-   */
-  readonly retainTab: (tabId: TabId, signal: AbortSignal) => void
-  /** Main-bundle viewport reused by the lazy PDF body. */
-  readonly ZoomViewport: ComponentType<ZoomViewportProps>
-  /** Main-bundle class implementing fit-width and fixed-size surfaces. */
-  readonly zoomSurfaceClass: string
-}
-
-/** Standard document props plus the PDF entry's locale, viewing store, and lifetime callback. */
-export type PdfBodyProps = DocumentPreviewProps & PropsLocale<'sidebarPdf'> & PropsStore<PdfStore> & PdfBodyInjected
+export type { PdfBodyInjected, PdfBodyProps } from '../contract/pdf.ts'
 
 type LoadState =
   | { readonly kind: 'loaded'; readonly data: Uint8Array<ArrayBuffer>; readonly document: PdfDocument }

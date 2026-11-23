@@ -24,6 +24,11 @@ const CLIENT_DIR = join(root, 'packages/client')
 const CONTRACT_DIRS = new Set(['contract'])
 /** Top-level client files allowed to import across domains (assembly layer). */
 const ASSEMBLY_FILES = new Set(['apply.ts', 'index.ts', 'index.tsx'])
+/**
+ * Import targets that are static resources, not another module's API. Stylesheets and images
+ * carry no domain contract, so the layering rule does not govern them.
+ */
+const STATIC_RESOURCE = /\.(?:css|svg|webp|png|jpe?g|gif|woff2?|ttf|otf|mp4|webm)$/u
 
 interface Violation { file: string; imported: string; reason: string }
 
@@ -64,6 +69,7 @@ function checkPackage(pkgName: string, clientDir: string): Violation[] {
       if (spec === undefined) continue
       const target = resolveClientImport(rel, spec)
       if (target === '..' || target.startsWith('../')) continue // package-level rules govern
+      if (STATIC_RESOURCE.test(target)) continue // stylesheets and images are not domain API
       const toDomain = domainOf(target)
       if (toDomain === '' || CONTRACT_DIRS.has(toDomain)) continue // top-level shared file or contract layer
       if (fromDomain === toDomain) continue // inside one domain

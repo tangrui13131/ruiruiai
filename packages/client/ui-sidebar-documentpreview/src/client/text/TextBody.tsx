@@ -1,8 +1,8 @@
 /** Plain source display for files without a more specific document renderer. */
 import type { ReactNode } from 'react'
-import type { DocumentPreviewProps } from '../document/contract.ts'
+import type { DocumentPreviewProps } from '../contract/contract.ts'
 import { linesOf } from './lines.ts'
-import css from '../TextPreview.module.css'
+import css from './TextPreview.module.css'
 
 /** @param props - document contents and standard tab information. @returns source lines with navigation targets. */
 export function TextBody({ content, useTabInfo }: DocumentPreviewProps): ReactNode {
