@@ -60,3 +60,4 @@ native/system/test/bin/
 .zcode/
 tmp*.log
 .mcp.json
+undefined/
