@@ -102,10 +102,13 @@ pnpm run hygiene        # publint + workspace/package/dependency checks + NodeNe
 pnpm run check:windows-wine  # ONLY when diagnosing a known Windows failure (needs wine); CI owns this signal
 pnpm run doc-sync       # documentation gates (scripts/run-gates.ts)
 pnpm run test:docs      # quick documentation checks (no build; doc-quick aggregate)
+pnpm run check:web      # Future Cup web gate: platform typecheck/UI build, tests, client i18n, entrypoints, Cordis config
 pnpm dsh --profile headless "task"  # run one task from source (needs DEEPSEEK_API_KEY)
 pnpm run demo:ptc -- "task"  # headless PTC mode run (needs key)
 make platform|build  # launch the Future Cup platform or build the repository
 ```
+
+`check:web` is the acceptance gate for this fork's Future Cup web surface. `check:all` keeps the upstream DeepSeek Harness aggregate and still expects the upstream default `apps/web` product and client-domain rules, so it is not the Future Cup web gate. The desktop app is packaged separately and is outside the web gate scope.
 
 ### Host sandbox failures
 
