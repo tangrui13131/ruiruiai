@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+
+// These cases stage and fetch real repository caches; a loaded Windows host exceeds the
+// shared five-second default.
+vi.setConfig({ testTimeout: 30_000 })
 import { DetailFailure } from '@deepseek-ai/dsh-plugin-detail'
 import { RepositoryCache, type RepositoryCacheOptions } from '../src/repository-cache.ts'
 
