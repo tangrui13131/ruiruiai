@@ -42,6 +42,9 @@ async function harness(
 ): Promise<{ ctx: Context; root: string; disposeInventory: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-plugin-packages-'))
   roots.push(root)
+  // The inventory walks up for the nearest manifest. A nameless root manifest keeps that walk
+  // inside the fixture, so a stray package.json above the temp directory cannot supply an identity.
+  await writeFile(join(root, 'package.json'), '{ "private": true }\n')
   const ctx = new Context()
   contexts.push(ctx)
   ctx.baseUrl = pathToFileURL(join(root, 'cordis.yml')).href
