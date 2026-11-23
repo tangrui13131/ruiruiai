@@ -301,11 +301,44 @@ function pnpmExec(id: string, args: string[], options: Partial<Gate> = {}): Gate
 }
 
 /**
- * Construct the complete gate list for a named aggregate.
+ * Gates that assert the upstream product shape and cannot describe this fork.
+ * Commit `30ab8351` removed the official frontends (`apps/web`) and made the Future Cup
+ * platform the default product. These leaves now crash on the removed `apps/web` tree, or
+ * reject the fork's own default product for being experimental, and the Windows installer
+ * locale check moved out of this repository with the installer. Enable a leaf again only
+ * after its subject exists here; `check:web` covers the fork's web product in the meantime.
+ */
+const forkDisabledGateIds: ReadonlySet<string> = new Set([
+  'default-product-isolation',
+  'product-use',
+  'installer-locales',
+])
+
+/**
+ * Construct the aggregate's gate list without the gates this fork cannot run.
  * @param selected - aggregate mode to construct.
  * @returns the aggregate's gate graph.
  */
 export function gatesForMode(selected: Mode): Gate[] {
+  return collectGatesForMode(selected)
+    .filter(gate => !forkDisabledGateIds.has(gate.id))
+    .map((gate) => {
+      const needs = gate.needs?.filter(id => !forkDisabledGateIds.has(id))
+      const after = gate.after?.filter(id => !forkDisabledGateIds.has(id))
+      return {
+        ...gate,
+        ...(needs === undefined ? {} : { needs }),
+        ...(after === undefined ? {} : { after }),
+      }
+    })
+}
+
+/**
+ * Construct an aggregate's complete, unfiltered gate list.
+ * @param selected - aggregate mode to construct.
+ * @returns the aggregate's gate graph as its aggregate defines it.
+ */
+function collectGatesForMode(selected: Mode): Gate[] {
   switch (selected) {
     case 'ci-primary':
       return ciPrimaryGates()
@@ -357,7 +390,7 @@ export function gatesForMode(selected: Mode): Gate[] {
         snapshotGate(),
         expectedOutputGate(),
         pnpmScript('build', 'build'),
-        pnpmScript('build:web', 'build:web'),
+        pnpmScript('build:future-cup-web', 'build:future-cup-web', { label: 'Future Cup web build' }),
         ...hygieneLeafGates({ artifactNeeds: ['build'] }),
         ...docSyncLeafGates({
           docTypecheckNeeds: ['build'],
@@ -595,7 +628,6 @@ function webSnapshotGate(needs: string[], after?: string[]): Gate {
 function ciWindowsBlockingGates(): Gate[] {
   return [
     ciBuildGate('windows-build', { label: 'build' }),
-    pnpmScript('windows-site', 'docs:build', { label: 'production site' }),
   ]
 }
 
@@ -606,20 +638,15 @@ function ciWindowsCompleteGates(): Gate[] {
   })
   const coverageAfter = coverage.map(gate => gate.id)
   const observational = ciWindowsObservationalGates()
-    // Coverage owns Electron preparation. The required production site replaces
-    // the MPA build, which writes to the same output directory.
-    .filter(gate => gate.id !== 'build' && gate.id !== 'docs-site-build' && gate.id !== 'electron-install')
+    // Coverage owns Electron preparation.
+    .filter(gate => gate.id !== 'build' && gate.id !== 'electron-install')
     .map(gate => ({
       ...gate,
       allowFailure: true,
-      after: [...new Set([
-        ...coverageAfter,
-        ...(gate.after ?? []).map(id => id === 'docs-site-build' ? 'windows-site' : id),
-      ])],
+      after: [...new Set([...coverageAfter, ...(gate.after ?? [])])],
     }))
   return [
     ciBuildGate(),
-    pnpmScript('windows-site', 'docs:build', { label: 'production site' }),
     ...coverage,
     ...observational,
   ]
@@ -825,7 +852,7 @@ function docSyncLeafGates(options: {
   if (options.docTypecheckNeeds !== undefined) docTypecheckOptions.needs = options.docTypecheckNeeds
   if (options.docTypecheckEnv !== undefined) docTypecheckOptions.env = options.docTypecheckEnv
   return [
-    // Stable FIFO starts the longest leaves first; only docs-site-build writes website/.generated.
+    // Stable FIFO starts the longest leaves first.
     ...options.includeDocTypecheck === false
       ? []
       : [pnpmScript('doc-typecheck', options.docTypecheckScript ?? 'doc-typecheck', docTypecheckOptions)],
@@ -916,17 +943,43 @@ function builtBinSmokeGate(needs: string[] = ['build']): Gate {
   })
 }
 
+/** Package scripts a `pnpm run <script>` gate may name at the repository root. */
+function rootPackageScripts(): ReadonlySet<string> {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+    scripts?: Record<string, string>
+  }
+  return new Set(Object.keys(manifest.scripts ?? {}))
+}
+
+/**
+ * The repository-root package script a gate hands to `pnpm run`, or undefined when the gate
+ * resolves through another entry (`pnpm exec`, `--filter`, or a non-pnpm command).
+ * @param gate - gate whose invocation to inspect.
+ * @returns the script name following `run`, when the invocation is a root script.
+ */
+function rootRunScript(gate: Gate): string | undefined {
+  const runIndex = gate.args[0] === 'run' ? 0 : gate.args[1] === 'run' ? 1 : -1
+  return runIndex === -1 ? undefined : gate.args[runIndex + 1]
+}
+
 /**
  * Reject a gate list whose graph cannot be executed unambiguously.
  * @param gates - complete aggregate to validate.
  */
-function validateGateGraph(gates: readonly Gate[]): void {
+export function validateGateGraph(gates: readonly Gate[]): void {
   if (gates.length === 0) throw new Error('run-gates: gate graph has no gates.')
 
   const ids = new Set<string>()
   for (const gate of gates) {
     if (ids.has(gate.id)) throw new Error(`run-gates: duplicate gate id ${JSON.stringify(gate.id)}.`)
     ids.add(gate.id)
+  }
+  const scripts = rootPackageScripts()
+  for (const gate of gates) {
+    const script = rootRunScript(gate)
+    if (script !== undefined && !scripts.has(script)) {
+      throw new Error(`run-gates: gate ${JSON.stringify(gate.id)} runs missing package script ${JSON.stringify(script)}.`)
+    }
   }
   for (const gate of gates) {
     for (const dependency of gate.needs ?? []) {
