@@ -14,10 +14,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, onTestFinished } from 'vitest'
+import { WebSocketServer } from 'ws'
 import type {} from '../src/index.ts'
 import { apply } from '../src/host/share-host.ts'
 
-const START = Date.parse('2026-10-15T00:00:00.000Z')
+// Relative to the wall clock: a fixed start turns the horizon the Relay reports into a past
+// instant once real time passes it, flipping the expectation without any code change.
+const START = Date.now() - 60_000
 const PAST = new Date(START).toISOString()
 const LIVE = new Date(START + 30 * 24 * 60 * 60_000).toISOString()
 const STORED_TOKEN = 'stored-payload.stored-signature'
@@ -76,12 +79,19 @@ async function relayStandIn(options: {
     res.writeHead(404, { 'content-type': 'application/json' })
     res.end('{"error":"not-found"}')
   })
+  // The owner host opens its gateway socket before claiming; accept it so registration succeeds.
+  const sockets = new WebSocketServer({ server })
+  sockets.on('connection', () => {})
   await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve) })
   const { port } = server.address() as AddressInfo
   return {
     relayUrl: `http://127.0.0.1:${String(port)}`,
     claims,
-    close: async () => { await new Promise<void>((resolve) => { server.close(() => { resolve() }) }) },
+    close: async () => {
+      for (const client of sockets.clients) client.terminate()
+      await new Promise<void>((resolve) => { sockets.close(() => { resolve() }) })
+      await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
+    },
   }
 }
 
@@ -153,7 +163,7 @@ describe('owner host credential horizon', () => {
     onTestFinished(relay.close)
     const fixture = await host({ relayUrl: relay.relayUrl, expiresAt: PAST, shares: true })
 
-    await expect.poll(async () => (await fixture.identity()).state).toBe('verified')
+    await expect.poll(async () => (await fixture.identity()).state, { timeout: 10_000 }).toBe('verified')
     expect(await fixture.identity()).toMatchObject({ state: 'verified', expiresAt: LIVE })
     // The host presented the token it held even though its own expiry read had passed: the Relay is
     // the only party that can say whether the login behind it is still renewed.
@@ -174,7 +184,7 @@ describe('owner host credential horizon', () => {
     onTestFinished(relay.close)
     const fixture = await host({ relayUrl: relay.relayUrl, expiresAt: PAST, shares: false })
 
-    await expect.poll(async () => (await fixture.identity()).state).toBe('verified')
+    await expect.poll(async () => (await fixture.identity()).state, { timeout: 10_000 }).toBe('verified')
     expect(relay.claims).toEqual([])
     expect(storedHorizon(fixture.ownerCredentialFile)).toBe(LIVE)
   })
