@@ -177,7 +177,12 @@ export function findTopLevelAwaits(file: string, sourceText: string): TopLevelAw
  * that holds TypeScript sources, because the gate would then pass by scanning less than it claims.
  */
 export function sourceCorpus(repositoryRoot: string = root, pattern: string = SOURCE_GLOB): string[] {
-  const files = globSync(pattern, { cwd: repositoryRoot }).map(file => file.replaceAll('\\', '/')).sort()
+  const files = globSync(pattern, { cwd: repositoryRoot })
+    .map(file => file.replaceAll('\\', '/'))
+    // The executable lint contract writes these probes into package sources while it runs; a
+    // concurrent scan must not read one the contract case has just removed.
+    .filter(file => !(file.split('/').pop() ?? '').startsWith('oxlint-contract-'))
+    .sort()
   if (files.length === 0) throw new Error(`${GATE}: scanned an empty corpus; ${pattern} no longer matches.`)
   if (!files.some(file => file.endsWith('.tsx'))) {
     throw new Error(`${GATE}: the corpus holds no .tsx file; ${pattern} no longer covers TSX sources.`)

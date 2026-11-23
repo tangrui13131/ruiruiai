@@ -16,6 +16,9 @@ import {
   type GateResult,
 } from './run-gates.ts'
 
+// The fail-fast case measures a real child-process kill; a loaded host needs more than 5s.
+vi.setConfig({ testTimeout: 30_000 })
+
 // Graph fixtures select their own browser pool instead of inheriting the CI
 // host's pool, and coverage gates take their shape from the values each case
 // sets, not from the lane that runs this file (a partitioned lane exports
