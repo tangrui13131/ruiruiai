@@ -569,7 +569,8 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
   app.get<{ Querystring: unknown }>('/api/v1/teams', async (request, reply) => {
     const query = teamLibraryQuerySchema.parse(request.query)
     const registry = requireAgentRegistry()
-    const teams = (await registry.listTeams(currentUserId))
+    const teams = (await registry.listTeams())
+      .filter(team => team.ownerId === currentUserId || team.ownerId === 'system')
       .filter(team => query.status === undefined || team.status === query.status)
     const page = teams.slice(query.offset, query.offset + query.limit)
     const items = await Promise.all(page.map(team => publicTeamSummary(team)))
@@ -594,7 +595,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
 
   app.get<{ Params: unknown }>('/api/v1/teams/:teamId', async (request, reply) => {
     const { teamId } = logicalTeamParamsSchema.parse(request.params)
-    await requireOwnedTeam(teamId)
+    await requireVisibleTeam(teamId)
     return await reply.send(await publicTeamSummary(await requireAgentRegistry().getTeam(teamId)))
   })
 
@@ -602,7 +603,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     '/api/v1/teams/:teamId/versions',
     async (request, reply) => {
       const { teamId } = logicalTeamParamsSchema.parse(request.params)
-      await requireOwnedTeam(teamId)
+      await requireVisibleTeam(teamId)
       const versions = await requireAgentRegistry().listTeamVersions(teamId)
       return await reply.send(versions.map(publicTeamVersion))
     },
@@ -1225,6 +1226,14 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
   async function requireOwnedTeam(teamId: string): Promise<AgentTeam> {
     const team = await registryCall(() => requireAgentRegistry().getTeam(teamId))
     if (team.ownerId !== currentUserId) {
+      throw new ApiError(404, 'TEAM_NOT_FOUND', `Agent team "${teamId}" was not found`)
+    }
+    return team
+  }
+
+  async function requireVisibleTeam(teamId: string): Promise<AgentTeam> {
+    const team = await registryCall(() => requireAgentRegistry().getTeam(teamId))
+    if (team.ownerId !== currentUserId && team.ownerId !== 'system' && team.ownerId !== 'legacy') {
       throw new ApiError(404, 'TEAM_NOT_FOUND', `Agent team "${teamId}" was not found`)
     }
     return team

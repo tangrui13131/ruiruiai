@@ -136,7 +136,7 @@ export interface FutureCupMcpRuntime {
 const MCP_TOOL_DEFINITIONS = {
   recommendTeam: {
     name: 'future_cup_recommend_team',
-    description: 'Analyze a frontend engineering requirement and recommend a validated 1-7 Agent team with capability coverage and clarification questions.',
+    description: 'Analyze a frontend engineering requirement and recommend a validated 1-8 Agent team with capability coverage and clarification questions.',
     inputSchema: z.toJSONSchema(teamRecommendationRequestSchema),
   },
   adoptAndCreateProject: {

@@ -108,7 +108,7 @@ export const AGENT_TEAM_DEPARTMENTS = [
 export type AgentTeamDepartmentKey = typeof AGENT_TEAM_DEPARTMENTS[number]
 
 /** Hard upper bound for runtime Agent instances in one Team version. */
-export const MAX_AGENT_TEAM_MEMBERS = 7
+export const MAX_AGENT_TEAM_MEMBERS = 8
 
 /** Minimum capabilities required to publish a frontend delivery Team. */
 export const FRONTEND_TEAM_REQUIRED_CAPABILITIES: Readonly<Record<string, number>> = Object.freeze({
@@ -2087,18 +2087,22 @@ export class AgentRegistry {
       parsed.purpose,
     )
     const members: CreateTeamLibraryMemberInput[] = []
+    const departmentPositions = new Map<string, number>()
     for (const member of parsed.members) {
       const version = this.requireVersion(member.agentVersionId)
       const definition = this.requirePublishedVersion(version)
       for (let instance = 1; instance <= member.instanceCount; instance += 1) {
+        const departmentKey = legacyDepartmentFor(version.role, instance)
+        const position = (departmentPositions.get(departmentKey) ?? 0) + 1
+        departmentPositions.set(departmentKey, position)
         members.push({
           agentVersionId: version.id,
           instanceId: `${version.id}:instance-${String(instance)}`,
           displayName: member.instanceCount === 1
             ? definition.name
             : `${definition.name} ${String(instance)}`,
-          departmentKey: legacyDepartmentFor(version.role, instance),
-          position: instance,
+          departmentKey,
+          position,
         })
       }
     }

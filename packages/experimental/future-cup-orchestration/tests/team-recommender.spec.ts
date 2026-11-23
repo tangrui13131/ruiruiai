@@ -1254,14 +1254,17 @@ describe('Future Cup team recommender', () => {
       }),
       publishedAgents: fixture.publishedAgents,
     })
+    const initialParallelism = recommendation.concurrency.estimatedParallelism
+    expect(initialParallelism).toBeGreaterThan(1)
     const defaultDecrement = applyTeamAdjustment(recommendation, {
       type: 'reduce-concurrency',
     })
-    expect(defaultDecrement.recommendation.concurrency.estimatedParallelism).toBe(1)
+    const reducedParallelism = defaultDecrement.recommendation.concurrency.estimatedParallelism
+    expect(reducedParallelism).toBe(initialParallelism - 1)
     expect(defaultDecrement.changes).toContainEqual({
       kind: 'parallelism',
-      from: 2,
-      to: 1,
+      from: initialParallelism,
+      to: reducedParallelism,
     })
 
     const higherThanEstimated = applyTeamAdjustment(recommendation, {
@@ -1269,7 +1272,7 @@ describe('Future Cup team recommender', () => {
       maximum: 5,
     })
     expect(higherThanEstimated.changes).toEqual([])
-    expect(higherThanEstimated.recommendation.concurrency.estimatedParallelism).toBe(2)
+    expect(higherThanEstimated.recommendation.concurrency.estimatedParallelism).toBe(initialParallelism)
 
     const atCeiling = applyTeamAdjustment(defaultDecrement.recommendation, {
       type: 'reduce-concurrency',
@@ -1290,11 +1293,23 @@ describe('Future Cup team recommender', () => {
       publishedAgents: fixture.publishedAgents,
     })
 
-    const once = applyTeamAdjustment(recommendation, { type: 'reduce-scale' })
-    expect(roleInstances(once.recommendation, 'frontend')).toBe(1)
-    const twice = applyTeamAdjustment(once.recommendation, { type: 'reduce-scale' })
-    expect(twice.changes).toEqual([])
-    expect(twice.explanation).toContain('valid floor')
+    let current = recommendation
+    let reductions = 0
+    for (;;) {
+      const next = applyTeamAdjustment(current, { type: 'reduce-scale' })
+      if (next.changes.length === 0) {
+        expect(next.explanation).toContain('valid floor')
+        break
+      }
+      expect(next.changes).toHaveLength(1)
+      const change = next.changes[0]
+      expect(change?.kind).toBe('instance-count')
+      if (change?.kind !== 'instance-count') throw new Error('expected an instance-count change')
+      expect(change.to).toBe(change.from - 1)
+      current = next.recommendation
+      reductions += 1
+      expect(reductions).toBeLessThan(20)
+    }
   })
 
   it('handles missing scalable roles as an unchanged valid floor', () => {

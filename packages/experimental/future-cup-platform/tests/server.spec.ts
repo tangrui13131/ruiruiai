@@ -637,7 +637,7 @@ describe('Future Cup platform server', () => {
     expect(recommendation.recommendation?.members.reduce(
       (total, member) => total + member.instanceCount,
       0,
-    )).toBe(7)
+    )).toBe(8)
 
     const adjustmentResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/adjust`, {
       method: 'POST',

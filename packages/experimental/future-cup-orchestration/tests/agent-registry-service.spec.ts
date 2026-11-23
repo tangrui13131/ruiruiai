@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { PersistentAgentRegistry } from '../src/agent-registry-service.ts'
 import { parseProjectTeamBinding } from '../src/agent-registry.ts'
 import { ProjectId } from '../src/brand.ts'
-import { DEFAULT_AGENT_TEAM_ID } from '../src/default-agent-team.ts'
+import { DEFAULT_AGENT_TEAM_ID, DEFAULT_AGENT_TEAM_REVISION_ID } from '../src/default-agent-team.ts'
 import { OrchestrationRepository } from '../src/repository.ts'
 
 describe('PersistentAgentRegistry', () => {
@@ -14,7 +14,7 @@ describe('PersistentAgentRegistry', () => {
     const repository = new OrchestrationRepository(':memory:', { journalMode: 'delete' })
     try {
       const registry = new PersistentAgentRegistry(repository)
-      expect(await registry.ensureDefaultTeam()).toBe(DEFAULT_AGENT_TEAM_ID)
+      expect(await registry.ensureDefaultTeam()).toBe(DEFAULT_AGENT_TEAM_REVISION_ID)
       expect(repository.listAgentDefinitions()).toHaveLength(7)
       expect(await registry.discoverPublished({ capability: 'frontend' })).toHaveLength(1)
 

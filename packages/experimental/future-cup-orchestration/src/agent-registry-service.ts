@@ -22,7 +22,11 @@ import {
 import {
   BUILTIN_AGENT_DEFINITION_IDS,
   DEFAULT_AGENT_TEAM_ID,
+  DEFAULT_AGENT_TEAM_REVISION_ID,
+  LEGACY_AGENT_TEAM_ID,
   createDefaultAgentTeam,
+  createDefaultTeamRevision,
+  createLegacyAgentTeam,
 } from './default-agent-team.ts'
 import { checksumJson } from './content-checksum.ts'
 import type {
@@ -74,16 +78,28 @@ export class PersistentAgentRegistry {
   }
 
   /**
-   * Seed the fixed default team when the registry is empty.
-   * @returns the published default team version id.
+   * Seed the fixed default teams and the 2.0.1 revision when missing.
+   * @returns the published 2.0.1 default team version id.
    */
   async ensureDefaultTeam(): Promise<string> {
     await this.initialize()
-    const existing = this.registry.listTeamVersions().find(team => team.id === DEFAULT_AGENT_TEAM_ID)
-    if (existing !== undefined) return existing.id
-    const team = createDefaultAgentTeam(this.registry)
-    await this.persistRegistry()
-    return team.id
+    let changed = false
+    if (!this.registry.listTeamVersions().some(team => team.id === DEFAULT_AGENT_TEAM_ID)) {
+      createDefaultAgentTeam(this.registry)
+      changed = true
+    }
+    let revision = this.registry.listTeamVersions()
+      .find(team => team.id === DEFAULT_AGENT_TEAM_REVISION_ID)
+    if (revision === undefined) {
+      revision = createDefaultTeamRevision(this.registry)
+      changed = true
+    }
+    if (!this.registry.listTeamVersions().some(team => team.id === LEGACY_AGENT_TEAM_ID)) {
+      createLegacyAgentTeam(this.registry)
+      changed = true
+    }
+    if (changed) await this.persistRegistry()
+    return revision.id
   }
 
   /**
