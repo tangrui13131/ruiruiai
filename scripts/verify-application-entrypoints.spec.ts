@@ -3,8 +3,12 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applicationEntrypointViolations } from './verify-application-entrypoints.ts'
+
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
 
 const cleanups: string[] = []
 

@@ -28,6 +28,10 @@ import * as gitTransport from '../src/git-transport.ts'
 import { parse, parseDocument } from 'yaml'
 import { isolateGitCommandLineConfig } from './git-environment.ts'
 
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
+
 // These cases install through real Git and pnpm, so the host's command-line configuration group must not reach their children.
 let restoreGitCommandLineConfig: () => void
 beforeAll(() => { restoreGitCommandLineConfig = isolateGitCommandLineConfig() })

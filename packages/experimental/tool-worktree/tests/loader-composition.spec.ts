@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
@@ -24,6 +24,10 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import WorkingDirectoryService from '@deepseek-ai/dsh-working-directory'
 import WorktreeService from '@deepseek-ai/dsh-experimental-worktree'
 import * as ToolWorktree from '../src/index.ts'
+
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
 
 const exec = promisify(execFile)
 let context: Context | undefined

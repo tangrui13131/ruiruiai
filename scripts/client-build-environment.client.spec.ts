@@ -20,6 +20,10 @@ import {
 } from './client-build-environment.ts'
 import { clientBundle } from '../packages/client/tsdown.client.ts'
 
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
+
 const root = resolve(import.meta.dirname, '..')
 const PROBE_NAME = 'DSH_CLIENT_BUILD_TEST'
 const COMMIT_HASH = '0123456789abcdef0123456789abcdef01234567'

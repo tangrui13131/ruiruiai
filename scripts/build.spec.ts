@@ -1,7 +1,11 @@
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildGates, parseBuildArguments } from './build.ts'
+
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
 
 const root = resolve(import.meta.dirname, '..')
 

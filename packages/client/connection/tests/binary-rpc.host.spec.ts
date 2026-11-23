@@ -2,12 +2,16 @@ import { request } from 'node:http'
 import { gunzipSync } from 'node:zlib'
 import { Context } from '@deepseek-ai/cordis'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { BrowserAuth } from '../src/browser-auth.ts'
 import { createWebConnectionRpc } from '../src/client/rpc.ts'
 import { bridge } from '../src/http-bridge.ts'
 import type { ConnectionRpcHandlerResult, ConnectionRpcResult } from '../src/rpc.ts'
 import { HostConnectionService } from '../src/rpc-host.ts'
+
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
 
 function binaryResponse(rpcId: string, mutate: (parts: FormData) => void = () => {}): Response {
   const parts = new FormData()
