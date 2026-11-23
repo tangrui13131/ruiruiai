@@ -2,6 +2,10 @@
 import { chmod, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// These cases drive real Git checkouts and diffs; the shared five-second default is below
+// what a cold Windows checkout needs under a loaded suite.
+vi.setConfig({ testTimeout: 30_000 })
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { GitRunner, blobText, diffTrees, ignoredPaths, locateGitWorkspace, snapshotTree, treeBlob } from '../src/git.ts'
