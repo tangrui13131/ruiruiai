@@ -6,6 +6,7 @@ import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
+import { packagingToolchainTests } from './scripts/packaging-tests.ts'
 import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTimeoutOptions } from './scripts/coverage-partitions.ts'
 import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from './scripts/parallelism.ts'
 
@@ -205,7 +206,7 @@ export default defineConfig({
     ],
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
-    exclude: platformUnsupportedTests,
+    exclude: [...platformUnsupportedTests, ...packagingToolchainTests],
     // One coverage invocation aggregates both projects. Every suite forks for
     // Node stability; process-bound suites stay separate for inventory control.
     projects: [
@@ -226,6 +227,7 @@ export default defineConfig({
           include: testIncludes,
           exclude: [
             ...platformUnsupportedTests,
+            ...packagingToolchainTests,
             ...processBoundTests,
             ...coverageExemptExcludes,
           ],
@@ -245,6 +247,7 @@ export default defineConfig({
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,
+            ...packagingToolchainTests,
             ...coverageExemptExcludes,
           ],
         },
