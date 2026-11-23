@@ -269,13 +269,13 @@ describe('gate graph validation', () => {
   })
 
   it('rejects a gate that names a package script this repository does not define', () => {
-    expect(() => validateGateGraph([{
+    expect(() => { validateGateGraph([{
       id: 'stale-site',
       label: 'stale site',
       displayCommand: 'pnpm run docs:build',
       command: 'pnpm',
       args: ['run', 'docs:build'],
-    }])).toThrow('run-gates: gate "stale-site" runs missing package script "docs:build".')
+    }]) }).toThrow('run-gates: gate "stale-site" runs missing package script "docs:build".')
   })
 
   it('uses the internal CI benchmark runner without changing the public benchmark scripts', () => {
