@@ -39,6 +39,7 @@
   height: 6px;
   margin-top: -3px;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--neu-blue);
   box-shadow:
     0 0 0 2px rgb(59 106 156 / 12%),
@@ -192,6 +193,7 @@
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 52%);
   border-radius: 999px;
+  corner-shape: round;
   background: linear-gradient(145deg, #e2e0d8, #f5f4ef);
   box-shadow:
     inset 3px 3px 6px rgb(28 29 31 / 8%),
@@ -222,6 +224,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
+  corner-shape: round;
   background-color: #ffffff;
   background-image: radial-gradient(circle at 34% 26%, rgb(255 255 255 / 96%) 0%, rgb(255 255 255 / 0%) 56%);
   box-shadow:
@@ -253,6 +256,7 @@
   outline: 2px solid var(--neu-blue);
   outline-offset: 3px;
   border-radius: 999px;
+  corner-shape: round;
 }
 
 /* 卡片：悬停轻微浮起放大，离开平滑回弹 */

@@ -189,6 +189,7 @@ html.fc-boot-armed #fc-boot { display: block; }
   height: min(620px, 88vw);
   transform: translate(-50%, -50%);
   border-radius: 50%;
+  corner-shape: round;
   background: radial-gradient(circle, var(--aura-core) 0%, var(--aura-mid) 42%, transparent 72%);
   pointer-events: none;
   will-change: transform, opacity;
@@ -315,6 +316,7 @@ html.fc-boot-armed #fc-boot { display: block; }
   width: 6px;
   height: 6px;
   border-radius: 9999px;
+  corner-shape: round;
   border: 1px solid var(--hud-bracket);
 }
 
@@ -535,6 +537,7 @@ html.fc-boot-armed #fc-boot { display: block; }
   min-height: 46px;
   padding: 12px 32px;
   border-radius: 9999px;
+  corner-shape: round;
   border: 1px solid rgba(37, 36, 33, 0.14);
   background: linear-gradient(180deg, #353430 0%, #262522 100%);
   color: #f6f4ee;

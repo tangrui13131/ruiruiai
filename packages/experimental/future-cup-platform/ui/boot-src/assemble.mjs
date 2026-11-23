@@ -27,7 +27,11 @@ if (start < 0 || end < 0) throw new Error('boot-markup.html markers missing')
 const markup = markupFull.slice(start, end).trimEnd()
 
 const customCss = read('boot-custom.css').trim()
-const utilityCss = read('boot-utilities.css').trim()
+// The theme contract pairs every full-round radius with `corner-shape: round` so the
+// superellipse never deforms a circle; Tailwind's compiled utility needs that pairing added.
+const utilityCss = read('boot-utilities.css')
+  .trim()
+  .replace('.rounded-full{border-radius:9999px}', '.rounded-full{border-radius:9999px;corner-shape:round}')
 
 const BOOT_VERSION = '2026-11-21.4'
 
