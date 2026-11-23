@@ -161,6 +161,10 @@ describe('published npm dependency catalog', () => {
       NPM_CONFIG_CACHE: join(root, 'inherited-cache'),
       NPM_CONFIG_USER_AGENT: 'inherited-agent',
     }
+    // Keep npm's project lookup inside the fixture: a package.json marks this directory as the
+    // project root, and the empty .npmrc keeps a user-level file from becoming project config.
+    writeFileSync(join(root, 'package.json'), '{"name":"dependency-catalog-fixture","private":true}\n')
+    writeFileSync(join(root, '.npmrc'), '')
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
     const args = ['config', 'list', '--json', '--registry=https://registry.npmjs.org/', '--loglevel=error']
     const before = await runCommandWithTimeout(npm, args, { cwd: root, env: inherited, timeoutMs: 30_000 })
