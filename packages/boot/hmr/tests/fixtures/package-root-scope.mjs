@@ -9,13 +9,17 @@ const [root] = process.argv.slice(2)
 const reader = createRequire(import.meta.url)('internal/modules/package_json_reader')
 const source = join(root, 'missing', 'entry.js')
 const url = pathToFileURL(source).href
-const expectedScope = reader.getPackageScopeConfig(url)
-const expectedNearest = reader.getNearestParentPackageJSON(source)
+// Node reports the same manifest with or without the Windows namespace prefix depending on
+// whether the result came from its warm cache; the prefix carries no meaning for the lookup.
+const normalize = value => JSON.parse(JSON.stringify(value ?? null), (_key, inner) =>
+  typeof inner === 'string' ? inner.replace(/^\\\\\?\\/, '') : inner)
+const expectedScope = normalize(reader.getPackageScopeConfig(url))
+const expectedNearest = normalize(reader.getNearestParentPackageJSON(source))
 const manifests = new PackageManifests()
 try {
   await manifests.invalidate(join(parse(root).root, 'package.json'))
-  assert.deepEqual(reader.getPackageScopeConfig(url), expectedScope)
-  assert.deepEqual(reader.getNearestParentPackageJSON(source), expectedNearest)
+  assert.deepEqual(normalize(reader.getPackageScopeConfig(url)), expectedScope)
+  assert.deepEqual(normalize(reader.getNearestParentPackageJSON(source)), expectedNearest)
   process.stdout.write('scope traversal completed\n')
 } finally {
   manifests.dispose()
