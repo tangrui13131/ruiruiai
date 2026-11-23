@@ -803,6 +803,16 @@ const agentTeamMemberSnapshotSchema = z.object({
   version: agentVersionSchema,
 }).strict()
 
+/** Runtime-capability fields shared by both stored team-version shapes. */
+const teamVersionRuntimeShape = {
+  requiredCapabilities: teamRequiredCapabilityMapSchema,
+  requiredConcurrency: z.number().int().positive().max(1_000_000),
+  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
+  toolPolicy: teamToolPolicySchema,
+  memoryPolicy: teamMemoryPolicySchema,
+  inputSchema: jsonSchemaDescriptorSchema,
+}
+
 const agentTeamVersionV2Schema = z.object({
   id: identifierSchema,
   teamId: identifierSchema,
@@ -812,12 +822,7 @@ const agentTeamVersionV2Schema = z.object({
   purpose: z.string().trim().min(1).max(4_000),
   status: agentTeamVersionStatusSchema,
   members: z.array(agentTeamMemberSnapshotSchema).max(64),
-  requiredCapabilities: teamRequiredCapabilityMapSchema,
-  requiredConcurrency: z.number().int().positive().max(1_000_000),
-  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
-  toolPolicy: teamToolPolicySchema,
-  memoryPolicy: teamMemoryPolicySchema,
-  inputSchema: jsonSchemaDescriptorSchema,
+  ...teamVersionRuntimeShape,
   outputSchemas: z.array(jsonSchemaDescriptorSchema).max(64),
 }).strict()
 
@@ -831,12 +836,7 @@ const legacyAgentTeamVersionSchema = z.object({
     definition: agentDefinitionSchema,
     version: agentVersionSchema,
   }).strict()).min(1).max(64),
-  requiredCapabilities: teamRequiredCapabilityMapSchema,
-  requiredConcurrency: z.number().int().positive().max(1_000_000),
-  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
-  toolPolicy: teamToolPolicySchema,
-  memoryPolicy: teamMemoryPolicySchema,
-  inputSchema: jsonSchemaDescriptorSchema,
+  ...teamVersionRuntimeShape,
   outputSchemas: z.array(jsonSchemaDescriptorSchema).min(1).max(64),
 }).strict()
 
@@ -1686,19 +1686,7 @@ export class AgentRegistry {
    */
   deleteTeamVersionDraft(teamId: string, teamVersionId: string): void {
     const team = this.requireTeam(teamId)
-    const current = this.requireTeamVersion(teamVersionId)
-    if (current.teamId !== team.id) {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
-        'TEAM_VERSION_NOT_FOUND',
-      )
-    }
-    if (current.status !== 'DRAFT') {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" is not a draft`,
-        'TEAM_VERSION_NOT_DRAFT',
-      )
-    }
+    const current = this.requireDraftTeamVersion(team, teamVersionId)
     this.teamVersions.delete(current.id)
   }
 
@@ -1802,19 +1790,7 @@ export class AgentRegistry {
         'TEAM_ARCHIVED',
       )
     }
-    const current = this.requireTeamVersion(teamVersionId)
-    if (current.teamId !== team.id) {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
-        'TEAM_VERSION_NOT_FOUND',
-      )
-    }
-    if (current.status !== 'DRAFT') {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" is not a draft`,
-        'TEAM_VERSION_NOT_DRAFT',
-      )
-    }
+    const current = this.requireDraftTeamVersion(team, teamVersionId)
     if (current.members.length < 1 || current.members.length > MAX_AGENT_TEAM_MEMBERS) {
       throw new AgentRegistryError(
         `Published Agent teams require 1-${String(MAX_AGENT_TEAM_MEMBERS)} runtime members`,
@@ -2037,6 +2013,29 @@ export class AgentRegistry {
       )
     }
     return version
+  }
+
+  /**
+   * Require a DRAFT version owned by the given logical Team.
+   * @param team - owning logical Team.
+   * @param teamVersionId - version to require.
+   * @returns the DRAFT version.
+   */
+  private requireDraftTeamVersion(team: AgentTeam, teamVersionId: string): AgentTeamVersion {
+    const current = this.requireTeamVersion(teamVersionId)
+    if (current.teamId !== team.id) {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
+        'TEAM_VERSION_NOT_FOUND',
+      )
+    }
+    if (current.status !== 'DRAFT') {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" is not a draft`,
+        'TEAM_VERSION_NOT_DRAFT',
+      )
+    }
+    return current
   }
 
   private validateTeamMembers(members: readonly AgentTeamMemberSnapshot[]): void {

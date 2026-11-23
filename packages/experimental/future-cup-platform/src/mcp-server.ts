@@ -21,6 +21,7 @@ import type {
   ProjectMemoryEntry,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import {
+  createProjectInputSchema as mcpCreateProjectInputSchema,
   mcpServerInfoResponseSchema,
   publicAgentTeamVersionSchema,
   savedAgentTeamVersionSchema,
@@ -47,13 +48,6 @@ export const FUTURE_CUP_MCP_INFO_PATH = `${FUTURE_CUP_MCP_ENDPOINT_PATH}/info`
 
 const MCP_SERVER_NAME = 'future-cup-platform-mcp'
 const MCP_SERVER_VERSION = '1.0.0'
-
-const mcpCreateProjectInputSchema = z.object({
-  id: z.string().min(1).max(120).optional(),
-  name: z.string().min(1).max(120),
-  requirement: z.string().min(1).max(20_000),
-  teamVersionId: z.string().min(1).max(160).optional(),
-}).strict()
 
 const mcpProjectIdInputSchema = z.object({
   projectId: z.string().min(1).max(120),

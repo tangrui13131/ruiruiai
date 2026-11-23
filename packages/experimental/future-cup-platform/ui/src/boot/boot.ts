@@ -1124,6 +1124,19 @@ function gatherDom(): BootDom {
   }
 }
 
+/** Remove the boot overlay and hand the page back to the application. */
+function tearDownBootOverlay(): void {
+  const overlay = document.getElementById('fc-boot')
+  if (overlay !== null && overlay.parentNode !== null) overlay.parentNode.removeChild(overlay)
+  document.documentElement.classList.remove('fc-boot-armed')
+  document.body.style.overflow = ''
+  const appRoot = document.getElementById('root')
+  if (appRoot !== null) {
+    appRoot.removeAttribute('inert')
+    appRoot.removeAttribute('aria-hidden')
+  }
+}
+
 /**
  * Replay the boot animation in place: insert the overlay markup template,
  * rebuild the DOM handles and run the same controller from frame zero. Works
@@ -1144,15 +1157,7 @@ function replayBoot(): void {
     startBoot()
   } catch (err) {
     console.error('[boot] replay failed to start; tearing the overlay down', err)
-    const overlay = document.getElementById('fc-boot')
-    if (overlay !== null && overlay.parentNode !== null) overlay.parentNode.removeChild(overlay)
-    document.documentElement.classList.remove('fc-boot-armed')
-    document.body.style.overflow = ''
-    const appRoot = document.getElementById('root')
-    if (appRoot !== null) {
-      appRoot.removeAttribute('inert')
-      appRoot.removeAttribute('aria-hidden')
-    }
+    tearDownBootOverlay()
   }
 }
 
@@ -1172,14 +1177,6 @@ if (config !== undefined && config.play === true) {
   } catch (err) {
     // Fail loud but never brick the page: tear the overlay down so the app shows.
     console.error('[boot] overlay failed to start; skipping boot animation', err)
-    const overlay = document.getElementById('fc-boot')
-    if (overlay !== null && overlay.parentNode !== null) overlay.parentNode.removeChild(overlay)
-    document.documentElement.classList.remove('fc-boot-armed')
-    document.body.style.overflow = ''
-    const appRoot = document.getElementById('root')
-    if (appRoot !== null) {
-      appRoot.removeAttribute('inert')
-      appRoot.removeAttribute('aria-hidden')
-    }
+    tearDownBootOverlay()
   }
 }

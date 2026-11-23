@@ -34,6 +34,7 @@ import type {
   StructureProjectProfileInput,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import {
+  createProjectInputSchema as createProjectSchema,
   publicProjectRun,
   publicProjectSnapshot,
   publicVerificationReport,
@@ -128,13 +129,6 @@ const teamLibraryQuerySchema = z.object({
   offset: z.coerce.number().int().nonnegative().default(0),
   limit: z.coerce.number().int().positive().max(100).default(24),
   status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
-}).strict()
-
-const createProjectSchema = z.object({
-  id: z.string().min(1).max(120).optional(),
-  name: z.string().min(1).max(120),
-  requirement: z.string().min(1).max(20_000),
-  teamVersionId: z.string().min(1).max(160).optional(),
 }).strict()
 
 const deriveProjectSchema = z.object({
