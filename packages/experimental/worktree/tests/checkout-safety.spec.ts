@@ -1,6 +1,10 @@
 import { access, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// This suite drives real git checkouts and worktrees; a cold Windows checkout needs more
+// than the shared 5s default per case, and the work is genuine rather than a hang.
+vi.setConfig({ testTimeout: 30_000 })
 import type { Context } from '@deepseek-ai/cordis'
 import { SubprocessExecutableNotFoundError } from '@deepseek-ai/dsh-subprocess'
 import { contents, filterCommand, git, harness, repository, testAgent } from './harness.ts'
