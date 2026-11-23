@@ -32,6 +32,9 @@ import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 import type { Behavior } from './mock-server.ts'
 import { requestImageStore } from './helpers.ts'
 
+// These cases pack tarballs and drive a mock server; a loaded host exceeds the shared 5s default.
+vi.setConfig({ testTimeout: 30_000 })
+
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'test': { kind: 'test' } & ContextFormed

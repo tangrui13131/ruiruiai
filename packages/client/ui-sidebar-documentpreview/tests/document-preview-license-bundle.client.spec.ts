@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { runInNewContext } from 'node:vm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// These cases pack tarballs and drive a mock server; a loaded host exceeds the shared 5s default.
+vi.setConfig({ testTimeout: 30_000 })
 
 const packageRoot = resolve(import.meta.dirname, '..')
 const bundlePath = join(packageRoot, 'lib/client.js')
