@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Future Cup 设置</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f7f1ea;
+        --ink: #3b2f26;
+        --muted: #8a7668;
+        --accent: #b4552d;
+        --line: rgba(94, 62, 40, 0.16);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px 32px 24px;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 18px;
+        color: var(--muted);
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+      input {
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fffaf5;
+        color: var(--ink);
+        font: inherit;
+        outline: none;
+      }
+      input:focus {
+        border-color: rgba(180, 85, 45, 0.55);
+        box-shadow: 0 0 0 3px rgba(180, 85, 45, 0.12);
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .error {
+        min-height: 18px;
+        margin-top: 8px;
+        color: #a3352a;
+        font-size: 12px;
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      button {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #fffaf5;
+        color: var(--ink);
+        font: inherit;
+        cursor: pointer;
+      }
+      button.primary {
+        border-color: transparent;
+        background: var(--accent);
+        color: #fffaf5;
+        font-weight: 600;
+      }
+      button:focus-visible {
+        outline: 2px solid rgba(180, 85, 45, 0.5);
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>连接 DeepSeek</h1>
+    <p>Future Cup 需要 DeepSeek API Key 才能启动 Agent。</p>
+    <label for="key">API Key</label>
+    <input
+      id="key"
+      type="password"
+      placeholder="sk-..."
+      autocomplete="off"
+      spellcheck="false"
+      autofocus
+    />
+    <div class="hint" id="hint">Key 只保存在本机，使用 Windows DPAPI 加密，不会上传到任何第三方服务。</div>
+    <div class="error" id="error" role="alert"></div>
+    <div class="actions">
+      <button id="cancel" type="button">取消</button>
+      <button id="save" class="primary" type="button">保存并启动</button>
+    </div>
+    <script>
+      const input = document.getElementById('key')
+      const error = document.getElementById('error')
+      const save = document.getElementById('save')
+      const cancel = document.getElementById('cancel')
+      const hint = document.getElementById('hint')
+
+      if (window.desktopSettings.portable) {
+        hint.textContent = '便携模式：Key 以明文保存在移动硬盘，请妥善保管，不要外借硬盘。'
+      }
+
+      async function persist() {
+        error.textContent = ''
+        const value = input.value.trim()
+        if (value === '') {
+          error.textContent = '请输入 API Key'
+          input.focus()
+          return
+        }
+        save.disabled = true
+        try {
+          await window.desktopSettings.save(value)
+        } catch (failure) {
+          save.disabled = false
+          error.textContent = String(failure && failure.message ? failure.message : failure)
+        }
+      }
+
+      save.addEventListener('click', persist)
+      cancel.addEventListener('click', () => window.desktopSettings.cancel())
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') persist()
+      })
+      window.addEventListener('load', () => input.focus())
+    </script>
+  </body>
+</html>

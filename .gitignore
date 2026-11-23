@@ -33,6 +33,11 @@ mise.toml
 dist-exe/
 /dist/
 apps/desktop/.desktop-build/
+apps/desktop/.cache/
+apps/desktop/runtime/
+apps/desktop/release/
+apps/desktop/release-final/
+apps/desktop/release-portable*/
 python/sdk-runtime/src/deepseek_harness_runtime/runtime/
 python/**/__pycache__/
 python/**/.pytest_cache/
@@ -54,3 +59,4 @@ native/system/test/bin/
 .v2c/
 .zcode/
 tmp*.log
+.mcp.json
