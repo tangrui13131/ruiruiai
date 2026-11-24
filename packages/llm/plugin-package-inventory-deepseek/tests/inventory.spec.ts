@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Context, LoggerLevel } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -138,6 +138,11 @@ describe('DeepSeek plugin package inventory', () => {
     expect(warnings).toEqual(kind === 'deleted'
       ? []
       : [['plugin-package-inventory-deepseek: omitting unreadable package identity for %s: %o', bad, expect.any(Error)]])
+  })
+
+  it('reports no identity when no manifest exists up to the filesystem root', () => {
+    const modulePath = join(parse(tmpdir()).root, 'dsh-no-manifest', 'plugin.mjs')
+    expect(PluginInventory.nearestManifest(modulePath, () => false)).toBeUndefined()
   })
 
   it('omits a loose ESM module whose nearest manifest only marks the module type', async () => {

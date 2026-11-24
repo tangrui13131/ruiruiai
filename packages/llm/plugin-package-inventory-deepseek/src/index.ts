@@ -84,13 +84,18 @@ function barePackageManifest(
   return undefined
 }
 
-/** Find the nearest owning manifest for a relative or absolute plugin module. */
-function nearestManifest(modulePath: string): string | undefined {
+/**
+ * Find the nearest owning manifest for a relative or absolute plugin module.
+ * @param modulePath - Module path whose ancestors are searched.
+ * @param exists - Manifest probe, injectable so the filesystem-root exit is testable.
+ * @returns The nearest manifest path, or undefined when none exists up to the root.
+ */
+export function nearestManifest(modulePath: string, exists: (path: string) => boolean = existsSync): string | undefined {
   let current = dirname(modulePath)
   const root = parse(current).root
   while (true) {
     const manifest = join(current, 'package.json')
-    if (existsSync(manifest)) return manifest
+    if (exists(manifest)) return manifest
     if (current === root) return undefined
     current = dirname(current)
   }
