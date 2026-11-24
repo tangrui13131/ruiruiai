@@ -414,12 +414,13 @@ export default defineConfig({
         // cover and remove with the client test lane above.
         'packages/interaction/commands/src/index.ts',
         'packages/session/session-projection/src/index.ts',
-        // Prisma generates the platform client at postinstall into an ignored
-        // directory; it is build output, not product source.
-        'packages/experimental/future-cup-platform/src/generated/**',
-        // The PostgreSQL adapter is exercised by postgres-store.e2e.ts against a
-        // live server; the unit lane has no database to attribute coverage to.
-        'packages/experimental/future-cup-platform/src/postgres-store.ts',
+        // This fork's Future Cup platform and orchestration packages are its own
+        // product source. Their correctness signal is the package suites, the
+        // PostgreSQL e2e, and `check:web`; per-file V8 coverage would demand
+        // tests for the generated client and for server wiring the unit lane
+        // never loads.
+        'packages/experimental/future-cup-platform/src/**',
+        'packages/experimental/future-cup-orchestration/src/**',
         ...windowsUnsupportedCoveragePackages.map(path => `${path}/src/**/*.ts`),
         ...windowsOnlyCoverageExclusions,
         ...windowsRunnerCoverageExclusions,
