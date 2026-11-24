@@ -115,6 +115,23 @@ export const Config = z.object({
  * @param config - explicit database and transport configuration.
  */
 export function apply(ctx: Context, config: Config): void {
+  // A profile invoked with --help must print its flags and exit; booting the
+  // server instead leaves the probe running until it is killed.
+  if (process.argv.some(argument => argument === '--help' || argument === '-h')) {
+    // Booted services keep the event loop alive, so help must end the process
+    // itself once the text has flushed.
+    process.stdout.write([
+      'Usage: dsh [--profile] <name> [--no-open]',
+      '',
+      'Future Cup platform: project orchestration, Agents, and the management UI.',
+      '',
+      'Options:',
+      '  --no-open   do not open the platform UI in the browser',
+      '',
+      '',
+    ].join('\n'), () => { process.exit(0) })
+    return
+  }
   void ctx.effect(async () => {
     const store = config.databaseDriver === 'postgres'
       ? createPostgresStore(config.databaseUrl)
