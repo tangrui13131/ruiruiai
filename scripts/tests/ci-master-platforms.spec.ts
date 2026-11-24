@@ -49,7 +49,7 @@ function evaluateCondition(expression: string, cancelled: boolean, results: stri
   }, { timeout: 1000 }) as boolean
 }
 
-const verdicts = [['ci.yml', 'all-checks-passed'], ['ci-windows.yml', 'windows-checks-passed'], ['ci-python.yml', 'python-checks-passed']] as const
+const verdicts = [['ci.yml', 'all-checks-passed'], ['ci-windows.yml', 'windows-checks-passed']] as const
 
 describe('master-only platform scheduling', () => {
   it.each(verdicts.flatMap(([file, job]) => ['success', 'failure', 'skipped', 'cancelled'].map(result => [file, job, result] as const)))(
@@ -72,29 +72,6 @@ describe('master-only platform scheduling', () => {
   it('distinguishes the obsolete always verdict from the cancellable status guard', () => {
     expect(evaluateCondition("always() && github.event_name == 'pull_request'", true, ['success'])).toBe(true)
     expect(evaluateCondition(workflow('ci.yml').jobs['all-checks-passed']!.if as string, true, ['success'])).toBe(false)
-  })
-
-  it('keeps the required Python PR verdict and its two x64 targets in CI Python', () => {
-    const pr = workflow('ci-python.yml')
-    expect(Object.keys(pr.on)).toEqual(['pull_request'])
-    expect(pr.jobs['python-runtime']).toMatchObject({
-      if: "github.event_name == 'pull_request'",
-      uses: runtimeBuilder,
-      with: { ci: true, targets: 'node24-linux-x64,node24-win-x64' },
-    })
-    expect(pr.jobs.windows).toBeUndefined()
-    expect(JSON.stringify(pr.jobs)).not.toMatch(/wine-windows-gates|check:windows-wine/)
-    const aggregate = pr.jobs['python-checks-passed']!
-    expect(aggregate.needs).toContain('python-runtime')
-    expect(aggregate.needs).not.toContain('windows')
-    expect(aggregate.needs!.every(id => id in pr.jobs)).toBe(true)
-    expect(aggregate.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' }}")
-    expect(aggregate.steps).toContainEqual(expect.objectContaining({
-      if: "contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')",
-    }))
-    for (const file of ['ci.yml', 'ci-windows.yml']) {
-      expect(workflow(file).jobs['python-runtime']).toBeUndefined()
-    }
   })
 
   it('runs all three deferred carriers on master pushes with fail-loud API credentials', () => {

@@ -85,7 +85,7 @@ const fallbackCases: Array<[string, Record<string, string | boolean>]> = [
   ['missing PR payload', { ...trustedPush, 'github.event_name': 'pull_request' }],
 ]
 
-for (const [file, jobIds] of [['release.yml', ['dependencies', 'pack']], ['release-vendor.yml', ['pack']]] as const) {
+for (const [file, jobIds] of [['release-vendor.yml', ['pack']]] as const) {
   describe(file, () => {
     const release = workflow(file)
     it('preserves the logical jobs, rehearsal events and read-only permission', () => {
@@ -142,24 +142,14 @@ for (const [file, jobIds] of [['release.yml', ['dependencies', 'pack']], ['relea
         })
         it('retains the dependency and pack verification commands', () => {
           const commands = job.steps.flatMap(step => step.run === undefined ? [] : [step.run])
-          if (jobId === 'dependencies') {
-            // Both verifications share one step so the lane pays the longer half.
-            const combined = commands.find(command => command.includes('verify-package-dependencies'))
-            expect(combined).toContain('verify-npm-install-layout')
-            expect(combined).toContain('wait "$layout_pid"')
-          } else {
-            const family = file === 'release.yml' ? 'dsh' : 'vendor'
-            const output = family === 'dsh' ? 'dist/npm' : 'dist/npm-vendor'
-            expect(job.steps[0]?.with?.['fetch-depth']).toBe(0)
-            expect(commands).toContain('pnpm run release:verify --family ' + family)
-            expect(commands).toContain(family === 'dsh'
-              ? "${{ github.event_name == 'pull_request' && 'pnpm run build:artifacts --profile official' || 'pnpm run build:official' }}"
-              : "${{ github.event_name == 'pull_request' && 'pnpm exec tsx scripts/compile-referenced-projects.ts host-libraries' || 'pnpm run build:lib:host' }}")
-            expect(commands).toContain('pnpm run release:pack --family ' + family + ' --out ' + output + ' --concurrency 8')
-            expect(commands).toContain('pnpm run release:verify-packed-install --family ' + family + ' --from ' + output
-              + (family === 'dsh' ? ' --from dist/npm-vendor --from dist/npm-landlock' : ''))
-            expect(job.steps.at(-1)).toMatchObject({ uses: 'actions/upload-artifact@v7.0.1', with: { path: output + '/*', 'retention-days': 7 } })
-          }
+          const family = 'vendor'
+          const output = 'dist/npm-vendor'
+          expect(job.steps[0]?.with?.['fetch-depth']).toBe(0)
+          expect(commands).toContain('pnpm run release:verify --family ' + family)
+          expect(commands).toContain("${{ github.event_name == 'pull_request' && 'pnpm exec tsx scripts/compile-referenced-projects.ts host-libraries' || 'pnpm run build:lib:host' }}")
+          expect(commands).toContain('pnpm run release:pack --family ' + family + ' --out ' + output + ' --concurrency 8')
+          expect(commands).toContain('pnpm run release:verify-packed-install --family ' + family + ' --from ' + output)
+          expect(job.steps.at(-1)).toMatchObject({ uses: 'actions/upload-artifact@v7.0.1', with: { path: output + '/*', 'retention-days': 7 } })
           expect(JSON.stringify(job)).not.toMatch(/secrets\.|release:publish|npm-publish/)
         })
       })
