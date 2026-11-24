@@ -279,7 +279,7 @@ export default defineConfig({
         'packages/client/ui-trajectory/src/*',
         // Electron guest integration retains its unit specs; per-file coverage
         // is deferred until a native Electron harness covers guest behavior.
-        'packages/client/ui-sidebar-browser/src/client/electron/**',
+        'packages/client/ui-sidebar-browser/src/client/browser/electron/**',
         // Trajectory's compact Markdown projection retains deferred branch coverage.
         'packages/client/ui-primitives/src/markdown/plain-text.ts',
         'packages/client/ui-user-questions/src/client/QuestionComposer.tsx',
