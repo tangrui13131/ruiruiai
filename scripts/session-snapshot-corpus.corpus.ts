@@ -97,7 +97,8 @@ async function snapshotNamedTests(): Promise<string[]> {
       }
     }
   }
-  for (const root of ['apps', 'native', 'packages', 'python', 'scripts', 'snapshots', 'website']) {
+  // The fork removed the documentation site that owned `website`.
+  for (const root of ['apps', 'native', 'packages', 'python', 'scripts', 'snapshots']) {
     await visit(join(repoRoot, root), root)
   }
   return files.sort()
