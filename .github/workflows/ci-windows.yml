@@ -153,6 +153,11 @@ jobs:
           } else {
             pnpm install --frozen-lockfile
           }
+      # The coverage aggregate runs the Playwright checks, and browsers are not
+      # part of the dependency install.
+      - name: Install Playwright Chromium
+        shell: pwsh
+        run: pnpm --filter @deepseek-ai/dsh-experimental-future-cup-orchestration exec playwright install chromium
       # No build before coverage, matching the Linux lane: workspace imports
       # resolve to src through the tsconfig paths map, and the lib-consuming
       # suites (webworker-packer image-loadable, webworker-runtime
