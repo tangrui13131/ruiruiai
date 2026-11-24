@@ -658,8 +658,8 @@ const runtimeDependencySections = ['dependencies', 'optionalDependencies', 'peer
 /**
  * Runtime dependencies this fork's default product requires even though they live under
  * `packages/experimental/`. `apps/cli` ships the Future Cup platform as the product itself
- * (commit `30ab8351`, "remove official frontends and switch default profile to
- * future-cup-platform"), so upstream's rule that experimental packages stay switched off
+ * (the change that removed the official frontends and switched the default profile to
+ * future-cup-platform), so upstream's rule that experimental packages stay switched off
  * describes the upstream product, not this repository. Keep entries narrow: one manifest
  * name to the exact dependency names it may require.
  */

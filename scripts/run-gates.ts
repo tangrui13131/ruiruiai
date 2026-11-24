@@ -299,8 +299,8 @@ function pnpmExec(id: string, args: string[], options: Partial<Gate> = {}): Gate
 
 /**
  * Gates that assert the upstream product shape and cannot describe this fork.
- * Commit `30ab8351` removed the official frontends (`apps/web`) and made the Future Cup
- * platform the default product. These leaves now crash on the removed `apps/web` tree, or
+ * The fork removed the official frontends (`apps/web`) and made the Future Cup platform
+ * the default product. These leaves now crash on the removed `apps/web` tree, or
  * reject the fork's own default product for being experimental, and the Windows installer
  * locale check moved out of this repository with the installer. Enable a leaf again only
  * after its subject exists here; `check:web` covers the fork's web product in the meantime.
