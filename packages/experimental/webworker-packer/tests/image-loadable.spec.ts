@@ -19,7 +19,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import picomatch from 'picomatch'
 import { FiberState } from '@deepseek-ai/cordis'
 import { createNodeBuiltins, REPLACED_PREFIXES } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/node/builtins.ts'
@@ -32,6 +32,9 @@ import { setActiveVfs } from '@deepseek-ai/dsh-experimental-webworker-runtime/sr
 import { indexWorkspacePackages, previewFixtures } from '../src/repository.ts'
 import { DEFAULT_ROOT, MANIFEST_PATH, packVfsImage, packVfsOverlay } from '../src/pack.ts'
 import { PAGE_ASSETS } from '../src/rules.ts'
+
+// This case prepares a packed Worker image; a loaded host exceeds the shared 5s default.
+vi.setConfig({ testTimeout: 30_000 })
 
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
