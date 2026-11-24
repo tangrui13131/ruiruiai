@@ -1,11 +1,7 @@
 /** Shared conversion from reference-machine expectations to CI time budgets. */
 
-/**
- * Measured wall-time ratio between the two-core hosted CI runner and the arm64
- * reference machine. The ratio was first measured on the repository's
- * sixteen-core self-hosted runners, which this fork no longer uses.
- */
-export const CI_TIME_SCALE = 2.5
+/** Measured wall-time ratio between the x64 CI runner and the arm64 reference machine. */
+export const CI_TIME_SCALE = 2
 /** Allowed variance above the calibrated expectation. */
 export const PERFORMANCE_BUDGET_HEADROOM = 1.25
 
