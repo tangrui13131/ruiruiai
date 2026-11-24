@@ -1,5 +1,7 @@
 # Future Cup desktop shell
 
+English | [中文](README.zh.md)
+
 Minimal Electron shell that runs the Future Cup platform as a Windows desktop application. The shell owns the window, the frameless caption overlay, the API-key dialog, and the lifecycle of the bundled dsh host; the platform itself remains unchanged.
 
 ## Layout

@@ -1,5 +1,7 @@
 # `dsh-desktop-runtime-closure`
 
+English | [中文](README.zh.md)
+
 Manifest-only workspace package that names every first-party package the desktop shell ships. `pnpm deploy --filter dsh-desktop-runtime-closure` produces the hoisted production closure under `apps/desktop/runtime`; the package has no code and no scripts.
 
 The dependency list starts from [`python/sdk-runtime/package.json`](../../python/sdk-runtime/package.json) and adds the Future Cup platform and orchestration packages. The closure manifest exists so the deploy carries every peer dependency explicitly; a bare `pnpm deploy` of the CLI omits workspace peers that the runtime needs.
