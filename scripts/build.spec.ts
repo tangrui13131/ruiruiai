@@ -106,7 +106,7 @@ describe('repository build steps', () => {
   it('starts each aggregate check after its own package compilation in the complete build', () => {
     expect(graph(buildGates(root, 'complete'))).toEqual({
       ...artifactGraph,
-      'future-cup-ui-check': [],
+      'future-cup-ui-check': ['host-src'],
       'host-check': ['host-src'],
       'client-check': ['client-src'],
     })
@@ -118,7 +118,7 @@ describe('repository build steps', () => {
       'host-typert': [],
       'host-src': ['host-typert'],
       'client-src': ['host-src'],
-      'future-cup-ui-check': [],
+      'future-cup-ui-check': ['host-src'],
       'host-check': ['host-src'],
       'client-check': ['client-src'],
     })
