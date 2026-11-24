@@ -414,6 +414,12 @@ export default defineConfig({
         // cover and remove with the client test lane above.
         'packages/interaction/commands/src/index.ts',
         'packages/session/session-projection/src/index.ts',
+        // Prisma generates the platform client at postinstall into an ignored
+        // directory; it is build output, not product source.
+        'packages/experimental/future-cup-platform/src/generated/**',
+        // The PostgreSQL adapter is exercised by postgres-store.e2e.ts against a
+        // live server; the unit lane has no database to attribute coverage to.
+        'packages/experimental/future-cup-platform/src/postgres-store.ts',
         ...windowsUnsupportedCoveragePackages.map(path => `${path}/src/**/*.ts`),
         ...windowsOnlyCoverageExclusions,
         ...windowsRunnerCoverageExclusions,
