@@ -1406,3 +1406,15 @@ describe('Windows tree termination', () => {
     expect(taskkillArgs(100, [])).toEqual([['/PID', '100', '/T', '/F']])
   })
 })
+
+describe('CLI entry point', () => {
+  it('runs after every module-level declaration so the aggregates initialize first', () => {
+    const lines = readFileSync(new URL('./run-gates.ts', import.meta.url), 'utf8').split(/\r?\n/)
+    const entry = lines.findIndex(line => line.includes('import.meta.main'))
+    expect(entry).toBeGreaterThan(-1)
+    // A top-level await suspends module evaluation at the entry block, so any
+    // later `const` stays uninitialized until the aggregate has already run.
+    const declaredAfter = lines.filter((line, index) => index > entry && /^(export )?(const|let|var) /.test(line))
+    expect(declaredAfter).toEqual([])
+  })
+})

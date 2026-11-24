@@ -100,9 +100,6 @@ const PROGRAM_MODE_CAP = 8
 export const BUILD_BACKED_NODE_COMPAT_VERSION = '24.9'
 
 const root = resolve(import.meta.dirname, '..')
-if (import.meta.main) {
-  process.exitCode = await main(process.argv.slice(2))
-}
 
 async function main(args: string[]): Promise<number> {
   const mode = parseMode(args[0])
@@ -1747,4 +1744,10 @@ function printOutput(output: GateOutputChunk[]): void {
     if (chunk.stream === 'stdout') process.stdout.write(chunk.text)
     else process.stderr.write(chunk.text)
   }
+}
+
+// Run last: the aggregate builders read module-level constants declared above,
+// so the entry point must not execute before the module finishes initializing.
+if (import.meta.main) {
+  process.exitCode = await main(process.argv.slice(2))
 }
