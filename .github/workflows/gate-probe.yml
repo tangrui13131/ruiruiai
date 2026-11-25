@@ -41,11 +41,12 @@ jobs:
       - name: Report the failing gate
         id: report
         run: |
-          line=$(grep -m1 'fail-fast aborting:' lane.log || true)
-          detail=$(grep -m1 -E '^[[:space:]]*(FAIL |AssertionError|Error:)' lane.log || true)
+          clean=$(sed 's/\x1b\[[0-9;]*m//g' lane.log)
+          line=$(printf '%s\n' "$clean" | grep -m1 'fail-fast aborting:' || true)
+          detail=$(printf '%s\n' "$clean" | grep -m1 -a -E 'FAIL |AssertionError|Error:' || true)
           if [ -z "$line" ]; then line='lane passed'; fi
           combined="$line :: $detail"
-          echo "failing=$(printf '%s' "$combined" | tr -cd '[:alnum:]:./_ -' | cut -c1-200)" >> "$GITHUB_OUTPUT"
+          echo "failing=$(printf '%s' "$combined" | tr -cd '[:alnum:]:./_ -' | cut -c1-220)" >> "$GITHUB_OUTPUT"
 
   verdict:
     needs: lane
