@@ -42,19 +42,10 @@ jobs:
         id: report
         run: |
           line=$(grep -m1 'fail-fast aborting:' lane.log || true)
-          if [ -z "$line" ]; then
-            line=$(grep -m1 -- '- FAILED ' lane.log || true)
-          fi
-          if [ -z "$line" ]; then
-            line='lane passed'
-          fi
-          echo "failing=$(printf '%s' "$line" | tr -cd '[:alnum:]: -_' | cut -c1-120)" >> "$GITHUB_OUTPUT"
-      - name: Upload the lane log
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: consumers-lane-log
-          path: lane.log
-          retention-days: 2
+          detail=$(grep -m1 -E '^[[:space:]]*(FAIL |AssertionError|Error:)' lane.log || true)
+          if [ -z "$line" ]; then line='lane passed'; fi
+          combined="$line :: $detail"
+          echo "failing=$(printf '%s' "$combined" | tr -cd '[:alnum:]:./_ -' | cut -c1-200)" >> "$GITHUB_OUTPUT"
 
   verdict:
     needs: lane
