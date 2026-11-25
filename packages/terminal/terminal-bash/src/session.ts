@@ -237,6 +237,13 @@ class LocalSendOperation implements TerminalSendOperation {
 export class LocalPtySession implements TerminalBackendSession {
   motd = ''
   readonly pid: number
+  /**
+   * Whether the controlled prompt has rendered at least once in this session.
+   * Startup acceptance needs this marker as well as backend stdin-read evidence:
+   * a PTY can report stdin-read while the shell is still echoing the setup, and
+   * the per-send flags reset between the startup sends that bridge that window.
+   */
+  get promptRendered(): boolean { return this.controlledPromptSeen }
   private readonly decoder = new TextDecoder()
   /** Protocol state only; the sanitizer and bounded buffers own returned text. */
   private readonly emulator: HeadlessTerminalType
@@ -260,6 +267,7 @@ export class LocalPtySession implements TerminalBackendSession {
   private polling = false
   private promptSeen = false
   private promptTextSeen = false
+  private controlledPromptSeen = false
   private promptTail = ''
   private shellPgid: number | undefined
   private initializing = false
@@ -511,6 +519,7 @@ export class LocalPtySession implements TerminalBackendSession {
       this.promptTail += sanitized.promptTail.slice(0, remaining)
       if (sanitized.promptTail.length > remaining) this.promptTail = `${CONTROLLED_PROMPT}\0`
       this.promptTextSeen = this.promptTail === CONTROLLED_PROMPT
+      if (this.promptTextSeen) this.controlledPromptSeen = true
     }
   }
 
