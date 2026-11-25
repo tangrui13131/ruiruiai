@@ -9,16 +9,14 @@ permissions:
   contents: read
 
 jobs:
-  probe:
-    name: probe ${{ matrix.gate }}
+  lane:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        gate: [doc-typecheck, node-next-types, web-snapshot, expected-output, built-bin-smoke, playwright-install]
+    timeout-minutes: 60
     env:
       DSH_TELEMETRY_DISABLED: '1'
+      DSH_GATE_FAIL_FAST: '1'
+    outputs:
+      failing: ${{ steps.report.outputs.failing }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -33,29 +31,35 @@ jobs:
           package-manager-cache: false
       - name: Install (immutable)
         run: pnpm install --frozen-lockfile
-      - name: Build artifacts
-        run: pnpm run build:artifacts
-      - name: Install Playwright Chromium
-        if: matrix.gate == 'web-snapshot' || matrix.gate == 'playwright-install'
-        run: pnpm --filter @deepseek-ai/dsh-experimental-future-cup-orchestration exec playwright install --with-deps chromium
-      - name: doc-typecheck
-        if: matrix.gate == 'doc-typecheck'
-        env:
-          DSH_DOC_TYPECHECK_USE_BUILD_OUTPUT: '1'
-        run: pnpm run doc-typecheck:contracts-ready
-      - name: node-next-types
-        if: matrix.gate == 'node-next-types'
-        run: pnpm run verify-node-next-types
-      - name: web-snapshot
-        if: matrix.gate == 'web-snapshot'
-        env:
-          DSH_SNAPSHOT: replay
-        run: pnpm run test:web:built
-      - name: expected-output
-        if: matrix.gate == 'expected-output'
-        env:
-          DSH_EXAMPLE_MODE: lib
-        run: pnpm run test:expected
-      - name: built-bin-smoke
-        if: matrix.gate == 'built-bin-smoke'
-        run: pnpm exec vitest run --config vitest.e2e.config.ts apps/cli/tests/profiles/headless/tests/keyless-smoke.e2e.ts apps/cli/tests/profiles/headless/tests/source-tool.built.e2e.ts apps/cli/tests/built-bin.e2e.ts apps/desktop/tests/acl-skill.built.e2e.ts packages/host/directory-picker-native/tests/built-worker.e2e.ts packages/sdk/server/tests/built-scope-carrier.e2e.ts packages/deliverables/tool-present/tests/built-errors.e2e.ts packages/subprocess/subprocess-local/tests/spawn-runner-built.e2e.ts packages/subagent/subagent-codex/tests/loader-composition.e2e.ts packages/subagent/subagent-claude-code/tests/loader-composition.e2e.ts packages/api/remotes/tests/built-lib.e2e.ts packages/experimental/agent-team/tests/built-lib.e2e.ts packages/workflow/workflow-ptc/tests/built-runtime.e2e.ts packages/ptc-runtime/ptc-runtime-node/tests/built-lib.e2e.ts packages/session/session-persistence-jsonl/tests/built-migration-worker.e2e.ts packages/lsp/lsp-stdio/tests/built-lib.e2e.ts
+      - name: Install Playwright Chromium, WebKit, and hosted dependencies
+        run: |
+          sudo find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i -E 's@http://([a-z]{2}\.)?archive\.ubuntu\.com/ubuntu@https://archive.ubuntu.com/ubuntu@g; s@http://security\.ubuntu\.com/ubuntu@https://security.ubuntu.com/ubuntu@g' {} +
+          pnpm --filter @deepseek-ai/dsh-experimental-future-cup-orchestration exec playwright install --with-deps chromium webkit
+      - name: Run the consumers lane
+        id: lane
+        run: pnpm run check:ci:consumers > lane.log 2>&1 || true
+      - name: Report the failing gate
+        id: report
+        run: |
+          line=$(grep -m1 'fail-fast aborting:' lane.log || true)
+          if [ -z "$line" ]; then
+            line=$(grep -m1 -- '- FAILED ' lane.log || true)
+          fi
+          if [ -z "$line" ]; then
+            line='lane passed'
+          fi
+          echo "failing=$(printf '%s' "$line" | tr -cd '[:alnum:]: -_' | cut -c1-120)" >> "$GITHUB_OUTPUT"
+      - name: Upload the lane log
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: consumers-lane-log
+          path: lane.log
+          retention-days: 2
+
+  verdict:
+    needs: lane
+    if: always()
+    runs-on: ubuntu-latest
+    name: "verdict: ${{ needs.lane.outputs.failing }}"
+    steps:
+      - run: echo "${{ needs.lane.outputs.failing }}"
