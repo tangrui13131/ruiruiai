@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DeepSeekHarness } from '@deepseek-ai/dsh-sdk-client'
+import { DeepSeekHarness, SessionTurnError, type RunResult } from '@deepseek-ai/dsh-sdk-client'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 const dshBin = fileURLToPath(new URL('../../../lib/bin.js', import.meta.url))
@@ -57,12 +57,21 @@ describe.skipIf(!existsSync(dshBin))('sdk-minimal durability checkpoints', () =>
       env: { ...process.env, DEEPSEEK_API_KEY: 'keyless-checkpoint-test', DEEPSEEK_BASE_URL: `http://127.0.0.1:${address.port}` },
     })
     onTestFinished(async () => { await harness.close() })
-    const result = await harness.run('Reply OK without calling tools.')
+    // A failed turn rejects with the transcript attached to the error; a
+    // completed turn returns normally. Both expose the same `turn/end`.
+    const outcome: { result?: RunResult; error?: SessionTurnError } = await harness.run('Reply OK without calling tools.').then(
+      result => ({ result }),
+      (error: unknown) => {
+        if (!(error instanceof SessionTurnError)) throw error
+        return { error }
+      },
+    )
     expect(modelRequests).toBe(disabled ? 1 : 0)
-    const terminal = result.events.findLast(event => event.type === 'turn/end')
+    const events = outcome.result?.events ?? [...(outcome.error?.events ?? [])]
+    const terminal = events.findLast(event => event.type === 'turn/end')
     expect(terminal).toMatchObject({ data: { reason: { kind: disabled ? 'completed' : 'error' } } })
     if (disabled) {
-      expect(result.finalResponse).toBe('OK')
+      expect(outcome.result?.finalResponse).toBe('OK')
     } else {
       expect(terminal).toMatchObject({
         data: { reason: { kind: 'error', error: { message: 'sdk checkpoint persistence unavailable' } } },
