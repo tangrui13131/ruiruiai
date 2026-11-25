@@ -4,12 +4,12 @@ Audit date: 2026-11-25. This fork no longer runs the inherited upstream CI lanes
 
 ## What was removed
 
-- Round 1 (commit `f3e7e680`, already pushed): `.github/workflows/ci.yml`, `.github/workflows/ci-windows.yml`, and `scripts/ci-compatible-selfhosted.spec.ts`; their workflow assertions in `scripts/ci-workflow.spec.ts`, `scripts/tests/ci-master-platforms.spec.ts`, and `scripts/client-build-environment.client.spec.ts` were trimmed at the same time.
-- Round 2 (this change, not pushed): `.github/workflows/node-addon-system.yml`, `.github/workflows/pi-ai-provider-e2e.yml`, and `.github/dependabot.yml`. These three had no references in local gates or tests.
+- Round 1 (already pushed): `.github/workflows/ci.yml`, `.github/workflows/ci-windows.yml`, and `scripts/ci-compatible-selfhosted.spec.ts`; their workflow assertions in `scripts/ci-workflow.spec.ts`, `scripts/tests/ci-master-platforms.spec.ts`, and `scripts/client-build-environment.client.spec.ts` were trimmed at the same time.
+- Round 2 (committed, not pushed): `.github/workflows/node-addon-system.yml`, `.github/workflows/pi-ai-provider-e2e.yml`, and `.github/dependabot.yml`. These three had no references in local gates or tests.
 
 ## What was intentionally kept
 
-The remaining workflows are read by local gate tests under `scripts/**/*.spec.ts` (run by `pnpm test`) or are release/packaging entry points. Removing them requires editing those tests first, which the current task forbids.
+The remaining workflows are read by local gate tests under `scripts/**/*.spec.ts` (run by `pnpm test`) or are release/packaging entry points. Removing them requires editing those tests first, which the removal task did not include.
 
 - Build and scheduling: `ci-master.yml`, `release-vendor.yml`, `expected-filenames.yml`, `sandbox.yml`
 - Approval and policy: `weighted-approval.yml`, `weighted-approval-review-event.yml`, `pr-check-on-head-branch.yml`, `pr-check-after-approve.yml`, `pr-check-on-base-branch.yml`
@@ -80,6 +80,14 @@ The remaining workflows are read by local gate tests under `scripts/**/*.spec.ts
 
 If CI is rebuilt, start with one `ubuntu-latest` job: checkout, `pnpm/action-setup`, `actions/setup-node` with Node 24, `corepack pnpm install --frozen-lockfile`, `pnpm run typecheck`, `pnpm run lint`, `pnpm test`. Add Windows and coverage lanes only when needed.
 
+## Known local limitations on this Windows host
+
+`pnpm run check:ci:snapshot` fails here even after the official-profile build. The Linux CI job `node 24 / snapshots and artifacts` passed on the same commit, and the win32 lane never ran the snapshot corpus, so this is an existing platform gap rather than a regression. Observed causes: Windows temp cwd spellings are not tokenized in some ACP/SDK session logs, one tool-schema snapshot path is parsed as JSON instead of read as a file, and some headless/SDK replays miss their fixture and reach the real API with `snapshot-replay-key`.
+
+`DSH_EXAMPLE_MODE=lib pnpm run test:expected` also fails on this host (19 of 55 tests). The mismatches are platform-shaped: for example, the assembled catalog contains the Windows-only `diagnose-windows-sandbox-acl` skill while the committed inline snapshot records no catalog. The Linux `snapshots and artifacts` job passed the same suites on the same commit. Treat both suites as Linux-verified only; do not expect `check:all` to pass on this Windows host.
+
+The fork's acceptance gate is `pnpm run check:web`; the local gates that pass on this host are `typecheck`, `lint`, `test` (46,712 passed with the fixed `windows-shell` spec), `check:web`, `build`, `doc-sync`, `hygiene`, `i18n`, `duplication`, `test:approval-policy`, and the markdown/translation gates.
+
 ## GitHub settings
 
 - `main` has no branch protection and no rulesets, so no required status checks need to be cleared.
@@ -88,5 +96,5 @@ If CI is rebuilt, start with one `ubuntu-latest` job: checkout, `pnpm/action-set
 
 ## Rollback
 
-- Round 2 (uncommitted): `git checkout HEAD -- .github/workflows/node-addon-system.yml .github/workflows/pi-ai-provider-e2e.yml .github/dependabot.yml`.
-- Round 1 (pushed): `git revert f3e7e680` restores `ci.yml`, `ci-windows.yml`, and `scripts/ci-compatible-selfhosted.spec.ts` together with the test wiring.
+- Round 2 (committed, not pushed): revert the round-2 commit to restore the three deleted files and drop this note.
+- Round 1 (pushed): revert the round-1 commit to restore `ci.yml`, `ci-windows.yml`, and `scripts/ci-compatible-selfhosted.spec.ts` together with the test wiring.
