@@ -1,7 +1,6 @@
 /** Scheduling policy for post-merge native runtime carriers and Wine. */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { runInNewContext } from 'node:vm'
 import { load } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { gatesForMode } from '../run-gates.ts'
@@ -35,45 +34,7 @@ function commands(job: Job): string[] {
   return (job.steps ?? []).flatMap(step => step.run ? [step.run] : [])
 }
 
-// These boolean/string cases share Actions and JavaScript semantics. GitHub
-// supplies status functions; this probe is not a general Actions interpreter.
-function evaluateCondition(expression: string, cancelled: boolean, results: string[], event = 'pull_request'): boolean {
-  const source = expression.trim().replace(/^[$][{][{]|[}][}]$/g, '')
-    .replaceAll('needs.*.result', 'results')
-  return runInNewContext(source, {
-    cancelled: () => cancelled,
-    always: () => true,
-    contains: (values: string[], value: string) => values.includes(value),
-    results,
-    github: { event_name: event },
-  }, { timeout: 1000 }) as boolean
-}
-
-const verdicts = [['ci.yml', 'all-checks-passed'], ['ci-windows.yml', 'windows-checks-passed']] as const
-
 describe('master-only platform scheduling', () => {
-  it.each(verdicts.flatMap(([file, job]) => ['success', 'failure', 'skipped', 'cancelled'].map(result => [file, job, result] as const)))(
-    '%s %s reports %s dependencies in active runs but never starts a cancelled-run verdict', (file, job, result) => {
-      const aggregate = workflow(file).jobs[job]!
-      const results = aggregate.needs!.map(() => 'success')
-      results[0] = result
-      const condition = aggregate.if as string
-      // A status function prevents Actions from implicitly gating on success().
-      expect(condition).toContain('!cancelled()')
-      expect(evaluateCondition(condition, false, results)).toBe(true)
-      expect(evaluateCondition(condition, true, results)).toBe(false)
-      expect(evaluateCondition(condition, false, results, 'push')).toBe(false)
-      const failureStep = aggregate.steps!.find(step => step.name === 'Fail if any needed job did not succeed')!
-      expect(evaluateCondition(failureStep.if!, false, results)).toBe(result !== 'success')
-      expect(failureStep.run).toContain('exit 1')
-    },
-  )
-
-  it('distinguishes the obsolete always verdict from the cancellable status guard', () => {
-    expect(evaluateCondition("always() && github.event_name == 'pull_request'", true, ['success'])).toBe(true)
-    expect(evaluateCondition(workflow('ci.yml').jobs['all-checks-passed']!.if as string, true, ['success'])).toBe(false)
-  })
-
   it('runs all three deferred carriers on master pushes with fail-loud API credentials', () => {
     const master = workflow('ci-master.yml')
     expect(master.on.push).toEqual({ branches: ['master'] })

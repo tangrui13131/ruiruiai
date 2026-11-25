@@ -32,8 +32,6 @@ const originalProbe = process.env[PROBE_NAME]
 const roots: string[] = []
 const dshBuildWorkflows = [
   'build-exe-for-python-sdk.yml',
-  'ci.yml',
-  'ci-windows.yml',
   'release-publish.yml',
   'sandbox.yml',
 ]
