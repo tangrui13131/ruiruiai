@@ -35,6 +35,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build artifacts
         run: pnpm run build:artifacts
+      - name: Install Playwright Chromium
+        if: matrix.gate == 'web-snapshot'
+        run: pnpm exec playwright install --with-deps chromium
       - name: doc-typecheck
         if: matrix.gate == 'doc-typecheck'
         env:
