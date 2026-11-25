@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gate: [doc-typecheck, node-next-types, web-snapshot, expected-output, built-bin-smoke]
+        gate: [doc-typecheck, node-next-types, web-snapshot, expected-output, built-bin-smoke, playwright-install]
     env:
       DSH_TELEMETRY_DISABLED: '1'
     steps:
@@ -36,8 +36,8 @@ jobs:
       - name: Build artifacts
         run: pnpm run build:artifacts
       - name: Install Playwright Chromium
-        if: matrix.gate == 'web-snapshot'
-        run: pnpm exec playwright install --with-deps chromium
+        if: matrix.gate == 'web-snapshot' || matrix.gate == 'playwright-install'
+        run: pnpm --filter @deepseek-ai/dsh-experimental-future-cup-orchestration exec playwright install --with-deps chromium
       - name: doc-typecheck
         if: matrix.gate == 'doc-typecheck'
         env:
