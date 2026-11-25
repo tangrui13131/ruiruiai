@@ -145,7 +145,8 @@ Usage: dsh [--profile] <name> [--no-open]
 Future Cup platform: project orchestration, Agents, and the management UI.
 
 Options:
-  --no-open   do not open the platform UI in the browser
+  --port <port>  port to bind; 0 asks the operating system to allocate one
+  --no-open      do not open the platform UI in the browser
 
 ```
 
