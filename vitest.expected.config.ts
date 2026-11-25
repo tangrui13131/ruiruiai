@@ -13,10 +13,13 @@ export default defineConfig({
       'apps/cli/tests/**/*.expected.e2e.ts',
     ],
     // The fork ships the Future Cup platform in place of the official web app.
-    // These suites drive `default-web-process.ts`, which boots the removed
-    // host-webserver stack and waits for its ready line, auth token, and public
-    // URL; `check:web` covers the replacement product.
-    exclude: ['apps/cli/tests/profiles/web/**'],
+    // These suites boot the removed host-webserver stack, wait for its ready
+    // line, auth token, and public URL, and intercept the `open` package for the
+    // browser-open integration; `check:web` covers the replacement product.
+    exclude: [
+      'apps/cli/tests/profiles/web/**',
+      'apps/cli/tests/web-browser-open.expected.e2e.ts',
+    ],
     testTimeout: 120_000,
     hookTimeout: 30_000,
     maxWorkers: Math.min(5, availableParallelism()),
