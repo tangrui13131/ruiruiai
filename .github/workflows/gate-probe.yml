@@ -1,0 +1,58 @@
+name: Gate probe (temporary)
+
+on:
+  push:
+    paths:
+      - '.github/gate-probe-trigger'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: probe ${{ matrix.gate }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [doc-typecheck, node-next-types, web-snapshot, expected-output, built-bin-smoke]
+    env:
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          package-manager-cache: false
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+      - name: Build artifacts
+        run: pnpm run build:artifacts
+      - name: doc-typecheck
+        if: matrix.gate == 'doc-typecheck'
+        env:
+          DSH_DOC_TYPECHECK_USE_BUILD_OUTPUT: '1'
+        run: pnpm run doc-typecheck:contracts-ready
+      - name: node-next-types
+        if: matrix.gate == 'node-next-types'
+        run: pnpm run verify-node-next-types
+      - name: web-snapshot
+        if: matrix.gate == 'web-snapshot'
+        env:
+          DSH_SNAPSHOT: replay
+        run: pnpm run test:web:built
+      - name: expected-output
+        if: matrix.gate == 'expected-output'
+        env:
+          DSH_EXAMPLE_MODE: lib
+        run: pnpm run test:expected
+      - name: built-bin-smoke
+        if: matrix.gate == 'built-bin-smoke'
+        run: pnpm exec vitest run --config vitest.e2e.config.ts apps/cli/tests/profiles/headless/tests/keyless-smoke.e2e.ts apps/cli/tests/profiles/headless/tests/source-tool.built.e2e.ts apps/cli/tests/built-bin.e2e.ts apps/desktop/tests/acl-skill.built.e2e.ts packages/host/directory-picker-native/tests/built-worker.e2e.ts packages/sdk/server/tests/built-scope-carrier.e2e.ts packages/deliverables/tool-present/tests/built-errors.e2e.ts packages/subprocess/subprocess-local/tests/spawn-runner-built.e2e.ts packages/subagent/subagent-codex/tests/loader-composition.e2e.ts packages/subagent/subagent-claude-code/tests/loader-composition.e2e.ts packages/api/remotes/tests/built-lib.e2e.ts packages/experimental/agent-team/tests/built-lib.e2e.ts packages/workflow/workflow-ptc/tests/built-runtime.e2e.ts packages/ptc-runtime/ptc-runtime-node/tests/built-lib.e2e.ts packages/session/session-persistence-jsonl/tests/built-migration-worker.e2e.ts packages/lsp/lsp-stdio/tests/built-lib.e2e.ts
