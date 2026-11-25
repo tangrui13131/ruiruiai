@@ -57,6 +57,7 @@ import {
 } from '@deepseek-ai/dsh-session-snapshot'
 import {
   DeepSeekHarness,
+  SessionTurnError,
   type HarnessNotification,
   type NotificationSubscription,
   type RunResult,
@@ -768,12 +769,20 @@ async function runScenario(scenario: CorpusScenario): Promise<{
           session = await harness.resumeSession(sessionId)
           expect(session.id).toBe(sessionId)
         }
-        const result = await session.run(materializeInput(action.content, scenario, cwd, liveSessions), {
-          onNotification: (notification) => {
-            notifications.push(notification)
-            observe(notification)
-          },
-        })
+        let result: RunResult
+        try {
+          result = await session.run(materializeInput(action.content, scenario, cwd, liveSessions), {
+            onNotification: (notification) => {
+              notifications.push(notification)
+              observe(notification)
+            },
+          })
+        } catch (error) {
+          // The scheduler scenario scripts one failed turn before it recovers;
+          // keep that turn's transcript as a result instead of aborting replay.
+          if (!(error instanceof SessionTurnError) || scenario.name !== 'tool-scheduler-recovery') throw error
+          result = { sessionId: session.id, finalResponse: '', events: [...error.events], notifications }
+        }
         results.push(result)
         if (titleSubscription !== undefined) {
           const expected = expectedTitles[results.length - 1]?.data as JsonObject | undefined
