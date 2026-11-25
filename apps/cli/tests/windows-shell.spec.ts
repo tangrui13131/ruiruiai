@@ -3,7 +3,7 @@
  * platform on its own rows (`disabled: !!js process.platform`), so exactly
  * one shell stack mounts per host and no separate platform layer exists —
  * the launcher applies nothing beyond the bundle layers. The spec composes
- * the REAL shipped bundle layers (dsh-base + dsh-web-app resolved from the
+ * the REAL shipped bundle layers (the web profile template resolved from the
  * app installation anchor) through the boot's patch algorithm and pins the
  * effective per-platform roster, the preset-level gates that keep tool-bash
  * out of win32 sessions and tool-pwsh out of POSIX sessions, and the
@@ -19,6 +19,7 @@ import yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { evaluate } from '@deepseek-ai/cordis-plugin-loader'
 import { bundlePatchPaths, composeEntries, initProfile, loadProfile, PROFILES_DIR } from '@deepseek-ai/dsh-app-boot'
+import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
 
 /**
  * The effective disabled state of one row on one platform: a `!!js` expression
@@ -42,7 +43,9 @@ describe('the shipped shell composition (real bundle layers)', () => {
 
   it('composes the confined pwsh roster on win32 and the bash roster on POSIX from the same rows', () => {
     home = mkdtempSync(join(tmpdir(), 'dsh-windows-home-'))
-    initProfile(join(home, PROFILES_DIR, 'web'), ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    const webTemplate = PROFILE_TEMPLATES.web
+    if (webTemplate === undefined) throw new TypeError('web profile template must exist')
+    initProfile(join(home, PROFILES_DIR, 'web'), webTemplate.bundles)
     const profile = loadProfile('dsh', 'web', anchor, home)
     const warnings: string[] = []
     const rows = composeEntries(
@@ -58,10 +61,12 @@ describe('the shipped shell composition (real bundle layers)', () => {
     expect(disabledOn(byId.get('bash-sandbox')!, 'linux'), 'bash-sandbox on linux').toBe(false)
     expect(disabledOn(byId.get('pwsh-sandbox')!, 'win32'), 'pwsh-sandbox on win32').toBe(false)
     expect(disabledOn(byId.get('pwsh-sandbox')!, 'linux'), 'pwsh-sandbox on linux').toBe(true)
-    // Host shell-tool rows are disabled on every platform; sessions mount
-    // their own rows instead.
-    expect(byId.get('tool-bash')?.disabled).toBe(true)
-    expect(byId.get('tool-pwsh')?.disabled).toBe(true)
+    // The fork's web profile mounts the Future Cup platform, which adds no
+    // host-plane shell overlay: the tool rows keep the base bundle's gating.
+    expect(disabledOn(byId.get('tool-bash')!, 'win32'), 'tool-bash on win32').toBe(true)
+    expect(disabledOn(byId.get('tool-bash')!, 'linux'), 'tool-bash on linux').toBe(false)
+    expect(disabledOn(byId.get('tool-pwsh')!, 'win32'), 'tool-pwsh on win32').toBe(false)
+    expect(disabledOn(byId.get('tool-pwsh')!, 'linux'), 'tool-pwsh on linux').toBe(true)
     // The permission surface never moves: the sandbox/policy rows, the
     // permission switcher, fs-sandbox, and the approval service stay enabled
     // exactly as on POSIX — the confined pwsh executor is what changes.
