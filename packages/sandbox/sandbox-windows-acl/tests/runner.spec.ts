@@ -16,6 +16,9 @@ import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
 import { AclWriteGrant, tempWriteSid, workspaceWriteSid } from '../src/index.ts'
 
 const isWin32 = process.platform === 'win32'
+// GitHub's Windows runners execute as an elevated administrator, where the deny
+// ACE this case relies on does not bind; see diagnose-script.spec.ts.
+const elevated = isWin32 && spawnSync('net', ['session'], { stdio: 'ignore', windowsHide: true }).status === 0
 const runnerEntry = fileURLToPath(new URL('../src/runner.ts', import.meta.url))
 
 // Functional probe, not where.exe: spawnSync never throws on a missing
@@ -526,7 +529,7 @@ describe.skipIf(!isWin32 || !pwshAvailable())('windows-acl runner', () => {
     }
   }, 30_000)
 
-  it('a FullControl open inside a granted root still works for files (the deny inherits to containers only)', () => {
+  it.skipIf(elevated)('a FullControl open inside a granted root still works for files (the deny inherits to containers only)', () => {
     // The ambient-delete deny is 0x40, a member of FILE_ALL_ACCESS: inheriting
     // it onto files would deny every GENERIC_ALL/FullControl open by the user,
     // Administrators, SYSTEM, or the DSH host. Directories inside a granted

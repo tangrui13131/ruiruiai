@@ -347,7 +347,7 @@ describe.skipIf(!isWin32 || !pwshAvailable())('diagnose-windows-sandbox-acl scri
     }
   }, timeout)
 
-  it('repairs the whole subtree in one run when only the workspace root is named', () => {
+  it.skipIf(elevated)('repairs the whole subtree in one run when only the workspace root is named', () => {
     const scratch = newScratch()
     try {
       // The sandbox reports its provisioning failure on the workspace root while the
@@ -573,7 +573,7 @@ describe.skipIf(!isWin32 || !pwshAvailable())('diagnose-windows-sandbox-acl scri
     }
   }, timeout)
 
-  it('restores every attempted change in reverse order when a later path fails', () => {
+  it.skipIf(elevated)('restores every attempted change in reverse order when a later path fails', () => {
     const scratch = newScratch()
     try {
       const out = join(scratch, 'out')
@@ -813,7 +813,7 @@ function icacls { throw [System.IO.IOException]::new('icacls unavailable') }
     }
   }, timeout)
 
-  it('repairs its own workspace root when -AllowRoot is the object itself', () => {
+  it.skipIf(elevated)('repairs its own workspace root when -AllowRoot is the object itself', () => {
     const scratch = newScratch()
     try {
       const out = join(scratch, 'out')
