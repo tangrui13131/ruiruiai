@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { connect } from 'node:net'
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execa } from 'execa'
 import { describe, expect, it, onTestFinished } from 'vitest'
@@ -30,8 +30,15 @@ import { capture } from './release/process.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
-/** GNU tar on Windows reads a drive letter in an absolute archive path as a remote host. */
-const tarArgs = (args: string[]): string[] => (process.platform === 'win32' ? ['--force-local', ...args] : args)
+/**
+ * Pack `package/` from `staging` into `<destination>/<file>`.
+ * GNU tar on Windows reads a drive letter in an absolute archive path as a
+ * remote host, while the hosted runner's bsdtar rejects `--force-local`;
+ * relative arguments inside `destination` satisfy both.
+ */
+function packTarball(destination: string, staging: string, file: string): void {
+  capture('tar', ['-czf', file, '-C', relative(destination, staging), 'package'], { cwd: destination })
+}
 
 /** A private temporary root this spec owns, removed with the test. */
 function temporaryDirectory(prefix: string): string {
@@ -82,7 +89,7 @@ function packFixture(options: {
   writeFileSync(join(staging, 'package', 'lib', 'index.js'), options.source)
   if (options.patch !== undefined) writeFileSync(join(staging, 'package', options.patch), '[]\n')
   const file = `${options.name.replace('@', '').replace('/', '-')}-${options.version}.tgz`
-  capture('tar', tarArgs(['-czf', join(options.destination, file), '-C', staging, 'package']))
+  packTarball(options.destination, staging, file)
   const releaseMember: ReleaseMember = { directory: staging, name: options.name, version: options.version, manifest }
   return {
     member: workspacePackage(options.name, { version: options.version, ...manifest }),
@@ -232,7 +239,7 @@ describe('packed archives', () => {
     writeFileSync(join(staging, 'package', 'package.json'), JSON.stringify({
       name: '@scope/pkg', version: '1.0.0', main: 'lib/index.js', dsh: { bundle: { patch: 'cordis.patch.yml' } },
     }))
-    capture('tar', tarArgs(['-czf', join(destination, 'scope-pkg-1.0.0.tgz'), '-C', staging, 'package']))
+    packTarball(destination, staging, 'scope-pkg-1.0.0.tgz')
     const member = workspacePackage('@scope/pkg', { version: '1.0.0' })
     const entry: ReleaseEntry = {
       family: releaseFamily('vendor'), member: { directory: staging, name: '@scope/pkg', version: '1.0.0', manifest: member.manifest },
@@ -246,7 +253,6 @@ describe('packed archives', () => {
     const { member, entry } = packFixture({
       destination, name: '@scope/bundle', version: '1.0.0', source: 'export default 1\n', patch: 'cordis.patch.yml',
     })
-    const archive = join(destination, 'scope-bundle-1.0.0.tgz')
     const stripped = join(destination, 'stripped')
     mkdirSync(join(stripped, 'package'), { recursive: true })
     writeFileSync(join(stripped, 'package', 'package.json'), JSON.stringify({
@@ -254,7 +260,7 @@ describe('packed archives', () => {
     }))
     mkdirSync(join(stripped, 'package', 'lib'), { recursive: true })
     writeFileSync(join(stripped, 'package', 'lib', 'index.js'), 'export default 1\n')
-    capture('tar', tarArgs(['-czf', archive, '-C', stripped, 'package']))
+    packTarball(destination, stripped, 'scope-bundle-1.0.0.tgz')
     expect(() => readPackedArtifacts({ destination, members: [member], release: new Map([['@scope/bundle', entry]]) }))
       .toThrow(/@scope\/bundle: packed archive lacks its declared bundle patch cordis\.patch\.yml/u)
   })
