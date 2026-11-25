@@ -1,11 +1,14 @@
 /** Run serial browser owners before one bounded snapshot pool. */
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { pnpmInvocation } from './pnpm-invocation.ts'
 
+// This fork removed the official web app these serial owners live in; keep the
+// order intact for checkouts that still carry them.
 const serialFiles = [
   'apps/web/tests/hmr-live.e2e.ts',
   'apps/web/tests/client-plugin-live.e2e.ts',
-]
+].filter(file => existsSync(file))
 const workerRaw = process.env.DSH_WEB_SNAPSHOT_WORKERS
 const workers = Number.parseInt(workerRaw ?? '', 10)
 if (!Number.isSafeInteger(workers) || workers < 1 || String(workers) !== workerRaw) {
