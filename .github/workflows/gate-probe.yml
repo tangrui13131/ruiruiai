@@ -6,7 +6,7 @@ on:
       - '.github/gate-probe-trigger'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   lane:
@@ -15,8 +15,6 @@ jobs:
     env:
       DSH_TELEMETRY_DISABLED: '1'
       DSH_GATE_FAIL_FAST: '1'
-    outputs:
-      failing: ${{ steps.report.outputs.failing }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -36,22 +34,26 @@ jobs:
           sudo find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i -E 's@http://([a-z]{2}\.)?archive\.ubuntu\.com/ubuntu@https://archive.ubuntu.com/ubuntu@g; s@http://security\.ubuntu\.com/ubuntu@https://security.ubuntu.com/ubuntu@g' {} +
           pnpm --filter @deepseek-ai/dsh-experimental-future-cup-orchestration exec playwright install --with-deps chromium webkit
       - name: Run the consumers lane
-        id: lane
         run: pnpm run check:ci:consumers > lane.log 2>&1 || true
-      - name: Report the failing gate
-        id: report
+      - name: Publish the failure excerpt
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          clean=$(sed 's/\x1b\[[0-9;]*m//g' lane.log)
-          line=$(printf '%s\n' "$clean" | grep -m1 'fail-fast aborting:' || true)
-          detail=$(printf '%s\n' "$clean" | grep -m1 -a -E 'FAIL |AssertionError|Error:' || true)
-          if [ -z "$line" ]; then line='lane passed'; fi
-          combined="$line :: $detail"
-          echo "failing=$(printf '%s' "$combined" | tr -cd '[:alnum:]:./_ -' | cut -c1-220)" >> "$GITHUB_OUTPUT"
-
-  verdict:
-    needs: lane
-    if: always()
-    runs-on: ubuntu-latest
-    name: "verdict: ${{ needs.lane.outputs.failing }}"
-    steps:
-      - run: echo "${{ needs.lane.outputs.failing }}"
+          sed 's/\x1b\[[0-9;]*m//g' lane.log > lane-clean.log
+          {
+            echo '# Gate probe failure excerpt'
+            echo '```'
+            grep -n 'fail-fast aborting\|== FAILED\|No test files\|Error\|FAIL' lane-clean.log | tail -n 40 || true
+            echo '```'
+            echo '## Tail'
+            echo '```'
+            tail -n 120 lane-clean.log
+            echo '```'
+          } > gate-probe-failure.md
+          content=$(base64 -w0 gate-probe-failure.md)
+          sha=$(gh api repos/${{ github.repository }}/contents/gate-probe-failure.md --jq '.sha' 2>/dev/null || true)
+          if [ -n "$sha" ]; then
+            gh api --method PUT repos/${{ github.repository }}/contents/gate-probe-failure.md -f message='chore: probe failure excerpt' -f content="$content" -f sha="$sha" -f branch='${{ github.ref_name }}'
+          else
+            gh api --method PUT repos/${{ github.repository }}/contents/gate-probe-failure.md -f message='chore: probe failure excerpt' -f content="$content" -f branch='${{ github.ref_name }}'
+          fi
