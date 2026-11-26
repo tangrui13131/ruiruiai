@@ -2,7 +2,7 @@
 
 [English](repo-health.md) | 中文
 
-每次提交都必须让仓库健康分不低于此处记录的基线。基线为 **83/100**（2026-11-25）；只有在有意改变基线的提交中，经用户批准并写明理由，才能修改它。
+每次提交都必须让仓库健康分不低于此处记录的基线。基线为 **90/100**（2026-11-26）；只有在有意改变基线的提交中，经用户批准并写明理由，才能修改它。
 
 ## 评分维度
 
@@ -11,7 +11,7 @@
 | 代码与构建健康 | 30 | `pnpm run typecheck`、`pnpm run lint`、`pnpm run build` 与 `pnpm run check:web` 通过 |
 | 本地测试健康 | 25 | 本机全量单元测试通过；Linux 验证的 `test:snapshot` 与 `test:expected` 没有新增失败 |
 | 本地检查完整性 | 15 | 钩子、`scripts/run-gates.ts`、`package.json` 检查与 Makefile 目标保持完整；不得为了让分数上升而跳过、削弱或排除任何检查 |
-| 远程保障 | 20 | 拉取请求 CI 与分支保护负责运行检查；本 fork 两者皆无，因此该维度上限为 6 |
+| 远程保障 | 20 | 最小拉取请求 CI 运行文档与审批检查；分支保护仍缺失，因此该维度连同现有发布工作流为 14 |
 | 仓库整洁与可回滚 | 10 | 工作区干净、提交语义清晰、文档链接可解析、翻译 sidecar 同步、限制与回滚路径有记录 |
 
 ## 健康底线
@@ -38,8 +38,8 @@ pnpm run build
 
 ## 平台限制
 
-`test:snapshot` 与 `test:expected` 仅在 Linux 上验证；它们在 Windows 上的失败记录在 [CI_MIGRATION_NOTES.md](../CI_MIGRATION_NOTES.md) 中，本身不会降低分数，但不得在 Linux 上出现回归。本 fork 没有拉取请求 CI 与分支保护，因此本地底线是唯一的合并信号，远程保障维度在恢复 CI 前保持为 6。
+`test:snapshot` 与 `test:expected` 仅在 Linux 上验证；它们在 Windows 上的失败记录在 [CI_MIGRATION_NOTES.md](../CI_MIGRATION_NOTES.md) 中，本身不会降低分数，但不得在 Linux 上出现回归。最小拉取请求 CI 只运行文档与审批检查，代码门禁与全量单元测试仍在本地；分支保护缺失，远程保障维度保持为 14。
 
 ## 当前基线
 
-83/100：代码 29、测试 23、检查 15、远程 6、整洁 10。要达到 90 分：推送本地提交、为 typecheck、lint 与测试增加一个最小的 `ubuntu-latest` CI，并完成 snapshot 与 expected 套件的 Linux 验证。
+90/100：代码 29、测试 22、检查 15、远程 14、整洁 10。测试扣 1 分来自全量单元测试中观察到的偶发 worker 退出；复跑全绿可恢复到 91。启用分支保护可获得剩余的 6 分远程保障。

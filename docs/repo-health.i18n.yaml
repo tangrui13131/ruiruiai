@@ -3,11 +3,11 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/repo-health.md
 /repository-health-score:
-  en: dbdb3effe0815cca
-  zh: 78747a27643e6c46
+  en: 9cfa01cc62980b38
+  zh: a8785ea0d5088b54
 /repository-health-score/dimensions:
-  en: f55e785463af1730
-  zh: e3f450d0697ea758
+  en: f8af5226fbbb123f
+  zh: 25c282fb8389c52d
 /repository-health-score/health-floor:
   en: 252b812afc3fd6ac
   zh: 7c2bbadd94f09b3d
@@ -15,8 +15,8 @@
   en: 254051941970569c
   zh: 0655b2412c8273ad
 /repository-health-score/host-limitations:
-  en: dd94aaacbed65958
-  zh: 2bfd7ad73bbb727f
+  en: 644d52927dc652a7
+  zh: 104968856af9729e
 /repository-health-score/current-baseline:
-  en: 08677d0cbfc68e20
-  zh: 50e753fe0aa3160d
+  en: 0f4c9fdc66580af0
+  zh: 02590ed813bae3b5

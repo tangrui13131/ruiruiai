@@ -162,7 +162,7 @@ pi-ai 检查会在内存中重新生成预期元数据。数据过期时，检�
 
 ### CI 门禁
 
-本 fork 已移除上游的 keyless 拉取请求 CI 工作流（`ci.yml` 与 `ci-windows.yml`）。本地使用 `pnpm run check:web` 验证 Future Cup 产品面，或用 [scripts/run-gates.ts](../scripts/run-gates.ts) 中的 `pnpm run check:ci:*` 入口运行上游门禁清单。发布、打包和审批工作流仍保留在 `.github/workflows` 下。
+拉取请求的 [CI Minimal 工作流](../.github/workflows/ci-minimal.yml) 在 `ubuntu-latest` 上运行 Markdown 换行、翻译配对、Markdown 链接、仓库引用与加权审批检查。本地使用 `pnpm run check:web` 验证 Future Cup 产品面，或用 [scripts/run-gates.ts](../scripts/run-gates.ts) 中的 `pnpm run check:ci:*` 入口运行上游门禁清单。发布、打包和审批工作流仍保留在 `.github/workflows` 下。
 
 不带凭据的 dsh 依赖布局检查与 dsh/vendor 打包演练仅在 `DSH_CI_FAILOVER_LINUX=selfhosted`，且事件为受信任的 master 推送或同仓库、非 fork、非 Dependabot 拉取请求时使用现有 Linux 自托管池。其余情况（包括手动触发）均使用 `ubuntu-24.94`；手动发布仍使用托管运行器。持久化存储隔离与回退限制见[发布演练运行器说明](../.agents/notes/implemented/process/2026-07-26-ci-failover-runbook.zh.md)。
 

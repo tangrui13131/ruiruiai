@@ -86,11 +86,18 @@ If CI is rebuilt, start with one `ubuntu-latest` job: checkout, `pnpm/action-set
 
 `DSH_EXAMPLE_MODE=lib pnpm run test:expected` also fails on this host (19 of 55 tests). The mismatches are platform-shaped: for example, the assembled catalog contains the Windows-only `diagnose-windows-sandbox-acl` skill while the committed inline snapshot records no catalog. The Linux `snapshots and artifacts` job passed the same suites on the same commit. Treat both suites as Linux-verified only; do not expect `check:all` to pass on this Windows host.
 
-The fork's acceptance gate is `pnpm run check:web`; the local gates that pass on this host are `typecheck`, `lint`, `test` (46,712 passed with the fixed `windows-shell` spec), `check:web`, `build`, `doc-sync`, `hygiene`, `i18n`, `duplication`, `test:approval-policy`, and the markdown/translation gates.
+The fork's acceptance gate is `pnpm run check:web`; the local gates that pass on this host are `typecheck`, `lint`, `test` (46,793 passed with the fixed `windows-shell` spec), `check:web`, `build`, `doc-sync`, `hygiene`, `i18n`, `duplication`, `test:approval-policy`, and the markdown/translation gates.
+
+The minimal pull-request CI runs only the documentation and approval checks; code gates and the full unit suite remain local.
+
+## Minimal CI
+
+`.github/workflows/ci-minimal.yml` runs on pull requests and manual dispatch: a full-history checkout, `pnpm install --frozen-lockfile`, `verify-md-wrap`, `verify-translation-pairing`, `verify-md-links`, `verify-repository-references`, and `test:approval-policy`. The first run completed green in 1m51s. It intentionally does not run `typecheck`, `lint`, `check:web`, the full unit suite, or the Linux-only snapshot and expected suites; those remain local gates.
 
 ## GitHub settings
 
 - `main` has no branch protection and no rulesets, so no required status checks need to be cleared.
+- The minimal pull-request workflow `ci-minimal.yml` is active; its check is `ci-minimal`.
 - `weighted-approval`, `release-vendor`, and `node-addon-system` were disabled manually before this change; `node-addon-system.yml` is now deleted from the branch.
 - `origin/main` still carries all upstream workflows until this branch is merged.
 

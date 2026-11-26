@@ -157,7 +157,7 @@ Outside CI (`CI` other than `true`), default worker counts follow the [local wor
 
 ### CI gates
 
-The keyless pull-request CI workflows (`ci.yml` and `ci-windows.yml`) are removed in this fork. Run the gates locally with `pnpm run check:web` for the Future Cup product surface, or the `pnpm run check:ci:*` entry points in [scripts/run-gates.ts](../scripts/run-gates.ts) for the upstream gate inventory. Release, packaging, and approval workflows remain under `.github/workflows`.
+The pull-request [CI Minimal workflow](../.github/workflows/ci-minimal.yml) runs the markdown wrap, translation pairing, markdown link, repository reference, and weighted approval checks on `ubuntu-latest`. Run the code gates locally with `pnpm run check:web` for the Future Cup product surface, or the `pnpm run check:ci:*` entry points in [scripts/run-gates.ts](../scripts/run-gates.ts) for the upstream gate inventory. Release, packaging, and approval workflows remain under `.github/workflows`.
 
 The credential-free dsh dependency-layout and dsh/vendor pack rehearsals use the existing Linux self-hosted pool only when `DSH_CI_FAILOVER_LINUX=selfhosted` and the event is a trusted master push or same-repository, non-fork, non-Dependabot pull request. All other cases, including manual dispatch, use `ubuntu-24.94`; manual publication stays hosted. See the [release rehearsal runner reference](../.agents/notes/implemented/process/2026-07-26-ci-failover-runbook.md) for persistent-store isolation and fallback limits.
 
