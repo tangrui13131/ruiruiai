@@ -1021,6 +1021,10 @@ textarea {
     display: none;
   }
 
+  .app-history-buttons {
+    display: none;
+  }
+
   .page-heading {
     flex-direction: column;
   }
