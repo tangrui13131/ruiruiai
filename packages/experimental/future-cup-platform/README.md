@@ -70,6 +70,7 @@ The server binds only to a loopback host. Its current routes are:
 | `GET` | `/api/v1/projects` | project summaries and event cursors |
 | `POST` | `/api/v1/projects` | create a project from a name and requirement |
 | `POST` | `/api/v1/projects/:projectId/derivations` | create and start an immutable upgrade or regeneration successor |
+| `POST` | `/api/v1/projects/:projectId/rerun` | clone a terminal project and start a fresh run |
 | `GET` | `/api/v1/agent-definitions` | Agent definitions, versions, and version states |
 | `POST` | `/api/v1/agent-definitions` | register a DRAFT Agent definition |
 | `POST` | `/api/v1/agent-definitions/:definitionId/versions` | register an immutable Agent version |
@@ -140,6 +141,7 @@ The HQ display validates events against the shared discriminated union. It appli
 | `src/server.ts` | Fastify routes, Socket.IO replay, Outbox polling, and shutdown |
 | `src/run-launcher.ts` | Real Harness team launch, lease heartbeat, cancellation, and run settlement |
 | `src/project-derivation.ts` | Immutable project successors, frozen-Team inheritance, and project-memory derivation |
+| `src/project-rerun.ts` | Terminal-project clones that reuse the frozen Team and project memory without derivation lineage |
 | `src/delivery-snapshot.ts` | Verified source snapshots for upgrades, with dependency, build, secret, and link exclusion |
 | `src/adaptive-repair.ts` | select controlled repair strategies with scored verification findings |
 | `src/team-recommender.ts` | project profiles, clarification, complete-team recommendation, and controlled adjustments |
@@ -167,6 +169,8 @@ The novice team-builder entry recommends complete teams only from published Agen
 The My Teams entry manages logical Teams independently of the recommendation flow. A Team version contains 1–7 runtime instances; duplicate published Agent versions count as separate members, and each instance owns a stable display name, department, and workstation position. Drafts can be empty, but publishing validates the same capability and policy rules used by recommendation. Project creation freezes the selected version, and the project Agent endpoint projects that frozen roster so the HQ scene displays the same member count and department assignments.
 
 Project derivation keeps earlier projects immutable. A successor records its source project, source passed run, derivation mode, and optional change request. It receives the exact source Team snapshot and project memory, then starts its own run. `UPGRADE` restores the source delivery snapshot before the Agent team runs; `REGENERATE` starts from an empty workspace. The source project and its evidence are never rewritten.
+
+A terminal project can also be rerun without derivation. Rerun clones the requirement, frozen Team snapshot, and project memory into an independent project and starts a fresh run; the copy records no derivation lineage, and the source project and its evidence stay unchanged.
 
 Workflow leases store an owner, heartbeat, expiry, and monotonic fencing token. A lease takeover increments the token, and heartbeat or release succeeds only for the current owner and token. Domain writes carry that fence into their transaction. A new launch reconciles a stale `RUNNING` row after taking over an expired lease. A cancel request with no in-memory run also takes over an expired lease and settles the durable tasks, executions, and run as `CANCELLED`.
 

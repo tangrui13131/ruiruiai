@@ -46,6 +46,35 @@ describe('project Agent API', () => {
     )
   })
 
+  it('reruns a terminal project through the encoded rerun route', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      project: {
+        id: 'project-rerun',
+        name: 'Project · Rerun',
+        requirement: 'Build the page',
+        createdAt: '2026-11-04T10:00:00.000Z',
+        lastEventSeq: 0,
+      },
+      runId: 'run-rerun',
+    }), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.rerunProject('project / source', { name: 'Project · Rerun' })).resolves.toMatchObject({
+      project: { id: 'project-rerun', name: 'Project · Rerun' },
+      runId: 'run-rerun',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/projects/project%20%2F%20source/rerun',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ name: 'Project · Rerun' }),
+      }),
+    )
+  })
+
   it('loads project-scoped Agent metrics from the encoded project route', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify([
       agent('frontend-a', 1, 0.5, 1, 2),

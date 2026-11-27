@@ -75,6 +75,10 @@ import {
   ProjectDerivationService,
 } from './project-derivation.ts'
 import {
+  ProjectRerunError,
+  ProjectRerunService,
+} from './project-rerun.ts'
+import {
   ProjectRunConflictError,
   ProjectRunStartError,
 } from './run-launcher.ts'
@@ -135,6 +139,10 @@ const deriveProjectSchema = z.object({
   name: z.string().trim().min(1).max(120),
   mode: z.enum(['UPGRADE', 'REGENERATE']),
   changeRequest: z.string().trim().max(20_000).optional(),
+}).strict()
+
+const rerunProjectSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
 }).strict()
 
 interface AgentExecutionActivity {
@@ -269,6 +277,15 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       const { projectId } = projectParamsSchema.parse(request.params)
       const body = deriveProjectSchema.parse(request.body)
       return await reply.code(201).send(await deriveAndStartProject(projectId, body))
+    },
+  )
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/projects/:projectId/rerun',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      const body = rerunProjectSchema.parse(request.body ?? {})
+      return await reply.code(201).send(await rerunAndStartProject(projectId, body))
     },
   )
 
@@ -1029,6 +1046,34 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     }
   }
 
+  async function rerunAndStartProject(
+    projectId: string,
+    body: z.infer<typeof rerunProjectSchema>,
+  ): Promise<{ readonly project: PlatformProjectSummary; readonly runId: string }> {
+    const targetProjectId = ProjectId(`project-${randomUUID()}`)
+    const rerun = new ProjectRerunService({ store: options.store })
+    try {
+      const project = await rerun.rerun({
+        sourceProjectId: ProjectId(projectId),
+        targetProjectId,
+        ...body.name === undefined ? {} : { name: body.name },
+      })
+      const { runId } = await requireLauncher().start(project)
+      return { project, runId }
+    } catch (error: unknown) {
+      if (error instanceof ProjectRerunError) {
+        throw new ApiError(projectRerunStatus(error.code), error.code, error.message)
+      }
+      if (error instanceof ProjectRunConflictError) {
+        throw new ApiError(409, error.code, error.message)
+      }
+      if (error instanceof ProjectRunStartError) {
+        throw new ApiError(503, error.code, error.message)
+      }
+      throw error
+    }
+  }
+
   async function startProjectRun(projectId: string) {
     try {
       const result = await requireLauncher().start(await requireProject(projectId))
@@ -1317,6 +1362,19 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       throw new ApiError(503, 'RUN_LAUNCHER_UNAVAILABLE', 'No project run launcher is mounted')
     }
     return launcher
+  }
+
+  function projectRerunStatus(code: ProjectRerunError['code']): number {
+    switch (code) {
+      case 'SOURCE_PROJECT_NOT_FOUND':
+        return 404
+      case 'SOURCE_PROJECT_RUNNING':
+      case 'SOURCE_TEAM_BINDING_UNAVAILABLE':
+      case 'TARGET_PROJECT_EXISTS':
+        return 409
+      case 'TARGET_PROJECT_CREATE_FAILED':
+        return 500
+    }
   }
 
   function projectDerivationStatus(code: ProjectDerivationError['code']): number {

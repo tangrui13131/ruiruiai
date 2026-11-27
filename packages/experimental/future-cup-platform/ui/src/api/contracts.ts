@@ -134,6 +134,12 @@ export const deriveProjectResponseSchema = z.object({
   runId: z.string().min(1),
 }).strict()
 
+export const rerunProjectRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+}).strict()
+
+export const rerunProjectResponseSchema = deriveProjectResponseSchema
+
 export const agentSchema = z.looseObject({
   id: identifierSchema,
   name: z.string(),
@@ -470,6 +476,8 @@ export type ProjectView = z.infer<typeof projectSchema>
 export type ProjectDerivationMode = z.infer<typeof projectDerivationModeSchema>
 export type DeriveProjectRequest = z.infer<typeof deriveProjectRequestSchema>
 export type DeriveProjectResponse = z.infer<typeof deriveProjectResponseSchema>
+export type RerunProjectRequest = z.infer<typeof rerunProjectRequestSchema>
+export type RerunProjectResponse = z.infer<typeof rerunProjectResponseSchema>
 export type AgentView = z.infer<typeof agentSchema>
 export type AgentVersionView = z.infer<typeof agentVersionViewSchema>
 export type AgentDefinitionView = z.infer<typeof agentDefinitionViewSchema>

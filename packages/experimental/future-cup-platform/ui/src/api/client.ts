@@ -7,6 +7,7 @@ import {
   createAgentTeamRequestSchema,
   createTeamDraftRequestSchema,
   deriveProjectResponseSchema,
+  rerunProjectResponseSchema,
   deleteResponseSchema,
   agentSchema,
   apiErrorSchema,
@@ -45,6 +46,8 @@ import type {
   ProjectRunView,
   ProjectSnapshotView,
   ProjectView,
+  RerunProjectRequest,
+  RerunProjectResponse,
   StartSelfHealDrillResponseView,
   StructuredProjectProfileView,
   TeamRecommendationAdoptionResponseView,
@@ -107,6 +110,19 @@ export const api = {
   async deriveProject(projectId: string, input: DeriveProjectRequest): Promise<DeriveProjectResponse> {
     return deriveProjectResponseSchema.parse(await request(
       `/api/v1/projects/${encodeURIComponent(projectId)}/derivations`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    ))
+  },
+
+  async rerunProject(
+    projectId: string,
+    input: RerunProjectRequest = {},
+  ): Promise<RerunProjectResponse> {
+    return rerunProjectResponseSchema.parse(await request(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/rerun`,
       {
         method: 'POST',
         body: JSON.stringify(input),
