@@ -78,6 +78,7 @@ function computeActiveStage(
 ): number {
   const status = project?.latestRunStatus ?? project?.workflowStatus ?? 'PENDING'
   if (status === 'PASSED') return stageCount
+  if (status === 'PENDING') return -1
   const tasks = snapshot?.tasks ?? []
   if (tasks.length === 0) return status === 'RUNNING' ? 0 : -1
   const lastRunningStage = stageCount - 2
@@ -101,6 +102,13 @@ function computeActiveStage(
     }
   }
   return highestActive
+}
+
+/** Pick the running project, or the newest project when nothing is running. */
+function selectFocusProject(projects: readonly ProjectView[]): ProjectView | undefined {
+  return projects.find(
+    item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
+  ) ?? [...projects].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
 }
 
 interface CreateProjectValues {
@@ -271,9 +279,7 @@ export function ProjectsPage() {
       setTeams(nextTeams)
       setDefinitions(nextDefinitions)
       setError(undefined)
-      const activeOrLatest = nextProjects.find(
-        item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
-      ) ?? nextProjects[0]
+      const activeOrLatest = selectFocusProject(nextProjects)
       if (activeOrLatest !== undefined) {
         await api.getSnapshot(activeOrLatest.id, 0, 100)
           .then((snap) => { setFocusSnapshot(snap) })
@@ -397,10 +403,11 @@ export function ProjectsPage() {
     { key: 'delivery', label: dictionary.projects.activePanel.stages.delivery, role: 'DELIVERY' },
   ]
   /* 聚焦项目:优先当前正在运行的;没有运行中的,展示最近创建的 */
-  const focusProject = projects.find(
-    item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
-  ) ?? [...projects].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
-  const activeStage = computeActiveStage(focusProject, focusSnapshot, stageItems.length)
+  const focusProject = selectFocusProject(projects)
+  const currentSnapshot = focusSnapshot?.project.id === focusProject?.id
+    ? focusSnapshot
+    : undefined
+  const activeStage = computeActiveStage(focusProject, currentSnapshot, stageItems.length)
   const stagePercent = focusProject === undefined
     ? 0
     : activeStage < 0
@@ -409,9 +416,9 @@ export function ProjectsPage() {
   const launchedProjects = projects.filter(item => item.latestRunStatus !== undefined).length
   const publishedDefinitions = definitions.filter(item => item.status === 'PUBLISHED')
   const agentTotalCount = publishedDefinitions.length > 0 ? publishedDefinitions.length : 7
-  const completedTaskCount = focusSnapshot === undefined
+  const completedTaskCount = currentSnapshot === undefined
     ? projects.filter(item => (item.latestRunStatus ?? item.workflowStatus) === 'PASSED').length * 6
-    : focusSnapshot.tasks.filter(task => task.status === 'COMPLETED').length
+    : currentSnapshot.tasks.filter(task => task.status === 'COMPLETED').length
   const settledStatuses = projects
     .map(item => item.latestRunStatus)
     .filter(status => status === 'PASSED' || status === 'FAILED' || status === 'ESCALATED')
@@ -597,12 +604,14 @@ export function ProjectsPage() {
                 </div>
                 <div className="dag-bottomline">
                   <span>
-                    {activeStage >= stageItems.length
-                      ? dictionary.projects.activePanel.stageAllDone
-                      : dictionary.projects.activePanel.stageProgress.replace(
-                        '{current}',
-                        String(Math.max(1, activeStage + 1)),
-                      )}
+                    {activeStage < 0
+                      ? dictionary.projects.activePanel.stageNotStarted
+                      : activeStage >= stageItems.length
+                        ? dictionary.projects.activePanel.stageAllDone
+                        : dictionary.projects.activePanel.stageProgress.replace(
+                          '{current}',
+                          String(activeStage + 1),
+                        )}
                   </span>
                   <button
                     type="button"
