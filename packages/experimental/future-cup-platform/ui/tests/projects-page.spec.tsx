@@ -4,9 +4,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../src/api/client.ts'
-import type { ProjectSnapshotView } from '../src/api/contracts.ts'
 import { LocaleProvider } from '../src/locale/LocaleProvider.tsx'
 import { ProjectsPage } from '../src/pages/ProjectsPage.tsx'
+import { snapshot, task } from './fixtures.ts'
 
 afterEach(() => {
   cleanup()
@@ -94,19 +94,9 @@ describe('ProjectsPage', () => {
     }
     vi.spyOn(api, 'listProjects').mockResolvedValue([oldProject, newProject])
     const getSnapshot = vi.spyOn(api, 'getSnapshot').mockResolvedValue({
+      ...snapshot([{ ...task('task-verifier', [], 'RUNNING'), projectId: 'p-old' }]),
       project: oldProject,
-      tasks: [{
-        id: 'task-verifier',
-        projectId: 'p-old',
-        title: 'Verify',
-        description: 'Verify the old project',
-        role: 'verifier',
-        status: 'RUNNING',
-        priority: 50,
-        dependencies: [],
-      }],
-      verificationReports: [],
-    } as unknown as ProjectSnapshotView)
+    })
     const { container } = render(
       <LocaleProvider>
         <ConfigProvider locale={zhCN}>
