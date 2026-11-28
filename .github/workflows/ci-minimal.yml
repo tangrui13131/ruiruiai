@@ -1,0 +1,50 @@
+name: CI Minimal
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci-minimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out with full history
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Markdown wrap
+        run: pnpm run verify-md-wrap
+
+      - name: Translation pairing
+        run: pnpm run verify-translation-pairing
+
+      - name: Markdown links
+        run: pnpm run verify-md-links
+
+      - name: Repository references
+        run: pnpm run verify-repository-references
+
+      - name: Weighted approval policy
+        run: pnpm run test:approval-policy

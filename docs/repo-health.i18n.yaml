@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for repo-health.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/repo-health.md
+/repository-health-score:
+  en: 9cfa01cc62980b38
+  zh: a8785ea0d5088b54
+/repository-health-score/dimensions:
+  en: f8af5226fbbb123f
+  zh: 25c282fb8389c52d
+/repository-health-score/health-floor:
+  en: 252b812afc3fd6ac
+  zh: 7c2bbadd94f09b3d
+/repository-health-score/scoring-and-enforcement:
+  en: 254051941970569c
+  zh: 0655b2412c8273ad
+/repository-health-score/host-limitations:
+  en: 644d52927dc652a7
+  zh: 104968856af9729e
+/repository-health-score/current-baseline:
+  en: 0f4c9fdc66580af0
+  zh: 02590ed813bae3b5

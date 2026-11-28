@@ -78,6 +78,7 @@ function computeActiveStage(
 ): number {
   const status = project?.latestRunStatus ?? project?.workflowStatus ?? 'PENDING'
   if (status === 'PASSED') return stageCount
+  if (status === 'PENDING') return -1
   const tasks = snapshot?.tasks ?? []
   if (tasks.length === 0) return status === 'RUNNING' ? 0 : -1
   const lastRunningStage = stageCount - 2
@@ -101,6 +102,13 @@ function computeActiveStage(
     }
   }
   return highestActive
+}
+
+/** Pick the running project, or the newest project when nothing is running. */
+function selectFocusProject(projects: readonly ProjectView[]): ProjectView | undefined {
+  return projects.find(
+    item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
+  ) ?? [...projects].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
 }
 
 interface CreateProjectValues {
@@ -253,6 +261,12 @@ export function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const deriveMode = Form.useWatch('mode', deriveForm) ?? 'UPGRADE'
 
+  /** Replay the first-paint boot animation without reloading the page. */
+  function replayBootAnimation(): void {
+    const bootWindow = window as Window & { __FC_BOOT_REPLAY__?: () => void }
+    bootWindow.__FC_BOOT_REPLAY__?.()
+  }
+
   async function load(): Promise<void> {
     setLoading(true)
     try {
@@ -265,9 +279,7 @@ export function ProjectsPage() {
       setTeams(nextTeams)
       setDefinitions(nextDefinitions)
       setError(undefined)
-      const activeOrLatest = nextProjects.find(
-        item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
-      ) ?? nextProjects[0]
+      const activeOrLatest = selectFocusProject(nextProjects)
       if (activeOrLatest !== undefined) {
         await api.getSnapshot(activeOrLatest.id, 0, 100)
           .then((snap) => { setFocusSnapshot(snap) })
@@ -306,15 +318,17 @@ export function ProjectsPage() {
     setSearchParams(nextParams, { replace: true })
   }, [projects, searchParams, setSearchParams])
 
-  const teamOptions = [
-    { value: '', label: dictionary.projects.defaultTeam },
-    ...teams
-      .filter(team => team.status === 'ACTIVE' && team.latestVersion?.status === 'PUBLISHED')
-      .map(team => ({
-        value: team.latestVersion?.id ?? '',
-        label: `${team.name} · ${team.latestVersion?.version ?? ''}`,
-      })),
-  ]
+  const defaultTeamVersionId = 'future-cup-default-team-2.0.1'
+  const availableTeamOptions = teams
+    .filter(team => team.status === 'ACTIVE' && team.latestVersion?.status === 'PUBLISHED')
+    .map(team => ({
+      value: team.latestVersion?.id ?? '',
+      label: `${team.name} · ${team.latestVersion?.version ?? ''}`,
+    }))
+  const preferredTeam = availableTeamOptions.find(option => option.value === defaultTeamVersionId)
+  const teamOptions = preferredTeam === undefined
+    ? availableTeamOptions
+    : [preferredTeam, ...availableTeamOptions.filter(option => option !== preferredTeam)]
 
   async function create(values: CreateProjectValues): Promise<void> {
     setCreating(true)
@@ -388,10 +402,12 @@ export function ProjectsPage() {
     { key: 'verification', label: dictionary.projects.activePanel.stages.verification, role: 'VERIFIER' },
     { key: 'delivery', label: dictionary.projects.activePanel.stages.delivery, role: 'DELIVERY' },
   ]
-  const focusProject = projects.find(
-    item => (item.latestRunStatus ?? item.workflowStatus) === 'RUNNING',
-  ) ?? projects[0]
-  const activeStage = computeActiveStage(focusProject, focusSnapshot, stageItems.length)
+  /* 聚焦项目:优先当前正在运行的;没有运行中的,展示最近创建的 */
+  const focusProject = selectFocusProject(projects)
+  const currentSnapshot = focusSnapshot?.project.id === focusProject?.id
+    ? focusSnapshot
+    : undefined
+  const activeStage = computeActiveStage(focusProject, currentSnapshot, stageItems.length)
   const stagePercent = focusProject === undefined
     ? 0
     : activeStage < 0
@@ -400,9 +416,9 @@ export function ProjectsPage() {
   const launchedProjects = projects.filter(item => item.latestRunStatus !== undefined).length
   const publishedDefinitions = definitions.filter(item => item.status === 'PUBLISHED')
   const agentTotalCount = publishedDefinitions.length > 0 ? publishedDefinitions.length : 7
-  const completedTaskCount = focusSnapshot === undefined
+  const completedTaskCount = currentSnapshot === undefined
     ? projects.filter(item => (item.latestRunStatus ?? item.workflowStatus) === 'PASSED').length * 6
-    : focusSnapshot.tasks.filter(task => task.status === 'COMPLETED').length
+    : currentSnapshot.tasks.filter(task => task.status === 'COMPLETED').length
   const settledStatuses = projects
     .map(item => item.latestRunStatus)
     .filter(status => status === 'PASSED' || status === 'FAILED' || status === 'ESCALATED')
@@ -451,6 +467,13 @@ export function ProjectsPage() {
               icon={<ReloadOutlined />}
               aria-label={dictionary.common.refresh}
               onClick={() => { void load() }}
+            />
+          </Tooltip>
+          <Tooltip title={dictionary.common.replayBoot}>
+            <Button
+              icon={<PlayCircleOutlined />}
+              aria-label={dictionary.common.replayBoot}
+              onClick={() => { replayBootAnimation() }}
             />
           </Tooltip>
           <Button
@@ -581,12 +604,14 @@ export function ProjectsPage() {
                 </div>
                 <div className="dag-bottomline">
                   <span>
-                    {activeStage >= stageItems.length
-                      ? dictionary.projects.activePanel.stageAllDone
-                      : dictionary.projects.activePanel.stageProgress.replace(
-                        '{current}',
-                        String(Math.max(1, activeStage + 1)),
-                      )}
+                    {activeStage < 0
+                      ? dictionary.projects.activePanel.stageNotStarted
+                      : activeStage >= stageItems.length
+                        ? dictionary.projects.activePanel.stageAllDone
+                        : dictionary.projects.activePanel.stageProgress.replace(
+                          '{current}',
+                          String(activeStage + 1),
+                        )}
                   </span>
                   <button
                     type="button"
@@ -805,7 +830,7 @@ export function ProjectsPage() {
           <Form.Item
             name="teamVersionId"
             label={dictionary.projects.team}
-            initialValue=""
+            initialValue={defaultTeamVersionId}
           >
             <Select options={teamOptions} aria-label={dictionary.projects.team} />
           </Form.Item>

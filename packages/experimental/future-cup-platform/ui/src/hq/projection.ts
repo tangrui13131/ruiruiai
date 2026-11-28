@@ -38,6 +38,7 @@ export interface HqDepartmentProjection {
   readonly activeTaskIds: readonly string[]
   readonly completedTasks: number
   readonly failedTasks: number
+  readonly blockedTasks: number
   readonly totalTasks: number
   readonly completedRepairs: number
   readonly failedRepairs: number
@@ -135,7 +136,12 @@ export function createProjection(
     workflowStatus: snapshot.workflow?.status ?? 'PENDING',
     tasks,
     agents: projectedAgents,
-    departments: departmentsFor(tasks, projectedAgents, snapshot.repairs.map(repairProjection)),
+    departments: departmentsFor(
+      tasks,
+      projectedAgents,
+      snapshot.repairs.map(repairProjection),
+      latestRun?.status ?? 'PENDING',
+    ),
     verification: verificationProjection(snapshot.verificationReports.at(-1)),
     repairs: snapshot.repairs.map(repairProjection),
     events: snapshot.events.map(eventProjection),
@@ -236,7 +242,7 @@ export function applyProductEvent(
     workflowStatus,
     tasks,
     agents,
-    departments: departmentsFor(tasks, agents, repairs),
+    departments: departmentsFor(tasks, agents, repairs, runStatus),
     verification,
     repairs,
     events: [...projection.events, eventProjection(event)].slice(-100),
@@ -256,6 +262,21 @@ export function needsSnapshotResync(
 export function parseSnapshot(value: unknown): ProjectSnapshotView | undefined {
   const parsed = projectSnapshotSchema.safeParse(value)
   return parsed.success ? parsed.data : undefined
+}
+
+/**
+ * Merge snapshot-carried events into the existing display log without duplicates or loss.
+ * Socket snapshots carry only events after the acknowledged seq, so adopting an
+ * incremental snapshot alone would drop the accumulated activity log; the merge keeps
+ * previous entries first, appends unseen ones by seq, and caps the log at the same
+ * 100 entries that realtime application keeps.
+ */
+export function mergeProjectionEvents(
+  previous: readonly HqEventProjection[],
+  incoming: readonly HqEventProjection[],
+): readonly HqEventProjection[] {
+  const seen = new Set(previous.map(event => event.seq))
+  return [...previous, ...incoming.filter(event => !seen.has(event.seq))].slice(-100)
 }
 
 /** Validate one Socket.IO event before applying it. */
@@ -319,12 +340,14 @@ function departmentsFor(
   tasks: readonly HqTaskProjection[],
   agents: readonly HqAgentProjection[],
   repairs: readonly HqRepairProjection[],
+  runStatus: HqProjection['runStatus'],
 ): readonly HqDepartmentProjection[] {
-  return HQ_DEPARTMENTS.map((department) => {
+  const roleDepartments: readonly HqDepartmentProjection[] = HQ_DEPARTMENTS.map((department) => {
     const departmentTasks = tasks.filter(task => departmentForTask(task, agents) === department.key)
     const departmentRepairs = department.key === 'repair' ? repairs : []
     const activeTaskIds = departmentTasks.filter(task => task.status === 'RUNNING').map(task => task.id)
     const failedTasks = departmentTasks.filter(task => task.status === 'FAILED').length
+    const blockedTasks = departmentTasks.filter(task => task.status === 'BLOCKED').length
     const completedTasks = departmentTasks.filter(task => task.status === 'COMPLETED').length
     const totalTasks = departmentTasks.length
     const completedRepairs = departmentRepairs.filter(repair =>
@@ -333,23 +356,31 @@ function departmentsFor(
       repair.completed && repair.afterStatus !== 'PASS').length
     const activeRepairs = departmentRepairs.filter(repair => !repair.completed).length
     const totalRepairs = departmentRepairs.length
-    const completedUnits = completedTasks + completedRepairs
+    /* 规划部的交付物是任务 DAG 本身：DAG 产出即规划完成，计入一个规划单元避免 0/0 空进度；
+       该单元并入 completedTasks，让「历史完成」也反映规划交付。 */
+    const planningDelivered = department.key === 'planning' && tasks.length > 0
+    const planningUnits = department.key === 'planning' ? 1 : 0
+    const deliveredTasks = completedTasks + (planningDelivered ? 1 : 0)
+    const completedUnits = deliveredTasks + completedRepairs
     const failedUnits = failedTasks + failedRepairs
-    const totalUnits = totalTasks + totalRepairs
+    const totalUnits = totalTasks + totalRepairs + planningUnits
     const status = failedUnits > 0
       ? 'FAILED'
       : activeTaskIds.length > 0 || activeRepairs > 0
         ? 'ACTIVE'
-        : totalUnits > 0 && completedUnits === totalUnits
-          ? 'COMPLETED'
-          : totalUnits > 0 ? 'READY' : 'IDLE'
+        : department.key === 'planning' && !planningDelivered && runStatus === 'RUNNING'
+          ? 'ACTIVE'
+          : totalUnits > 0 && completedUnits === totalUnits
+            ? 'COMPLETED'
+            : totalUnits > 0 ? 'READY' : 'IDLE'
     return {
       ...department,
       status,
       progress: totalUnits === 0 ? 0 : completedUnits / totalUnits,
       activeTaskIds,
-      completedTasks,
+      completedTasks: deliveredTasks,
       failedTasks,
+      blockedTasks,
       totalTasks,
       completedRepairs,
       failedRepairs,
@@ -357,6 +388,40 @@ function departmentsFor(
       totalRepairs,
     }
   })
+  return [...roleDepartments, deliveryDepartment(runStatus)]
+}
+
+/** System-owned delivery department; it holds no runtime Agent seat. */
+const DELIVERY_DEPARTMENT = {
+  key: 'delivery',
+  name: '交付归档',
+  english: 'DELIVERY',
+  color: '#e0b48a',
+} as const
+
+/**
+ * Project the delivery department from the authoritative run status.
+ * No runtime Agent sits in delivery and no product event targets it: a PASSED run
+ * completes the immutable delivery snapshot (the archive), counted as one delivered
+ * archive unit so 「历史完成」 reflects the archive; every other state leaves the
+ * department idle instead of failed.
+ */
+function deliveryDepartment(runStatus: HqProjection['runStatus']): HqDepartmentProjection {
+  const archived = runStatus === 'PASSED'
+  return {
+    ...DELIVERY_DEPARTMENT,
+    status: archived ? 'COMPLETED' : 'IDLE',
+    progress: archived ? 1 : 0,
+    activeTaskIds: [],
+    completedTasks: archived ? 1 : 0,
+    failedTasks: 0,
+    blockedTasks: 0,
+    totalTasks: archived ? 1 : 0,
+    completedRepairs: 0,
+    failedRepairs: 0,
+    activeRepairs: 0,
+    totalRepairs: 0,
+  }
 }
 
 function departmentForAgent(agentId: string, role: string): string {
@@ -394,6 +459,35 @@ function repairProjection(repair: RepairView): HqRepairProjection {
   }
 }
 
+/** 中文名称（用于大屏动态流）；未知类型回退为原始类型名保证可追溯。 */
+const EVENT_LABELS: Readonly<Record<string, string>> = {
+  'run.started': '运行开始',
+  'run.completed': '运行完成',
+  'run.failed': '运行失败',
+  'run.cancelled': '运行取消',
+  'task.created': '新建任务',
+  'task.planned': '任务规划',
+  'task.ready': '任务就绪',
+  'task.dispatched': '任务派发',
+  'task.completed': '任务完成',
+  'task.failed': '任务失败',
+  'task.blocked': '任务阻断',
+  'task.cancelled': '任务取消',
+  'agent.started': 'Agent 启动',
+  'agent.progress': 'Agent 执行中',
+  'agent.tool.called': 'Agent 调用工具',
+  'agent.completed': 'Agent 完成',
+  'agent.failed': 'Agent 失败',
+  'agent.cancelled': 'Agent 取消',
+  'verification.started': '验证开始',
+  'verification.passed': '验证通过',
+  'verification.failed': '验证失败',
+  'verification.incomplete': '验证证据不完整',
+  'repair.started': '自愈修复启动',
+  'repair.completed': '自愈修复完成',
+  'workflow.escalated': '修复耗尽 · 升级人工',
+}
+
 function eventProjection(event: ProductEventView): HqEventProjection {
   const payload = record(event.payload)
   return {
@@ -403,7 +497,7 @@ function eventProjection(event: ProductEventView): HqEventProjection {
     ...event.taskId === undefined ? {} : { taskId: event.taskId },
     ...event.agentId === undefined ? {} : { agentId: event.agentId },
     message: [
-      event.type,
+      EVENT_LABELS[event.type] ?? event.type,
       event.taskId === undefined ? undefined : event.taskId,
       event.agentId === undefined ? undefined : event.agentId,
       payload === undefined ? undefined : readString(payload, 'message'),

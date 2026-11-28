@@ -18,6 +18,7 @@ import { api } from '../api/client.ts'
 import { EmptyPanel } from '../components/EmptyPanel.tsx'
 import { JsonViewer } from '../components/JsonViewer.tsx'
 import { PageHeading } from '../components/PageHeading.tsx'
+import { StatusBadge } from '../components/StatusBadge.tsx'
 import { TaskNode } from '../components/TaskNode.tsx'
 import { buildControlGraph } from '../graph/control-layout.ts'
 import { buildDagGraph } from '../graph/dag-layout.ts'
@@ -34,7 +35,7 @@ function ControlCanvas({
   readonly events: readonly WorkflowControlEventView[]
 }) {
   const { dictionary } = useLocale()
-  const graph = useMemo(() => buildControlGraph(state), [state])
+  const graph = useMemo(() => buildControlGraph(state, dictionary), [state, dictionary])
   const activeCount = state.snapshot.activeNodes.length
   const recent = events.slice(-8).reverse()
   return (
@@ -45,9 +46,7 @@ function ControlCanvas({
           <p>{dictionary.dag.workflowDescription}</p>
         </div>
         <Space wrap>
-          <Tag color={state.snapshot.status === 'PASSED' ? 'green' : 'blue'}>
-            {state.snapshot.status}
-          </Tag>
+          <StatusBadge status={state.snapshot.status} />
           <Tag>{dictionary.dag.active}: {activeCount}</Tag>
         </Space>
       </div>
@@ -63,8 +62,8 @@ function ControlCanvas({
             nodesDraggable={false}
             nodesConnectable={false}
           >
-            <Background color="#d6c8bc" gap={22} size={1} />
-            <MiniMap pannable zoomable />
+            <Background color="#e6e4dd" gap={22} size={1} />
+            <MiniMap pannable zoomable nodeColor="#d9d7cf" />
             <Controls showInteractive={false} />
           </ReactFlow>
         </ReactFlowProvider>
@@ -74,7 +73,7 @@ function ControlCanvas({
       </div>
       <Space direction="vertical" size={4} style={{ width: '100%' }}>
         {recent.map(event => (
-          <div key={event.seq}>
+          <div key={event.seq} className="control-event">
             <Tag>{String(event.seq)}</Tag>
             <code>{event.entry.type}</code>
             {event.entry.nodeId === undefined ? null : (
@@ -108,8 +107,8 @@ function DagCanvas({ tasks }: { readonly tasks: readonly TaskView[] }) {
           minZoom={0.35}
           maxZoom={1.4}
         >
-          <Background color="#d6c8bc" gap={22} size={1} />
-          <MiniMap pannable zoomable />
+          <Background color="#e6e4dd" gap={22} size={1} />
+          <MiniMap pannable zoomable nodeColor="#d9d7cf" />
           <Controls />
         </ReactFlow>
       </div>

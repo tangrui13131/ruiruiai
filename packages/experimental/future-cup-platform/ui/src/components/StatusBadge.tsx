@@ -41,5 +41,9 @@ export function StatusBadge({ status }: { readonly status: string }) {
   const className = STATUS_CLASS[status] ?? 'status-neutral'
   const key = STATUS_LOCALE_KEY[status]
   const label = key === undefined ? status : dictionary.statuses[key]
-  return <span className={`status-badge ${className}`}>{label}</span>
+  return (
+    <span key={status} data-status={status} className={`status-badge ${className}`}>
+      {label}
+    </span>
+  )
 }

@@ -20,7 +20,9 @@ export function ConnectionBadge({ status }: { readonly status: RealtimeStatus })
       : dictionary.common.disconnected
   return (
     <Tooltip title={label}>
-      <Badge status={STATUS_COLOR[status]} text={<span className="desktop-only">{label}</span>} />
+      <span className="connection-badge" data-status={status}>
+        <Badge status={STATUS_COLOR[status]} text={<span className="desktop-only">{label}</span>} />
+      </span>
     </Tooltip>
   )
 }

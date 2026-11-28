@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  Agent HQ 智能总部 v10.0 · DEVELOPED BY @赛博老爸
+  Agent HQ 调度平台 v10.0 · DEVELOPED BY @赛博老爸
   SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
   Required Notice: Copyright (c) 2026 赛博老爸
   非商业用途可免费使用；商业使用需另行获得授权，联系 cyberdaddyleo@outlook.com。
@@ -19,12 +19,12 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1b1713}
 <body>
 <div id="host-hq"></div>
 
-<!-- ===== 主题 10 · HQ 智能总部 ===== -->
+<!-- ===== 主题 10 · HQ 调度平台 ===== -->
 <template id="tpl-hq">
 <style>
-/* Layout（框体极简：左右不放框，公司总进度等主数据直接写在背景上；部门 / 项目 / 成员 / 流水 / 档案收进底部一条）: 行政总部作战大屏 —— 一家公司 = 一座单层「回字形」办公楼（只画这栋楼，深色背景，不画周边环境）：正中是总经理办公室，Chief 坐在大班台后（点它派新任务），
-   北边 4 个部门、东西两个大房间、南边两个部门 + 大堂（会议室 / 前台 / 茶水间）；人事部负责增删改成员。每个人 = 一个 Agent 或一位真人督办；工单从调度中心派出，在各部门之间一棒一棒传下去，真人负责审核放行。
-   框体做得简约：左栏公司总览 + 部门进度，右栏项目进度 + 动态，底部按视图切换（人员看板 / 部门成员 / 项目流水 / 个人档案）。
+/* Layout（框体极简：左右不放框，调度总进度等主数据直接写在背景上；部门 / 项目 / 成员 / 流水 / 档案收进底部一条）: Agent 调度平台作战大屏 —— 一个调度平台 = 一座单层「回字形」沙盘（只画这栋楼，深色背景，不画周边环境）：正中是总控室，Chief 坐在大班台后（点它派新任务），
+   北边 4 个部门、东西两个大房间、南边两个部门 + 大堂（会议室 / 前台 / 茶水间）；人员管理面板负责增删改成员。每个人 = 一个 Agent 或一位真人督办；工单从调度中心派出，在各部门之间一棒一棒传下去，真人负责审核放行。
+   框体做得简约：左栏调度总览 + 部门进度，右栏项目进度 + 动态，底部按视图切换（人员看板 / 部门成员 / 项目流水 / 个人档案）。
    左上标题、右上按钮与前几款同一套写法。3D 是原生 WebGL（阴影、昼夜、移轴、泛光），不依赖 three.js。 */
 :host{
   color-scheme:dark;
@@ -44,7 +44,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1b1713}
 .gl.drag{cursor:grabbing}
 .gl.pick{cursor:pointer}
 .fx{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
-.vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 78% 82% at 50% 50%,transparent 62%,rgba(0,0,0,.38) 100%)}
+.vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 78% 82% at 50% 50%,transparent 62%,rgba(60,48,38,.16) 100%)}
+/* 平台纸面垫层：盖住画布四周，中央留出舞台窗口（几何由 layout() 同步） */
+.pm{position:absolute;left:24%;top:18%;width:52%;height:64%;border-radius:26px;pointer-events:none;box-shadow:0 0 0 200vmax #f2e8e0,0 0 64px 30px rgba(242,232,224,.85),inset 0 0 70px rgba(60,48,38,.1)}
 .nr{position:absolute;inset:0;pointer-events:none}
 .fit{position:absolute;inset:0;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);pointer-events:none}
 .narrow .fit{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -55,21 +57,21 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1b1713}
 /* ---------- 左上标题（与前几款同款） ---------- */
 .topfade{position:absolute;left:-40px;top:0;width:900px;height:280px;background:radial-gradient(ellipse 720px 270px at 0 0,rgba(9,7,5,.92),rgba(9,7,5,.6) 55%,rgba(9,7,5,0) 88%)}
 .botfade{position:absolute;left:0;right:0;bottom:0;height:300px;background:linear-gradient(0deg,rgba(6,8,11,.96),rgba(6,8,11,.88) 55%,rgba(6,8,11,.45) 80%,transparent)}
-.hd{position:absolute;left:10px;top:18px;width:max-content;text-shadow:0 0 6px var(--bg),0 0 14px var(--bg)}
-.eb{width:max-content;font-size:10px;letter-spacing:.26em;color:var(--fg-3);white-space:nowrap}
-.eb b{color:var(--hi);font-weight:500}
-.hd h1{margin:12px 0 0;font-family:var(--display);font-weight:700;font-size:44px;line-height:1.06;letter-spacing:.05em;color:var(--fg)}
+.hd{position:absolute;left:14px;top:18px;width:334px;box-sizing:border-box;padding:16px 20px 14px;border-radius:16px;background:rgba(246,237,229,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 18px 44px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.65)}
+.eb{width:max-content;font-size:10px;letter-spacing:.26em;color:#a19385;white-space:nowrap}
+.eb b{color:#1e7e46;font-weight:600}
+.hd h1{margin:10px 0 0;font-family:var(--display);font-weight:700;font-size:30px;line-height:1.12;letter-spacing:.02em;color:#28241f}
 .hd h1 span{display:block;width:max-content;white-space:nowrap}
-.hd h1 .l1{display:flex;align-items:center;width:max-content}
-.hd h1 em{font-style:normal;font-family:var(--cjk);font-weight:900;font-size:36px;line-height:1;letter-spacing:.08em;margin-left:22px;text-shadow:none;background:linear-gradient(90deg,#ffe3a3,#ff9a62);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 10px rgba(255,170,100,.3))}
+.hd h1 .l1{display:flex;align-items:baseline;width:max-content}
+.hd h1 em{font-style:normal;font-family:var(--cjk);font-weight:600;font-size:11px;line-height:1;letter-spacing:.14em;margin-left:12px;color:#3b6a9c;text-shadow:none;background:none;filter:none;-webkit-text-fill-color:currentColor}
 .sub{width:max-content;margin-top:12px;font-family:var(--cjk);font-size:14px;letter-spacing:.06em;color:var(--fg-2);white-space:nowrap}
 .sub b{color:var(--ai);font-weight:700}
 .sub i{font-style:normal;color:var(--hu);font-weight:700}
-.sub2{width:max-content;margin-top:12px;font-size:10px;letter-spacing:.16em;color:var(--fg-3);white-space:nowrap}
-.sub2 b{color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+.sub2{width:max-content;margin-top:10px;font-family:var(--cjk);font-size:11px;letter-spacing:.08em;color:#7a7066;white-space:nowrap}
+.sub2 b{color:#28241f;font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ---------- 右上按钮（与前几款同款） ---------- */
-.tools{position:absolute;right:10px;top:14px;display:flex;gap:6px}
+.tools{display:flex;gap:6px}
 button.tb{font:500 11px/1 var(--mono);letter-spacing:.1em;color:var(--fg-2);background:rgba(14,11,8,.82);border:1px solid rgba(255,226,186,.26);padding:8px 11px;cursor:pointer;white-space:nowrap}
 button.tb b{color:var(--fg);font-weight:700;font-family:var(--cjk);margin-left:6px;letter-spacing:.04em}
 button.tb:hover{border-color:var(--hi);color:var(--fg)}
@@ -113,20 +115,36 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
 .pseg{display:flex;gap:3px;height:5px}
 .pseg i{position:relative;flex:1;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
 .pseg i u{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--c);text-decoration:none}
+.bk-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .bk{font-family:var(--cjk);font-size:13px;letter-spacing:.12em;color:var(--fg-2);white-space:nowrap}
 .bk em{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--fg-3);margin-left:10px}
-/* 左侧：公司总进度大数字 + 6 个指标（纯文字，无底框） */
-.bgl{position:absolute;left:14px;top:200px;width:310px;text-shadow:0 0 10px var(--bg),0 0 24px var(--bg)}
-.bgl::before,.bgr::before{content:"";position:absolute;left:-90px;top:-70px;right:-90px;bottom:-70px;background:radial-gradient(closest-side,rgba(6,8,11,.5),rgba(6,8,11,0));z-index:-1;pointer-events:none}
-.bv{margin-top:4px;font-size:118px;font-weight:800;line-height:.9;letter-spacing:-.05em;color:var(--hi);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 0 36px rgba(255,196,107,.22)}
-.bv small{font-size:36px;font-weight:600;letter-spacing:0;color:var(--fg-2);margin-left:6px}
-.bgl .pseg{margin-top:16px;width:290px}
-.bs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px;margin-top:26px;width:290px}
+/* 左侧：执行进度胶囊 → 流体展开成完整面板（尺寸/圆角高阻曲线无缝过渡） */
+.bgl{--fluid-e:cubic-bezier(.3,1.18,.32,1);position:absolute;left:14px;top:172px;width:176px;height:44px;box-sizing:border-box;border-radius:22px;background:rgba(246,237,229,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(60,48,38,.16),inset 0 1px 0 rgba(255,255,255,.7);overflow:hidden;pointer-events:auto;cursor:pointer;transition:width .5s var(--fluid-e),height .5s var(--fluid-e),border-radius .5s var(--fluid-e),box-shadow .4s ease}
+.bgl.open{width:334px;border-radius:16px;cursor:default}
+.bgl::before{content:none}
+.bgr::before{content:"";position:absolute;left:-90px;top:-70px;right:-90px;bottom:-70px;background:radial-gradient(closest-side,rgba(6,8,11,.5),rgba(6,8,11,0));z-index:-1;pointer-events:none}
+.bv{margin-top:6px;font-size:72px;font-weight:800;line-height:.95;letter-spacing:-.04em;color:#28241f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bv small{font-size:24px;font-weight:600;letter-spacing:0;color:#a19385;margin-left:4px}
+.bgl .pseg{margin-top:14px;width:100%}
+.bgl .pseg i{background:rgba(40,36,31,.12)}
+.bgl-pill{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 16px 0 18px;border:0;background:transparent;color:#28241f;font:600 12.5px/1 var(--cjk);letter-spacing:.06em;cursor:pointer;text-align:left}
+.bgl-pill .bgl-dot{flex:none;width:8px;height:8px;border-radius:50%;background:#3b6a9c;box-shadow:0 0 0 3px rgba(59,106,156,.14)}
+.bgl-pill .t{letter-spacing:.08em;white-space:nowrap}
+.bgl-pill b{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:700;color:#28241f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bgl-pill em{font-style:normal;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:#a19385;margin-left:8px;white-space:nowrap;opacity:0;transition:opacity .2s ease}
+.bgl-pill .chev{flex:none;width:10px;height:6px;margin-left:4px;color:#a19385;opacity:0;transform:rotate(180deg);transition:transform .5s var(--fluid-e),opacity .2s ease}
+.bgl.open .bgl-pill em,.bgl.open .bgl-pill .chev{opacity:1}
+.bgl.open .bgl-pill .chev{transform:rotate(0deg)}
+.bgl.open .bgl-pill{cursor:pointer}
+.bgl.open .bgl-pill:hover .t{color:#3b6a9c}
+.bgl-body{box-sizing:border-box;width:294px;padding:0 20px 20px;opacity:0;transform:translateY(12px) scale(.985);transform-origin:50% 0;pointer-events:none;transition:opacity .22s ease,transform .4s var(--fluid-e)}
+.bgl.open .bgl-body{opacity:1;transform:none;pointer-events:auto;transition:opacity .3s ease .14s,transform .45s var(--fluid-e) .06s}
+.bs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;margin-top:18px;width:100%}
 .bs div{display:flex;flex-direction:column;gap:4px;min-width:0}
-.bs b{font-size:28px;font-weight:700;line-height:1;color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
-.bs b small{font-size:12px;color:var(--fg-3);margin-left:3px;font-weight:500}
-.bs span{font-family:var(--cjk);font-size:11.5px;letter-spacing:.06em;color:var(--fg-3);white-space:nowrap}
-.bs .w b{color:var(--warn)}
+.bs b{font-size:24px;font-weight:700;line-height:1;color:#28241f;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bs b small{font-size:11px;color:#a19385;margin-left:3px;font-weight:500}
+.bs span{font-family:var(--cjk);font-size:11px;letter-spacing:.05em;color:#7a7066;white-space:nowrap}
+.bs .w b{color:#b45309}
 /* 右侧：动态（几行文字，越旧越淡） */
 .bgr{position:absolute;right:14px;top:104px;width:330px;text-align:right;text-shadow:0 0 8px var(--bg),0 0 18px var(--bg)}
 .log{margin-top:12px;display:flex;flex-direction:column;gap:7px;font-size:11.5px;line-height:1.4}
@@ -220,8 +238,6 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
 .stc .ch em.r{color:var(--warn)}
 .stc .ch .bar{display:none}
 .stc .more{font-size:9px;color:var(--fg-3);font-family:var(--cjk)}
-.stc.fin{border-top-color:var(--hi)}
-.stc.fin .big{font-size:24px;font-weight:700;line-height:1;color:var(--hi);font-variant-numeric:tabular-nums}
 /* 人员：档案一行 */
 .pfl{flex:1;display:grid;grid-template-columns:1.25fr .9fr 1.3fr 1.3fr;gap:16px;min-width:0}
 .pfc{display:flex;flex-direction:column;gap:5px;padding:8px 4px 0;border-top:2px solid rgba(255,226,186,.14);min-width:0;min-height:0;overflow:hidden}
@@ -386,13 +402,119 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
 .look em{font-style:normal;font-size:11.5px;color:var(--fg-3)}
 .toastx{position:absolute;left:50%;bottom:60px;transform:translateX(-50%);z-index:25;max-width:calc(100% - 32px);background:rgba(24,19,14,.95);border:1px solid var(--line-2);border-left:3px solid var(--hi);border-radius:5px;padding:9px 14px;font:13px/1.5 var(--cjk);color:var(--fg);pointer-events:none}
 @media (max-width:640px){.row2,.hf-grid{grid-template-columns:1fr}.hr-r{grid-template-columns:minmax(0,1fr) auto}.hr-r .dp,.hr-r .ro,.hr-r .st{display:none}.hr-r .cft{grid-column:1/2}.mdl-card.wide{max-width:100%}}
-@media (prefers-reduced-motion:reduce){.bar i{transition:none}.lab,.tg,.bb,.dr,.pr{transition:none}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}.lab,.tg,.bb,.dr,.pr{transition:none}.bgl,.bgl-body,.bgl-pill .chev{transition:none}}
+
+/* ---------- 平台纸面主题：舞台周边 HUD 与纸面同色系；房间内 3D 投影标签保持原暗色 ---------- */
+.topfade,.botfade{display:none}
+.hd,.bgl{box-shadow:0 10px 30px rgba(60,48,38,.16),inset 0 1px 0 rgba(255,255,255,.7)}
+/* 顶部中间：运行概览 + 昼夜时钟 */
+.cr{background:rgba(246,237,229,.92);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 12px 30px rgba(60,48,38,.16);color:#7a7066}
+.cr b{color:#28241f}
+.cr .big{color:#28241f}
+.cr em{color:#a19385}
+.cr .cr-n{color:#3b6a9c}
+.cr .pc{color:#3b6a9c}
+.cr-sel{border-color:#3b6a9c;box-shadow:inset 0 -2px 0 #3b6a9c}
+.cr .live-dot::before{background:#1e7e46;box-shadow:none}
+.tod{background:rgba(246,237,229,.92);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 12px 30px rgba(60,48,38,.16);color:#7a7066}
+.tod i{color:#b45309}
+.tod b{color:#28241f}
+button.tb{color:#5c5248;background:rgba(246,237,229,.92);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 12px 30px rgba(60,48,38,.16)}
+button.tb b{color:#28241f}
+button.tb:hover{border-color:#3b6a9c;color:#28241f}
+/* 动态面板头部：次按钮融入卡面（半透暖白、去投影），主按钮走全站墨黑 */
+.bgr .tools button.tb{background:rgba(255,255,255,.62);border-color:rgba(92,82,72,.22);box-shadow:none}
+.bgr .tools button.tb:hover{background:rgba(255,255,255,.88);border-color:#3b6a9c;color:#28241f}
+.bgr .tools button.tb[data-act="proj"]{background:#28241f;border-color:#28241f;color:#f6ede9;box-shadow:0 2px 6px rgba(60,48,38,.18)}
+.bgr .tools button.tb[data-act="proj"]:hover{background:#3a352e;border-color:#3a352e;color:#fff}
+.cb{color:#5c5248;background:#f6ede5;border-color:#e1d6cd;border-radius:8px}
+.cb:hover{color:#28241f;border-color:#3b6a9c}
+.cb.hi{color:#fff;background:#28241f;border-color:#28241f}
+.cb.hi:hover{background:#3b3733}
+/* 右侧：动态卡片 */
+.bgr{box-sizing:border-box;padding:16px 20px;border-radius:16px;background:rgba(246,237,229,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(60,48,38,.16),inset 0 1px 0 rgba(255,255,255,.7);text-align:right;text-shadow:none}
+.bgr .bk{color:#28241f;font-weight:600}
+.bgr .bk em{color:#a19385}
+.bgr .lr span:first-child{color:#a19385}
+.bgr .lr .a{color:#3b6a9c}
+.bgr .lr .x{color:#5c5248}
+.bgr .lr.fresh .x{color:#28241f}
+.bgr .lr.w .x{color:#b45309}
+.bgr .lr.r .x{color:#b91c1c}
+.bgr .lr.g .x{color:#1e7e46}
+/* 底部 dock：部门 / 项目行改成平台小卡 */
+.dock{text-shadow:none}
+.dock .bar{background:rgba(40,36,31,.12)}
+.dock .pseg i{background:rgba(40,36,31,.12)}
+.dock .s-ok{color:#1e7e46}
+.dock .s-warn{color:#b45309}
+.dock .s-bad{color:#b91c1c}
+.dock .s-dim{color:#a19385}
+.dock .s-done{color:#b45309}
+.dk-h{color:#a19385}
+.dk-t b{color:#28241f}
+.vt button,.sbar button{color:#5c5248;background:#f6ede5;border:1px solid #e1d6cd;border-radius:8px}
+.vt button:hover,.sbar button:hover{border-color:#3b6a9c;color:#28241f}
+.vt button.on{color:#fff;background:#28241f;border-color:#28241f}
+.sbar button.on{color:#fff;background:#28241f;border-color:#28241f}
+.sbar button.on i{background:#fff}
+.dr,.pr{border-radius:12px;background:#f6ede5;padding:8px 10px;box-shadow:0 6px 16px rgba(60,48,38,.1),inset 0 1px 0 rgba(255,255,255,.7)}
+.dr .nm b,.pr .nm b{color:#28241f}
+.dr .nm span{color:#7a7066}
+.dr .pc,.pr .pc{color:color-mix(in srgb,var(--c,#304bc7) 62%,#28241f)}
+.dr .nm u,.pr .nm u{color:color-mix(in srgb,var(--c,#304bc7) 62%,#28241f)}
+.dr .ft{color:#7a7066}
+.dr .ft b{color:#5c5248}
+.dr:hover,.dr.sel{background:#efe4db}
+.dr.sel .nm b{color:color-mix(in srgb,var(--c,#304bc7) 62%,#28241f)}
+/* 底部 dock 数据行：成员行 / 流水线 / 个人档案的墨色（纸质卡面上 var(--fg) 是米白，全部换成墨色系） */
+.mtr,.pfc,.stc{border-top-color:rgba(40,36,31,.14)}
+.mtr:hover{background:rgba(40,36,31,.05)}
+.mtr .who b{color:#28241f}
+.mtr .tk{color:#7a7066}
+.mtr .tk u{color:#28241f}
+.stc h4{color:#28241f}
+.stc h4 em{color:#a19385}
+.stc .sd{color:#a19385}
+.stc .ch{color:#5c5248}
+.stc .ch em{color:#a19385}
+.stc .more{color:#a19385}
+.pfc h5{color:#a19385}
+.pf-id b{color:#28241f}
+.pf-id em{color:#7a7066}
+.pf-sk span{color:#5c5248;border-color:#e1d6cd}
+.pf-kv span{color:#a19385}
+.pf-kv b{color:#28241f}
+.pf-now{color:#28241f}
+.pf-now u{color:#3b6a9c}
+.pf-h{color:#5c5248}
+.sg h4{color:#28241f}
+.sc .n b{color:#28241f}
+.sc .n em{color:#a19385}
+/* 通知与页脚 */
+.toastx{background:rgba(246,237,229,.97);border-color:#e1d6cd;border-left-color:#3b6a9c;color:#28241f}
+/* 交付归档弹窗：验收自愈归档完成（run PASSED 终态）时从顶部流体落下 */
+.dx{position:absolute;left:50%;top:64px;z-index:26;width:342px;box-sizing:border-box;padding:15px 18px 16px;border-radius:16px;background:rgba(246,237,229,.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 18px 44px rgba(60,48,38,.26),inset 0 1px 0 rgba(255,255,255,.7);transform:translate(-50%,-150%);opacity:0;transition:transform .55s cubic-bezier(.3,1.18,.32,1),opacity .35s ease;pointer-events:none;cursor:pointer}
+.dx.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.dx-h{display:flex;align-items:center;gap:8px;min-width:0}
+.dx-tag{flex:none;font:700 9.5px/1 var(--cjk);letter-spacing:.12em;color:#fff;background:#3b6a9c;padding:3px 7px;border-radius:4px}
+.dx-h b{font:700 14px/1.2 var(--cjk);color:#28241f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dx-ok{flex:none;margin-left:auto;color:#1e7e46;font:700 10px/1 var(--cjk);letter-spacing:.08em}
+.dx-req{margin-top:7px;color:#7a7066;font:400 11.5px/1.4 var(--cjk);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dx-b{display:flex;align-items:baseline;gap:10px;margin-top:10px}
+.dx-pct{font:800 34px/1 var(--display);letter-spacing:-.02em;color:#28241f;font-variant-numeric:tabular-nums}
+.dx-cnt{font:600 11px/1 var(--mono);color:#7a7066}
+.dx-list{margin-top:9px;display:flex;flex-direction:column;gap:4px}
+.dx-list div{display:flex;justify-content:space-between;gap:8px;font:400 11px/1.4 var(--cjk);color:#5c5248}
+.dx-list em{font-style:normal;color:#1e7e46;font-weight:700}
+.sb .wm{color:#a19385}
 </style>
 
 <div class="app" id="app">
 <canvas class="gl" id="gl" aria-label="Future Cup Agent 总部：真实项目事件驱动的人员、任务、验证与修复状态。拖动旋转镜头，滚轮缩放，双击复位，Esc 返回"></canvas>
 <canvas class="fx" id="fx" aria-hidden="true"></canvas>
 <div class="vig" aria-hidden="true"></div>
+<div class="pm" id="pm" aria-hidden="true"></div>
 <div class="nr" id="nr">
 <div class="fit"><div class="fit-in" id="fitIn">
  <div class="board ov" id="board">
@@ -402,8 +524,8 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
   <div class="tags" id="tags"></div>
   <div class="bubs" id="bubs"></div>
   <header class="hd">
-    <div class="eb">FUTURE CUP · REAL EVENTS · <b>LIVE</b> · HQ</div>
-   <h1><span>AGENT</span><span class="l1">HQ<em>智能总部</em></span></h1>
+    <div class="eb">FUTURE CUP · 真实事件 · <b>LIVE</b></div>
+   <h1><span>调度平台</span><span class="l1">AGENT HQ<em>多 Agent 调度工作站</em></span></h1>
     <div class="sub2">真实项目事件 · <b id="realStatus">连接中</b> · <b id="clock">--:--:--</b></div>
   </header>
   <nav class="crumb pe" aria-label="视图导航">
@@ -413,25 +535,31 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
    <div class="cr cr-ps cr-sel" id="crPs"><button class="cb" type="button" data-act="back">← 返回</button><span id="crSt"></span><b id="crSName">成员</b><em id="crSRole">ROLE</em><button class="cb" type="button" data-act="prev" aria-label="上一个">‹</button><button class="cb" type="button" data-act="next" aria-label="下一个">›</button></div>
    <button class="tod" type="button" data-act="tod" aria-label="切换昼夜"><i id="todIc">☀</i><b id="todT">--:--</b><span id="todL">实时</span></button>
   </nav>
-  <div class="tools pe">
-   <button class="tb" type="button" data-act="mode">视角<b data-f="mode">全景</b></button>
-   <button class="tb" type="button" data-act="full" data-f="full">全屏</button>
-  </div>
-  <div class="bgl">
-   <div class="bk">公司总进度<em id="cPn">8 个项目加权</em></div>
-   <div class="bv" id="cP">0<small>%</small></div>
-   <div class="pseg" id="cPs"></div>
-   <div class="bs">
-    <div><b id="kDone">0</b><span>已完成任务</span></div>
-    <div><b id="kWip">0</b><span>执行中任务</span></div>
-    <div id="kRevT"><b id="kRev">0</b><span>验证发现</span></div>
-    <div><b id="kLead">0</b><span>失败任务</span></div>
-    <div><b id="kRw">0</b><span>修复轮次</span></div>
-    <div><b id="kTok">0</b><span>项目事件游标</span></div>
+  <div class="bgl" id="bgl">
+   <button class="bgl-pill" id="bglPill" type="button" aria-expanded="false" aria-controls="bglBody">
+    <i class="bgl-dot" aria-hidden="true"></i><span class="t">执行进度</span><b id="bglPct">0%</b><em id="cPn">1 个项目加权</em><svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+   </button>
+   <div class="bgl-body" id="bglBody">
+    <div class="bv" id="cP">0<small>%</small></div>
+    <div class="pseg" id="cPs"></div>
+    <div class="bs">
+     <div><b id="kDone">0</b><span>已完成任务</span></div>
+     <div><b id="kWip">0</b><span>执行中任务</span></div>
+     <div id="kRevT"><b id="kRev">0</b><span>验证发现</span></div>
+     <div><b id="kLead">0</b><span>失败任务</span></div>
+     <div><b id="kRw">0</b><span>修复轮次</span></div>
+     <div><b id="kTok">0</b><span>事件总数</span></div>
+    </div>
    </div>
   </div>
   <div class="bgr">
-   <div class="bk">动态<em id="logMeta">ALL</em></div>
+   <div class="bk-row">
+    <div class="bk">动态<em id="logMeta">ALL</em></div>
+    <div class="tools pe">
+     <button class="tb" type="button" data-act="mode">视角<b data-f="mode">全景</b></button>
+     <button class="tb" type="button" data-act="proj">返回当前项目</button>
+    </div>
+   </div>
    <div class="log" id="log"></div>
   </div>
 
@@ -452,7 +580,7 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
 
  <div class="mini" id="mini">
   <div class="m-top">
-    <div class="m-title">AGENT HQ<i id="mSub">智能总部 · 真实事件</i></div>
+    <div class="m-title">AGENT HQ<i id="mSub">调度平台 · 真实事件</i></div>
    <div class="m-btns pe">
     <button class="tb m-back" type="button" data-act="home">← 全景</button>
     <button class="tb" type="button" data-act="mode">视角<b data-f="mode">全景</b></button>
@@ -461,7 +589,7 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
   <div class="m-bot">
    <div class="m-ch" id="mCh"></div>
    <div class="m-pj" id="mPj"></div>
-   <div class="m-stats"><div><span id="mS1L">公司总进度</span><b id="mS1">0%</b></div><div><span id="mS2L">进行中</span><b id="mS2">0</b></div><div><span id="mS3L">今日完成</span><b id="mS3">0</b></div></div>
+   <div class="m-stats"><div><span id="mS1L">调度总进度</span><b id="mS1">0%</b></div><div><span id="mS2L">进行中</span><b id="mS2">0</b></div><div><span id="mS3L">历史完成</span><b id="mS3">0</b></div></div>
    <div class="m-wm">DEVELOPED BY @赛博老爸</div>
   </div>
  </div>
@@ -508,12 +636,13 @@ button.tb:focus-visible{outline:1px solid var(--hi);outline-offset:2px}
  </div>
 </div>
 <div class="toastx" id="toastx" hidden></div>
+<div class="dx" id="dx" aria-live="polite"></div>
 <div class="glfail" id="glFail">正在读取真实项目事件…</div>
 </div>
 </template>
 
 <script>
-/* ================= 主题 10 · HQ 智能总部（原生 WebGL 3D 行政总部，不依赖 three.js） ================= */
+/* ================= 主题 10 · HQ 调度平台（原生 WebGL 3D 调度沙盘，不依赖 three.js） ================= */
 function mountHQ(host, SR){
 "use strict";
 var REAL_PROJECTION = null;
@@ -523,8 +652,8 @@ try { RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catc
 
 /* =====================================================================
    1. 配置
-      一家公司 = 一座单层「回字形」总部（只画这栋楼，像一块沙盘）：正中是总经理办公室，Chief（总指挥 Agent）坐在大班台后，点它新增任务；
-      8 个职能部门各占一个房间，各有负责人（可以是真人督办，也可以是 Agent）；人事部负责增删改成员。
+      一个调度平台 = 一座单层「回字形」沙盘（只画这栋楼，像一块沙盘）：正中是总控室，Chief（总指挥 Agent）坐在大班台后，点它新增任务；
+      8 个调度部门各占一个房间，各有负责人（可以是真人督办，也可以是 Agent）；人员管理面板负责增删改成员。
       任务按「模板」拆成几项，按部门顺序一棒一棒传下去；带审核的环节要负责人放行，终审环节交给 Chief。
    ===================================================================== */
 var DEPTS = [
@@ -648,7 +777,7 @@ DEPTS.forEach(function (D, k) {
   var d = document.createElement("div");
   d.className = "dr"; d.style.setProperty("--c", D.c); d.setAttribute("data-d", k); d.setAttribute("role", "button"); d.tabIndex = 0;
   d.innerHTML = '<span class="nm"><b>' + D.zh + "</b><em>" + D.en + '</em><span class="hdn">—</span></span><span class="pc">0%</span><span class="bar"><i></i></span>' +
-    '<span class="ft"><span><b class="a">0</b>在忙</span><span><b class="q">0</b>排队</span><span class="w"><b class="r">0</b>待审</span><span><b class="o">0</b>今日完成</span></span>';
+    '<span class="ft"><span><b class="a">0</b>在忙</span><span><b class="q">0</b>排队</span><span class="w"><b class="r">0</b>待审</span><span><b class="o">0</b>历史完成</span></span>';
   $("dl").appendChild(d);
   DR.push({ el: d, hd: d.querySelector(".nm .hdn"), pc: d.querySelector(".pc"), bar: d.querySelector(".bar i"), a: d.querySelector(".a"), q: d.querySelector(".q"), r: d.querySelector(".r"), o: d.querySelector(".o") });
 });
@@ -685,7 +814,7 @@ DEPTS.forEach(function (D, k) { var b = document.createElement("button"); b.type
 
 /* 04 动态：每条记录带上关联的部门 / 项目 / 人，切视图时按关联筛选 */
 var LOG = [], logDirty = true;
-function log(a, c, msg, kind, tag) { LOG.unshift({ t: hms(), a: a, c: c, x: msg, k: kind || "", g: tag || {}, fresh: true }); if (LOG.length > 90) LOG.length = 90; logDirty = true; }
+function log(a, c, msg, kind, tag, ts) { LOG.unshift({ t: hms(ts ? new Date(ts) : null), a: a, c: c, x: msg, k: kind || "", g: tag || {}, fresh: true }); if (LOG.length > 90) LOG.length = 90; logDirty = true; }
 var toastT = 0;
 function toast(s) { var el = $("toastx"); el.textContent = s; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2600); }
 
@@ -844,7 +973,7 @@ function pathAt(P, s) {
 
 /* =====================================================================
    8. 总部布局（世界坐标，楼内地面 y = 0，台基底面 y = -0.32；整座楼像一块沙盘放在深色底座上，不画周边环境；镜头默认在东南方向往下看）
-      回字形：北边 4 个房间 + 北走廊；中间 = 西大房间 | 西廊 | 总经理办公室（Chief 的大班台）| 东廊 | 东大房间；
+      回字形：北边 4 个房间 + 北走廊；中间 = 西大房间 | 西廊 | 总控室（Chief 的大班台）| 东廊 | 东大房间；
       南走廊 + 南边：西南房间 | 大堂（会议室 / 前台 / 茶水间）| 东南房间；大门开在南墙正中
       每个房间有自己的局部坐标 u / v：+v 指向房门那面墙，负责人坐在最里面、面朝房门
    ===================================================================== */
@@ -873,7 +1002,7 @@ var ROOMS = {
 /* 房间局部 → 世界（x, z） */
 function rw(R, u, v) { var c = Math.cos(R.a), s = Math.sin(R.a); return [R.cx + u * c + v * s, R.cz - u * s + v * c]; }
 DEPTS.forEach(function (D) { D.R = ROOMS[D.room]; });
-/* 总经理办公室：HOLO = 大班台中心（派单 / 归档特效落在这里），GM_SCR = 北墙大屏，GM_TBL = 东侧 6 人会议桌 */
+/* 总控室：HOLO = 大班台中心（派单 / 归档特效落在这里），GM_SCR = 北墙大屏，GM_TBL = 东侧 6 人会议桌 */
 var HOLO = [0, -2.05], GM_SCR = [0, -4.08], GM_TBL = [3.6, 1.6], GM = { x0: -5.6, x1: 5.6, z0: -4.4, z1: 4.4 };
 /* 人脚下的地面高度：楼内 0，楼外园区 GY，大门台阶处一段斜坡 */
 function groundY(x, z) {
@@ -1058,7 +1187,7 @@ DEPTS.forEach(function (D, k) {
 });
 
 /* =====================================================================
-   10. 楼体：台基、走廊地板、墙、总经理办公室（Chief）、大堂（会议室 / 前台 / 茶水间）
+   10. 楼体：台基、走廊地板、墙、总控室（Chief）、大堂（会议室 / 前台 / 茶水间）
    ===================================================================== */
 var OFFICE = begin(), ROOMM = {};
 (function buildOffice() {
@@ -1071,12 +1200,12 @@ var OFFICE = begin(), ROOMM = {};
   box([-bw / 2 + 0.03, GY + 0.004, 0.35], [0.06, 0.012, bd], MLEDV); box([bw / 2 - 0.03, GY + 0.004, 0.35], [0.06, 0.012, bd], MLEDV);
   col("#d8cfc1"); box([0, GY / 2 - 0.003, 0], [BX1 - BX0 + 0.7, -GY, BZ1 - BZ0 + 0.7], MPL);
   col("#cfc5b5"); box([0, GY * 0.75, BZ1 + 0.75], [3.4, -GY / 2, 0.8], MPL); box([0, GY * 0.25 - 0.003, BZ1 + 0.5], [3.0, -GY / 2, 0.5], MPL);
-  /* 走廊地板（浅橡木），大堂、总经理办公室单独铺 */
+  /* 走廊地板（浅橡木），大堂、总控室单独铺 */
   col("#cfae86"); flat(BX0, BZ0, BX1, BZ1, 0, MWOOD);
   col("#ece3d3"); flat(-6, 6.2, 6, BZ1, 0.004, MFLOOR);
   col("#b98a5e"); flat(-6, 6.2, -2.2, BZ1, 0.006, MWOOD);
   col("#a9c58a"); flat(2.4, 9.3, 5.8, 11.4, 0.01, MCARPET);
-  /* ---- 中央：总经理办公室（Chief 的办公室）----
+  /* ---- 中央：总控室（Chief 的办公室）----
      深色木地板 + 地毯；北墙两侧书柜、中间矮柜和大屏；大班台 + 老板椅 + 两把访客椅；西侧沙发茶台；东侧 6 人会议桌 */
   function execChair(T, c0, c1) {
     var k; col("#1f1f22"); for (k = 0; k < 5; k++) box([0, 0.04, 0.15], [0.05, 0.035, 0.3], MPL, TRm(T, rotY(k / 5 * TAU)));
@@ -1127,7 +1256,7 @@ var OFFICE = begin(), ROOMM = {};
   col("#7a4a2a"); sphere([-3.25, 0.47, 1.17], 0.065, MPL, 10, 6, 0.85); col("#f4efe6"); [[-3.4, 1.5], [-3.1, 1.5], [-3.4, 1.66], [-3.1, 1.66]].forEach(function (q) { cyl([q[0], 0.445, q[1]], 0.025, 0.04, MPL, null, 8); });
   col("#c9cdd1"); cyl([-3.0, 0.48, 0.8], 0.06, 0.14, MMET, null, 10);
   col("#2a2e35"); cyl([-5.15, 0.02, -0.6], 0.15, 0.04, MPL, null, 12); tube([-5.15, 0.02, -0.6], [-5.15, 1.45, -0.6], 0.015, MPL, 6); col("#f4ead6"); lathe([[0.0001, 1.62], [0.12, 1.62], [0.18, 1.4], [0.0001, 1.4]], 12, MLAMP, TT(I3, [-5.15, 0, -0.6]));
-  /* 东侧：6 人会议桌（Chief 召集负责人周会就在这里）*/
+  /* 东侧：6 人会议桌（Chief 召集负责人调度会议就在这里）*/
   col("#5a3a24"); box([GM_TBL[0], DESK_Y - 0.03, GM_TBL[1]], [1.1, 0.06, 2.6], MWOOD); col("#4a2f1d"); box([GM_TBL[0], 0.25, GM_TBL[1] - 0.9], [0.7, 0.5, 0.1], MPL); box([GM_TBL[0], 0.25, GM_TBL[1] + 0.9], [0.7, 0.5, 0.1], MPL);
   [-0.8, 0, 0.8].forEach(function (dz) {
     chair(TR(Math.PI / 2, GM_TBL[0] - 0.85, GM_TBL[1] + dz), "#2b1d16", true); chair(TR(-Math.PI / 2, GM_TBL[0] + 0.85, GM_TBL[1] + dz), "#2b1d16", true);
@@ -1142,7 +1271,7 @@ var OFFICE = begin(), ROOMM = {};
   wallLine(BX0, BZ1, BX1, BZ1, [[-1.3, 1.3]], "ext");
   wallLine(BX0, BZ0, BX0, BZ1, [], "ext");
   wallLine(BX1, BZ0, BX1, BZ1, [], "ext");
-  /* 总经理办公室：北面实墙，其余三面玻璃隔断，南面开门 */
+  /* 总控室：北面实墙，其余三面玻璃隔断，南面开门 */
   wallLine(GM.x0, GM.z0, GM.x1, GM.z0, [], "solid"); wallLine(GM.x0, GM.z1, GM.x1, GM.z1, [[-0.65, 0.65]], "win");
   wallLine(GM.x0, GM.z0, GM.x0, GM.z1, [], "win"); wallLine(GM.x1, GM.z0, GM.x1, GM.z1, [], "win");
   /* 北边 4 个房间：南墙带门，房间之间实墙 */
@@ -1696,15 +1825,31 @@ function layout() {
   /* 3D 留给中间：左右各让出背景数据的宽度，下边让出底部一条 */
   if (!L.narrow) { L.rx0 = L.frX + 330 * L.bs; L.rx1 = L.frX + (bw - 330) * L.bs; L.ry0 = L.frY + 70 * L.bs; L.ry1 = L.frY + (bh - 236) * L.bs; }
   else { L.rx0 = 0; L.rx1 = L.w; L.ry0 = 70; L.ry1 = L.h - 170; }
+  var pm = $("pm");
+  if (pm) { pm.style.left = L.rx0 + "px"; pm.style.top = L.ry0 + "px"; pm.style.width = Math.max(60, L.rx1 - L.rx0) + "px"; pm.style.height = Math.max(40, L.ry1 - L.ry0) + "px"; }
+  if (typeof BGL_OPEN === "boolean") bglSet(BGL_OPEN);
   LABELS.concat(RLAB, [CHL]).forEach(function (Lb) { Lb.w = Lb.el.offsetWidth || 180; Lb.h = Lb.el.offsetHeight || 56; });
   L.ok = true;
   if (wasNarrow !== L.narrow) { wasNarrow = L.narrow; snapCam(); }
 }
+/* 执行进度胶囊：流体展开 / 收起（尺寸与圆角走高阻曲线，缓慢过冲、快速稳定） */
+var bgl = $("bgl"), bglBody = $("bglBody"), BGL_OPEN = false;
+function bglSet(open) {
+  BGL_OPEN = open;
+  bgl.classList.toggle("open", open);
+  $("bglPill").setAttribute("aria-expanded", open ? "true" : "false");
+  bgl.style.width = open ? "334px" : "176px";
+  bgl.style.height = (open ? 44 + bglBody.scrollHeight : 44) + "px";
+}
+$("bglPill").addEventListener("click", function (e) { e.stopPropagation(); bglSet(!BGL_OPEN); });
+bglSet(false);
+$("dx").addEventListener("click", function () { clearTimeout(dxT); this.classList.remove("show"); });
+host.__idle = function () { return JSON.stringify(PEOPLE.filter(function (p) { return p.__realAgent; }).map(function (p) { return { n: p.n, ok: realIdleOk(p), idle: Math.round((p.idle || 0) * 10) / 10, max: p.idleMax, atHome: p.at === p.home, mode: p.mode, task: p.task, wait: p.wait } })); };
 
 /* =====================================================================
    15. 昼夜：实时 / 白天 / 黄昏 / 夜晚 / 循环（120 秒一昼夜）
    ===================================================================== */
-var TOD = { mode: 0, names: ["实时", "白天", "黄昏", "夜晚", "循环"], h: 12 };
+var TOD = { mode: 1, names: ["实时", "白天", "黄昏", "夜晚", "循环"], h: 12 };
 var now = 0;
 function todHour() {
   if (TOD.mode === 0) { var d = new Date(); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
@@ -1732,9 +1877,9 @@ function envUpdate() {
   E.gndC = mixL(L3(0.62, 0.55, 0.45, 0.36), L3(0.16, 0.14, 0.15, 0.16), N);
   E.top = mixL(mixL(L3(0.3, 0.53, 0.86, 1), L3(0.3, 0.36, 0.62, 1), K * 0.85), L3(0.02, 0.03, 0.07, 1), N);
   E.hor = mixL(mixL(L3(0.82, 0.86, 0.9, 1), L3(1.0, 0.64, 0.42, 1), K * 0.9), L3(0.07, 0.08, 0.13, 1), N);
-  /* 背景罩：白天深石板灰、黄昏带一点暖、夜里深蓝黑（显示空间颜色，直接输出） */
-  E.bgT = mix3(mix3([0.25, 0.29, 0.34], [0.33, 0.27, 0.28], K * 0.8), [0.075, 0.095, 0.135], N);
-  E.bgB = mix3(mix3([0.10, 0.12, 0.15], [0.13, 0.10, 0.12], K * 0.8), [0.03, 0.035, 0.055], N);
+  /* 背景罩：恒为平台暖纸色，与页面纸面融为一体（昼夜只改变房间光照，不改变舞台底色） */
+  E.bgT = [0.925, 0.882, 0.827]; E.bgB = [0.965, 0.933, 0.886];
+  E.top = [0.937, 0.898, 0.847]; E.hor = [0.961, 0.929, 0.878];
   E.fogL = lin(mix3(E.bgT, E.bgB, 0.4));
   E.night = N; E.win = clamp(N * 1.1 + K * 0.3, 0, 1); E.lamp = clamp(N * 1.2 + K * 0.25, 0, 1);
   E.cloud = clamp(1 - N * 1.4, 0, 1) * 0.6;
@@ -1745,7 +1890,7 @@ function envUpdate() {
 }
 
 /* =====================================================================
-   16. 走路网格：走廊 / 总经理办公室 / 大堂连成图（入职从大门台阶进来，离职走到台阶离开）；每个座位、房间位都有一段「出门路线」接到图上的节点
+   16. 走路网格：走廊 / 总控室 / 大堂连成图（入职从大门台阶进来，离职走到台阶离开）；每个座位、房间位都有一段「出门路线」接到图上的节点
    ===================================================================== */
 var NODES = [], NADJ = [];
 function nAdd(x, z) { for (var i = 0; i < NODES.length; i++) if (Math.abs(NODES[i][0] - x) < 0.04 && Math.abs(NODES[i][1] - z) < 0.04) return i; NODES.push([x, z]); NADJ.push([]); return NODES.length - 1; }
@@ -1763,7 +1908,7 @@ function doorNode(R) { var d = rw(R, R.doorU, R.hd + 0.9); return [Math.round(d[
   line(-17.4, HALL_S, 17.4, HALL_S, [COR_W, COR_E, 0].concat(nS));
   line(COR_W, HALL_N, COR_W, HALL_S, [0].concat(nW));
   line(COR_E, HALL_N, COR_E, HALL_S, [0].concat(nE));
-  /* 总经理办公室：南门进，门内一条横道通会议桌，大班台前一条短横道 */
+  /* 总控室：南门进，门内一条横道通会议桌，大班台前一条短横道 */
   line(0, 0.4, 0, HALL_S, [3.2, 4.4]); line(0, 3.2, 5.0, 3.2, [2.15]); line(0, 0.4, 1.75, 0.4, []);
   /* 大堂 → 大门台阶 */
   line(0, HALL_S, 0, BZ1 + 0.8, [6.8, 12.0]);
@@ -1819,13 +1964,13 @@ DEPTS.forEach(function (D, k) {
   D.cap = D.seats.length;
   var cc = rw(R, 0, 0); D.cx = cc[0]; D.cz = cc[1];
 });
-/* Chief 坐在总经理办公室的老板椅上（坐北朝南）；来访的人站在大班台前、两把访客椅中间。
+/* Chief 坐在总控室的老板椅上（坐北朝南）；来访的人站在大班台前、两把访客椅中间。
    Chief 模型放大 1.15 倍，座高按缩放折算，坐下后正好落在椅面上 */
 var CHIEF_SEAT = { place: mkPlace(0, -3.0, 0, "sit", [[0, -3.0], [1.75, -3.0], [1.75, 0.4]], [1.75, 0.4], "", null, 0.26),
   visit: mkPlace(0, -0.9, Math.PI, "stand", [[0, -0.9], [0, 0.4]], [0, 0.4]),
   tray: [0.6, 0.62, HOLO[1] + 0.1], trayYaw: 0.25, deskPt: [-0.3, 0.61, HOLO[1] - 0.2], own: null, head: false, D: -1 };
 var MEETSEATS = [], LOUNGE = [], GMSEATS = [];
-/* 总经理办公室会议桌 6 座（Chief 召集的负责人周会用）：西侧 3 座面朝东，东侧 3 座面朝西 */
+/* 总控室会议桌 6 座（Chief 召集的负责人调度会议用）：西侧 3 座面朝东，东侧 3 座面朝西 */
 [0, -0.8, 0.8].forEach(function (dz) {
   var z = GM_TBL[1] + dz, xw = GM_TBL[0] - 0.85, xe = GM_TBL[0] + 0.85;
   GMSEATS.push(mkPlace(xw, z, Math.PI / 2, "sit", [[xw, z], [2.15, z], [2.15, 3.2]], [2.15, 3.2]));
@@ -2115,7 +2260,17 @@ function stepWalk(p, dt) {
     var cb = p.cb; p.cb = null; if (cb) cb();
   }
 }
-function goHome(p) { p.task = "home"; if (p.at && p.at !== p.home && p.at.occ === p) p.at.occ = null; walkTo(p, p.home, null); }
+function goHome(p) {
+  p.task = "home";
+  /* 半路被打断（派单/散会）：先走完当前这段——寻路必须走走路网格，半路重开 walkTo 会从当前位置
+     直线连到家，穿墙。到站后经 cb 链再回家；若本来就在回家路上则继续走即可。 */
+  if (p.mode === "walk") {
+    if (p.dest && p.dest !== p.home) { var prev = p.cb; p.cb = function () { if (prev) prev(); goHome(p); }; }
+    return;
+  }
+  if (p.at && p.at !== p.home && p.at.occ === p) p.at.occ = null;
+  walkTo(p, p.home, null);
+}
 function updPerson(p, dt) {
   if (p.mode !== "walk") p.sk = p.mode === "sit" ? Math.min(1, p.sk + dt * 3.5) : Math.max(0, p.sk - dt * 4.5);
   p.yaw += angDiff(p.yaw, p.yawT) * Math.min(1, dt * 8);
@@ -2137,17 +2292,104 @@ function maybeBreak(p) {
   if (nb >= 3 || Math.random() < (p.ai ? 0.45 : 0.6)) return;
   var free = LOUNGE.filter(function (s) { return !s.occ; }); if (!free.length) return;
   var spot = rpick(free);
-  p.task = "lounge"; p.lt0 = p.lt = rr(6, 11);
+  p.task = "lounge"; p.lt0 = p.lt = rr(8, 14);
   walkTo(p, spot, function () { say(p, rpick(["续杯咖啡", "伸个懒腰", "休息两分钟", "眼睛放松一下", "去茶水间坐坐"]), p.ai ? "ai" : "", 0); });
 }
+/* 真实模式待机：空闲的 Agent 小人轮流去茶水区休息、凑够 3 人去会议室碰头；
+   一旦派单（cur/q 到位）立即中断休息走回工位。Chief 不参与。 */
+var REAL_MEET = null, REAL_MEET_T = rr(25, 50), REAL_LOUNGE_T = rr(6, 12), REAL_CHAT_T = rr(2.5, 4);
+var LOUNGE_CHAT = ["这咖啡终于像样了", "页面 B 的留白舒服多了", "昨晚那轮验证报告很干净", "等派单,不急", "歇会儿,下轮继续", "茶水间的杯子又少了", "你那页改完几版了?", "下轮谁牵头?"];
+var LOUNGE_CHAT_BACK = ["嗯,稳住就行", "我也是这么想的", "有活随时喊我", "哈哈,那就多歇会儿", "巧了,我也刚想说"];
+function realIdleOk(p) {
+  return p.__realAgent && !p.gone && p !== CHIEF && p.at === p.home && p.mode !== "walk" &&
+    !p.cur && !p.q.length && !p.inb && !p.task && p.wait <= 0;
+}
+function cancelBreak(person) {
+  if (person.mode === "walk" && person.dest && person.dest !== person.home && person.dest.occ === person) person.dest.occ = null;
+  if (person.at !== person.home || person.task === "lounge" || person.task === "meet") goHome(person);
+}
+function realBreakTick(dt) {
+  if (!REAL_PROJECTION) return;
+  if (REAL_MEET) {
+    REAL_MEET.ppl.forEach(function (p) { if ((p.cur || p.q.length || p.inb) && p.task === "meet") goHome(p); });
+    REAL_MEET.ppl = REAL_MEET.ppl.filter(function (p) { return !p.gone && p.task === "meet"; });
+    if (REAL_MEET.ph === "go") {
+      if (REAL_MEET.arr >= REAL_MEET.ppl.length || now - REAL_MEET.t0 > 22) {
+        REAL_MEET.ph = "on"; REAL_MEET.t1 = now;
+        if (REAL_MEET.ppl.length) { say(REAL_MEET.ppl[0], "趁空档对一下进度", "ai", 2); REAL_MEET.ppl[0].talkT = 1.4; }
+      }
+      return;
+    }
+    REAL_MEET.chat -= dt;
+    if (REAL_MEET.chat <= 0 && REAL_MEET.ppl.length) {
+      REAL_MEET.chat = rr(2.6, 3.8);
+      var sp = rpick(REAL_MEET.ppl);
+      if (sp.at && sp.mode === "sit" && !sp.cur && !sp.q.length) {
+        say(sp, rpick(["上一轮跑完了，歇会儿", "下一个任务还没派下来", "验证口径我记了笔记", "接口契约没问题", "修复轮次比上次快"]), sp.ai ? "ai" : "", 0);
+        sp.talkT = 1.4;
+      }
+    }
+    if (now - REAL_MEET.t1 > REAL_MEET.dur || REAL_MEET.ppl.length < 2) {
+      REAL_MEET.ppl.forEach(function (p) { if (p.task === "meet") { if (p.mode === "walk") p.cb = function () { goHome(p); }; else goHome(p); } });
+      REAL_MEET.seats.forEach(function (s) { if (s.occ && s.occ.task !== "meet") s.occ = null; });
+      REAL_MEET = null; REAL_MEET_T = rr(55, 95);
+      return;
+    }
+    return;
+  }
+  PEOPLE.forEach(function (p) { if (realIdleOk(p)) p.idle += dt; });
+  /* 茶水间闲聊:≥2 人落座时轮流开话头,偶尔有人接一句;单人在座只保留到达时的那句 */
+  var sitters = PEOPLE.filter(function (p) { return p.task === "lounge" && p.mode === "sit" && !p.gone; });
+  REAL_CHAT_T -= dt;
+  if (REAL_CHAT_T <= 0) {
+    REAL_CHAT_T = rr(2.2, 3.6);
+    if (sitters.length >= 2) {
+      var sp = rpick(sitters);
+      say(sp, rpick(LOUNGE_CHAT), "ai", 0); sp.talkT = 1.4;
+      var others = sitters.filter(function (x) { return x !== sp; });
+      if (others.length) setTimeoutSim(rr(0.9, 1.3), function () { var o = rpick(others); if (o && !o.gone && o.mode === "sit" && o.task === "lounge") { say(o, rpick(LOUNGE_CHAT_BACK), "ai", 0); o.talkT = 1.2; } });
+    }
+  }
+  var candidates = PEOPLE.filter(function (p) { return realIdleOk(p) && p.idle >= p.idleMax; });
+  if (candidates.length >= 3 && REAL_MEET_T <= 0) {
+    var seats = MEETSEATS.filter(function (s) { return !s.occ; });
+    if (seats.length >= 3) {
+      var ppl = candidates.slice(0, Math.min(4, seats.length));
+      REAL_MEET = { ppl: ppl, seats: seats, ph: "go", t0: now, dur: rr(10, 16), arr: 0, chat: 3 };
+      ppl.forEach(function (p, i) { var st = seats[i]; st.occ = p; p.task = "meet"; p.idle = 0; p.idleMax = rr(20, 45); walkTo(p, st, function () { if (REAL_MEET) REAL_MEET.arr++; }); });
+      log("小枢", CHIEF_C, "空闲对齐 · " + ppl.length + " 位 Agent 在会议室碰头", "", { d: [], p: ppl.map(function (x) { return x.id; }) });
+      return;
+    }
+  }
+  if (candidates.length) {
+    REAL_MEET_T -= dt;
+    REAL_LOUNGE_T -= dt;
+    if (REAL_MEET_T <= 0 && candidates.length >= 3) {
+      var mseats = MEETSEATS.filter(function (s) { return !s.occ; });
+      if (mseats.length >= 3) {
+        var mppl = candidates.slice(0, Math.min(4, mseats.length));
+        REAL_MEET = { ppl: mppl, seats: mseats, ph: "go", t0: now, dur: rr(10, 16), arr: 0, chat: 3 };
+        mppl.forEach(function (p, i) { var st = mseats[i]; st.occ = p; p.task = "meet"; p.idle = 0; p.idleMax = rr(20, 45); walkTo(p, st, function () { if (REAL_MEET) REAL_MEET.arr++; }); });
+        log("小枢", CHIEF_C, "空闲对齐 · " + mppl.length + " 位 Agent 在会议室碰头", "", { d: [], p: mppl.map(function (x) { return x.id; }) });
+        return;
+      }
+    }
+    if (REAL_LOUNGE_T <= 0) {
+      var who = candidates[0];
+      maybeBreak(who);
+      who.idleMax = rr(20, 45);
+      REAL_LOUNGE_T = rr(3, 6);
+    }
+  }
+}
 /* 会议：围绕某个在推进的项目，牵头部门负责人 + 相关部门的人去大堂会议室；
-   偶尔 Chief 召集各部门负责人，在总经理办公室的会议桌开周会 */
+   偶尔 Chief 召集各部门负责人，在总控室的会议桌开调度会议 */
 function meetTick(dt) {
   if (!MT) {
     ST.meetT -= dt; if (ST.meetT > 0) return;
     var ppl = [], title = "", P = null, hostP = null, ok = function (p) { return p && !p.gone && p.at === p.home && p.mode !== "walk" && p.wait <= 0 && !p.task && ppl.indexOf(p) < 0; };
     if (Math.random() < 0.22 && ok(CHIEF) && !CHIEF.q.length && !CHIEF.cur) {
-      title = "负责人周会"; hostP = CHIEF; ppl.push(CHIEF);
+      title = "负责人调度会议"; hostP = CHIEF; ppl.push(CHIEF);
       DEPTS.forEach(function (D, k) { var h = headOf(k); if (ppl.length < 6 && ok(h)) ppl.push(h); });
     } else {
       var act = PROJS.filter(function (x) { return x.state === "run"; }); if (!act.length) { ST.meetT = 10; return; }
@@ -2160,7 +2402,7 @@ function meetTick(dt) {
     var gm = hostP === CHIEF;
     MT = { title: title, P: P, ppl: ppl, ph: "go", t0: now, dur: rr(14, 20), arr: 0, chat: 3, loc: gm ? "gm" : "meet", seats: gm ? GMSEATS : MEETSEATS, c: gm ? GM_TBL : MEET_C };
     ppl.forEach(function (p, i) { var st = MT.seats[i]; st.occ = p; p.task = "meet"; walkTo(p, st, function () { if (MT) MT.arr++; }); });
-    log(hostP.n, pcol(hostP), "发起会议 · " + title + "（" + (gm ? "总经理办公室" : "会议室") + " · " + ppl.length + " 人）", "", { j: P ? P.id : "", d: [], p: ppl.map(function (p) { return p.id; }) });
+    log(hostP.n, pcol(hostP), "发起会议 · " + title + "（" + (gm ? "总控室" : "会议室") + " · " + ppl.length + " 人）", "", { j: P ? P.id : "", d: [], p: ppl.map(function (p) { return p.id; }) });
     return;
   }
   MT.ppl = MT.ppl.filter(function (p) { return !p.gone; });
@@ -2208,6 +2450,7 @@ function updateSim(dt) {
     }
   }
   for (i = 0; i < PEOPLE.length; i++) updPerson(PEOPLE[i], dt);
+  if (REAL_PROJECTION) realBreakTick(dt);
 }
 var projDirty = true, rosterDirty = true;
 
@@ -2224,7 +2467,7 @@ function hrAdd(o) {
   p.task = "home"; walkTo(p, p.home, function () { say(p, "大家好，我是" + p.n + "！", p.ai ? "ai" : "g", 2); });
   ST.hired++;
   var hrh = headOf(HRD) || CHIEF;
-  log(hrh.n, pcol(hrh), "新成员入职 · " + p.n + "（" + (p.ai ? "Agent" : "真人督办") + "）→ " + DEPTS[p.d].zh + (p.head ? " 负责人" : ""), "g", { d: [HRD, p.d], p: [p.id, hrh.id] });
+  log(hrh.n, pcol(hrh), "新成员加入 · " + p.n + "（" + (p.ai ? "Agent" : "真人督办") + "）→ " + DEPTS[p.d].zh + (p.head ? " 负责人" : ""), "g", { d: [HRD, p.d], p: [p.id, hrh.id] });
   if (!hrh.gone && hrh !== CHIEF) say(hrh, "欢迎 " + p.n + " 加入" + DEPTS[p.d].zh, hrh.ai ? "ai" : "g", 1);
   saveRoster(); rosterDirty = true;
   return null;
@@ -2413,6 +2656,13 @@ function drawPerson(p) {
   var bean = pl && pl.pose === "bean", seatY = pl && pl.pose !== "stand" ? pl.sh : SEAT_H;
   var hipY = lerp(0.445, seatY + 0.03, sk), sw = walk ? Math.sin(p.ph) : 0, bob = walk ? Math.abs(Math.cos(p.ph)) * 0.028 : 0;
   var M = m4RT(rotY(p.yaw), [p.x, groundY(p.x, p.z), p.z]), hz = 0.05 * sk, lag = Math.sin(p.ph - 1.3), pi = p.id * 1.7;
+  var it = p.cur, working = home && it && p.mode !== "walk";
+  /* 待机微动：空闲坐姿的小人按各自相位呼吸、慢转身（RM 时整体静止；行走/工作/会议/茶水间不叠加） */
+  var idleT = (!RM && sk > 0.5 && !walk && !working && !p.carry && home) ? 1 : 0;
+  if (idleT) {
+    bob += 0.006 * Math.sin(now * 1.6 + pi * 0.9);
+    M = m4RT(rotY(p.yaw + 0.1 * Math.sin(now * 0.05 + pi * 2)), [p.x, groundY(p.x, p.z), p.z]);
+  }
   if (p.isChief) M = m4mul(M, m4S(1.15));
   var thS = bean ? -1.15 : -Math.PI / 2, shS = bean ? -0.55 : 0;
   for (var sd = -1; sd <= 1; sd += 2) {
@@ -2421,7 +2671,7 @@ function drawPerson(p) {
     batAddM(PH.thigh, m4mul(M, m4RT(rotX(thA), [hx, hipY + bob, hz])), null, null, null);
     batAddM(PH.shin, m4mul(M, m4RT(rotX(shA), [hx, hipY + bob - 0.2 * Math.cos(thA), hz - 0.2 * Math.sin(thA)])), null, null, null);
   }
-  var it = p.cur, working = home && it && p.mode !== "walk", typing = working && it.st === "work", reviewing = working && it.st === "rev";
+  var typing = working && it.st === "work", reviewing = working && it.st === "rev";
   var meet = p.task === "meet" && !walk, lounge = p.task === "lounge" && !walk, talk = p.talkT > 0;
   var lean = typing ? 0.1 : (reviewing ? 0.05 : (bean ? -0.28 : (lounge && sk > 0.5 ? -0.12 : 0)));
   p.lean += (lean - p.lean) * 0.15;
@@ -2435,12 +2685,19 @@ function drawPerson(p) {
   else if (reviewing) { if (p.ai) { xL = xR = -1.15; zL = zR = -0.15; } else { xL = -2.0; zL = -0.55; xR = -1.0; zR = -0.1; } }
   else if (meet) { xL = -0.9; zL = -0.12; xR = talk ? -1.5 + 0.35 * Math.sin(now * 6) : -0.9; zR = -0.12; }
   else if (lounge && sk < 0.5) { xR = -1.7 + 0.25 * Math.sin(now * 0.8 + pi); zR = -0.4; }
-  else if (sk > 0.5) { xL = xR = lounge ? -0.35 : -0.62; zL = zR = -0.05; }
+  else if (sk > 0.5) {
+    xL = xR = lounge ? -0.35 : -0.62; zL = zR = -0.05;
+    if (idleT) {
+      xL += 0.02 * Math.sin(now * 1.1 + pi);
+      xR += 0.02 * Math.sin(now * 1.1 + pi * 1.7) - Math.pow(Math.max(0, Math.sin(now * 0.15 + pi * 2.1)), 6) * 0.35;
+    }
+  }
   else if (talk) { xR = -1.3 + 0.3 * Math.sin(now * 6); zR = 0.1; }
   batAddM(PH.arm, armM(TM, 1, xL, zL), p.shL, null, null);
   batAddM(PH.arm, armM(TM, -1, xR, zR), p.shL, null, null);
   var hx2 = typing || reviewing ? 0.14 + 0.03 * Math.sin(now * 2.2 + pi) : (lounge ? -0.08 : 0), hy = (!walk && !typing && !reviewing && !meet && !p.carry) ? 0.4 * Math.sin(now * 0.33 + pi * 1.3) : 0;
   if (meet) hy = 0.3 * Math.sin(now * 0.5 + pi);
+  if (idleT) { hy += 0.18 * Math.sin(now * 0.117 + pi * 0.6); hx2 += 0.06 * Math.sin(now * 0.21 + pi); }
   var HM = m4mul(TM, m4RT(m3mul(rotY(hy), rotX(hx2)), [0, 0.53, 0]));
   batAddM(PH.head[p.hd], HM, null, null, null);
   batAddM(PH.hair[p.hs], HM, null, p.hcL, null);
@@ -2482,7 +2739,7 @@ function buildScene(t, dt) {
     docAt(p0, now * 3 + it.k, it, 1.2);
     fxStreak(p1, p0, 0.035, c, 0.75); fxDot(p0, 0.22, c, 0.55 + 0.3 * N);
   });
-  /* 总经理办公室：北墙大屏上的项目进度柱状图（每根柱 = 一个在推进的项目）+ 台灯 / 屏幕的光 */
+  /* 总控室：北墙大屏上的项目进度柱状图（每根柱 = 一个在推进的项目）+ 台灯 / 屏幕的光 */
   var act = PROJS.filter(function (P) { return P.state === "run" || now - P.doneAt < 6; }).slice(0, 10), nA = act.length, sz = GM_SCR[1] + 0.012, sy0 = 0.76;
   fxStreak([-1.38, sy0 - 0.03, sz], [1.38, sy0 - 0.03, sz], 0.008, [0.75, 0.9, 1.0], 0.55);
   act.forEach(function (P, j) {
@@ -2622,7 +2879,13 @@ function pStatus(p) {
   if (p.task === "deliver") return ["交接中", "b"];
   if (p.task === "patrol") return ["巡视中", "b"];
   if (p.cur) return p.cur.st === "rev" ? ["审核中", "r"] : (p.cur.rw ? ["返工中", "r"] : ["工作中", "w"]);
-  if (p.isChief) return ["派单中", "w"];
+  if (p.isChief) {
+    if (REAL_PROJECTION) {
+      var rs = REAL_PROJECTION.runStatus;
+      return [realRunLabel(rs), rs === "RUNNING" ? "w" : (rs === "FAILED" || rs === "ESCALATED" ? "r" : "")];
+    }
+    return ["派单中", "w"];
+  }
   if (p.q.length) return ["待处理", "r"];
   return [p.ai ? "空闲" : "督办中", ""];
 }
@@ -2640,6 +2903,13 @@ function stats() {
     mem.forEach(function (p) { if (p.cur && p.at === p.home) busy++; q += p.q.length + p.inb; dn += p.doneN; if (p.cur && p.cur.rw) rw0 = true; });
     mem.forEach(function (p) { p.q.forEach(function (it) { if (it.kind === "rev") rv++; }); if (p.cur && p.cur.st === "rev") rv++; });
     S0.prog = deptProg(k); S0.busy = busy; S0.q = q; S0.rv = rv; S0.dn = dn; S0.n = mem.length; S0.busyF = mem.length ? busy / mem.length : 0; S0.andon = rw0 ? 2 : (q > Math.max(2, mem.length * 2) ? 1 : 0);
+  });
+  /* 真实数据在场时以权威投影为准：历史完成=跨运行累计完成任务，待审=阻断任务（自愈部并入修复失败升级人工的轮次） */
+  if (REAL_PROJECTION && REAL_PROJECTION.departments) DEPTS.forEach(function (D, k) {
+    var projected = REAL_PROJECTION.departments.filter(function (department) { return department.key === REAL_DEPARTMENTS[k].key; })[0];
+    if (!projected) return;
+    DSTAT[k].dn = projected.completedTasks;
+    DSTAT[k].rv = projected.blockedTasks + (projected.key === "repair" ? projected.failedRepairs : 0);
   });
   PROJS.forEach(function (P) { P.pp = projProg(P); });
 }
@@ -2724,7 +2994,7 @@ function syncButtons() {
   if (V.k === "ps" && V.p) { var p = V.p; setHTML($("crSt"), badge(p)); setTxt($("crSName"), p.n); setTxt($("crSRole"), p.role + " · " + dName(p.d)); setVar($("crPs"), "--c", dColor(p.d)); }
   DR.forEach(function (R, k) { setCls(R.el, "dr" + (V.k === "dp" && V.d === k ? " sel" : "")); });
   LABELS.forEach(function (Lb, k) { setCls(Lb.el, "lab" + (V.k === "dp" && V.d === k ? " sel" : "")); });
-  setTxt($("mSub"), V.k === "ov" ? "智能总部 · 示例数据" : nm);
+  setTxt($("mSub"), V.k === "ov" ? "调度平台 · 示例数据" : nm);
 }
 function renderLog() {
   if (!logDirty) return; logDirty = false;
@@ -2743,7 +3013,7 @@ function updatePanels(force) {
   liv.forEach(function (p) { if (p.ai) nAI++; else nHu++; });
   setTxt($("subN"), String(liv.length)); setTxt($("subA"), nAI + " 个 Agent"); setTxt($("subH"), nHu + " 位真人督办");
   setTxt($("sStaff"), String(liv.length)); setTxt($("sAI"), String(nAI)); setTxt($("sHu"), String(nHu));
-  setHTML($("cP"), Math.round(cp * 100) + "<small>%</small>");
+  setHTML($("cP"), Math.round(cp * 100) + "<small>%</small>"); setTxt($("bglPct"), Math.round(cp * 100) + "%");
   var wip = 0, blocked = 0, failed = 0, revN = 0;
   PROJS.forEach(function (P) {
     P.items.forEach(function (it) {
@@ -2778,7 +3048,10 @@ function updatePanels(force) {
   });
   if (!L.narrow) LABELS.concat(RLAB, [CHL]).forEach(function (Lb) { var w = Lb.el.offsetWidth; if (w) { Lb.w = w; Lb.h = Lb.el.offsetHeight; } });
   /* Chief 牌 */
-  setTxt(CHL.pc, String(blocked)); setHTML(CHL.l3, "待派 <b>" + blocked + "</b> · 在途 <b>" + FLYS.length + "</b> · " + (MT && MT.loc === "gm" ? "周会" + (MT.ph === "on" ? "中" : "集合中") + " · " + MT.ppl.length + " 人" : (CHIEF.q.length ? "待审 <b>" + CHIEF.q.length + "</b>" : pStatus(CHIEF)[0])));
+  var chiefBlocked = REAL_PROJECTION ? REAL_PROJECTION.tasks.filter(function (task) { return task.status === "BLOCKED"; }).length : blocked;
+  setTxt(CHL.pc, String(chiefBlocked));
+  var chiefTail = MT && MT.loc === "gm" ? "调度会议" + (MT.ph === "on" ? "中" : "集合中") + " · " + MT.ppl.length + " 人" : (REAL_PROJECTION ? realRunLabel(REAL_PROJECTION.runStatus) : (CHIEF.q.length ? "待审 <b>" + CHIEF.q.length + "</b>" : pStatus(CHIEF)[0]));
+  setHTML(CHL.l3, "待派 <b>" + chiefBlocked + "</b> · 在途 <b>" + FLYS.length + "</b> · " + chiefTail);
   /* 项目行 */
   PROJS.forEach(function (P) {
     var R = PRR[P.id]; if (!R) return;
@@ -2821,7 +3094,7 @@ function updatePanels(force) {
       setTxt(R.st, s[0]); R.st.style.color = STC[s[1]];
       setHTML(R.tk, it ? taskHTML(it) + (p.q.length > off ? ' <em style="font-style:normal;color:var(--fg-3)">+' + (p.q.length - off) + " 排队</em>" : "") : "—");
       setW(R.bar, p.cur ? p.cur.prog : 0);
-      setTxt(R.d, p.ai ? String(p.doneN) : "审 " + p.revN); setTxt(R.t, p.ai ? fmtK(p.tok) : "—");
+      setTxt(R.d, p.ai ? String(p.doneN) : "审 " + p.revN); setTxt(R.t, p.ai && !p.__realAgent ? fmtK(p.tok) : "—");
     });
   } else if (V.k === "pj") renderPipeline();
   else if (V.k === "ps") renderProfile();
@@ -2831,7 +3104,7 @@ function updatePanels(force) {
   if (V.k === "ps" && V.p) { var sp = V.p; setTxt($("mS1L"), "状态"); setTxt($("mS1"), pStatus(sp)[0]); setTxt($("mS2L"), sp.ai ? "今日完成" : "今日审核"); setTxt($("mS2"), String(sp.ai ? sp.doneN : sp.revN)); setTxt($("mS3L"), "Token"); setTxt($("mS3"), sp.ai ? fmtK(sp.tok) : "—"); }
   else if (V.k === "dp") { var S1 = DSTAT[V.d]; setTxt($("mS1L"), "部门进度"); setTxt($("mS1"), Math.round(S1.prog * 100) + "%"); setTxt($("mS2L"), "在忙 / 排队"); setTxt($("mS2"), S1.busy + " / " + S1.q); setTxt($("mS3L"), "成员"); setTxt($("mS3"), S1.n + " / " + (DEPTS[V.d].cap + 1)); }
   else if (V.k === "pj" && V.P) { setTxt($("mS1L"), "项目进度"); setTxt($("mS1"), Math.round(V.P.pp * 100) + "%"); setTxt($("mS2L"), "已交付"); setTxt($("mS2"), V.P.done + " / " + V.P.N); setTxt($("mS3L"), V.P.user ? "来源" : "期次"); setTxt($("mS3"), V.P.user ? "你派的" : "第 " + V.P.phase + " 期"); }
-  else { setTxt($("mS1L"), "公司总进度"); setTxt($("mS1"), Math.round(cp * 100) + "%"); setTxt($("mS2L"), "进行中"); setTxt($("mS2"), String(wip)); setTxt($("mS3L"), "今日完成"); setTxt($("mS3"), String(ST.done)); }
+  else { setTxt($("mS1L"), "调度总进度"); setTxt($("mS1"), Math.round(cp * 100) + "%"); setTxt($("mS2L"), "进行中"); setTxt($("mS2"), String(wip)); setTxt($("mS3L"), "历史完成"); setTxt($("mS3"), String(ST.done)); }
   renderLog();
 }
 function renderPipeline() {
@@ -2849,10 +3122,6 @@ function renderPipeline() {
     if (list.length > 2) h += '<div class="more">+' + (list.length - 2) + " 项</div>";
     h += "</div>";
   });
-  var last = P.items.filter(function (it) { return it.st === "fin"; }).sort(function (a, b) { return (b.finAt || -1e9) - (a.finAt || -1e9); }).slice(0, 3);
-  h += '<div class="stc fin"><h4><u>OK</u>已交付<em>' + P.done + "/" + P.N + '</em></h4><div class="big">' + Math.round(P.pp * 100) + '%</div><div class="sd">' + (P.user ? "你派给 Chief 的任务" : "第 " + P.phase + " 期") + " · 牵头 " + esc(projOwner(P).n) + "</div>";
-  last.forEach(function (it) { h += '<div class="ch"><span>' + esc(it.t) + "</span><em>✓</em></div>"; });
-  h += "</div>";
   setHTML($("ppl"), h);
 }
 /* 个人档案：骨架（含编辑 / 移出按钮）只在换人时重建，其余每次只改变化的部分，按钮不会被反复替换 */
@@ -2864,9 +3133,9 @@ function renderProfile() {
     PF.pid = p.id; PF.chief = !!p.isChief;
     box.__h = null;
     box.innerHTML = '<div class="pfc pf-c1"><h5>IDENTITY</h5><div class="pf-id"><i class="av"></i><div><b class="pf-nm"></b><em class="pf-ro"></em></div></div></div>' +
-      '<div class="pfc"><h5>TODAY</h5><div class="pf-kv"></div><div class="pf-sk pf-sks"></div></div>' +
+      '<div class="pfc"><h5>STATS</h5><div class="pf-kv"></div><div class="pf-sk pf-sks"></div></div>' +
       '<div class="pfc"><h5>NOW</h5><div class="pf-st"></div><div class="pf-now"></div><span class="bar"><i></i></span><div class="pf-h pf-q"></div></div>' +
-      '<div class="pfc"><h5>HISTORY · 今日</h5><div class="pf-h pf-hi"></div></div>';
+      '<div class="pfc"><h5>HISTORY</h5><div class="pf-h pf-hi"></div></div>';
     PF.c1 = box.querySelector(".pf-c1"); PF.nm = box.querySelector(".pf-nm"); PF.ro = box.querySelector(".pf-ro"); PF.sk = box.querySelector(".pf-sks"); PF.kv = box.querySelector(".pf-kv");
     PF.st = box.querySelector(".pf-st"); PF.now = box.querySelector(".pf-now"); PF.bar = box.querySelector(".bar"); PF.bi = box.querySelector(".bar i"); PF.q = box.querySelector(".pf-q"); PF.hi = box.querySelector(".pf-hi");
     PF.sty = null; PF.stc = null; PF.bc = null;
@@ -2875,11 +3144,16 @@ function renderProfile() {
   if (PF.sty !== sty) { PF.sty = sty; PF.c1.setAttribute("style", sty); }
   setHTML(PF.nm, esc(p.n) + " " + badge(p));
   setTxt(PF.ro, p.role + " · " + dName(p.d) + (p.head ? " 负责人" : ""));
-  setHTML(PF.sk, p.skills.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + (p.ai ? "<span>Token " + fmtK(p.tokR) + "/s</span>" : "<span>只审核不干活</span>"));
-  setHTML(PF.kv, "<div><span>" + (p.ai ? "今日完成" : "今日审核") + "</span><b>" + (p.ai ? p.doneN : p.revN) + "</b></div><div><span>" + (p.ai ? "审核" : "退回") + "</span><b>" + (p.ai ? p.revN : p.rejN) + "</b></div><div><span>Token</span><b>" + (p.ai ? fmtK(p.tok) : "—") + "</b></div>");
+  var realP = !!p.__realAgent || (p.isChief && !!REAL_PROJECTION);
+  setHTML(PF.sk, p.skills.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + (realP ? "" : (p.ai ? "<span>Token " + fmtK(p.tokR) + "/s</span>" : "<span>只审核不干活</span>")));
+  if (realP) {
+    setHTML(PF.kv, "<div><span>历史完成</span><b>" + (p.isChief ? ST.done : p.doneN) + "</b></div><div><span>失败</span><b>" + (p.failN || 0) + "</b></div><div><span>事件</span><b>" + (p.evN || 0) + "</b></div>");
+  } else {
+    setHTML(PF.kv, "<div><span>" + (p.ai ? "今日完成" : "今日审核") + "</span><b>" + (p.ai ? p.doneN : p.revN) + "</b></div><div><span>" + (p.ai ? "审核" : "退回") + "</span><b>" + (p.ai ? p.revN : p.rejN) + "</b></div><div><span>Token</span><b>" + (p.ai ? fmtK(p.tok) : "—") + "</b></div>");
+  }
   if (PF.stc !== STC[s[1]]) { PF.stc = STC[s[1]]; PF.st.style.color = PF.stc; }
   setTxt(PF.st, "● " + s[0] + (p.task === "meet" && MT ? " · " + MT.title : ""));
-  setHTML(PF.now, it ? taskHTML(it) : (p.isChief ? "拆解任务 · 派单 · 终审" : "暂无任务"));
+  setHTML(PF.now, it ? taskHTML(it) : (p.isChief ? (REAL_PROJECTION ? (REAL_PROJECTION.runStatus === "PASSED" ? "验收通过 · 交付归档" : (REAL_PROJECTION.runStatus === "RUNNING" ? "拆解任务 · 派单 · 终审" : "待命")) : "拆解任务 · 派单 · 终审") : "暂无任务"));
   var bc = it ? it.P.c : "var(--hi)"; if (PF.bc !== bc) { PF.bc = bc; PF.bar.style.setProperty("--c", bc); }
   setW(PF.bi, p.cur ? p.cur.prog : 0);
   var qs = p.q.slice(it === p.q[0] ? 1 : 0, 2);
@@ -3167,16 +3441,14 @@ function act(name) {
   else if (name === "back") { if (view === 1) view = 0; goBack(); }
   else if (name === "prev" || name === "next") { if (view === 1) view = 0; cycle(name === "next" ? 1 : -1); }
   else if (name === "tod") { TOD.mode = (TOD.mode + 1) % TOD.names.length; envUpdate(); todSync(); }
-  else if (name === "full") {
-    try {
-      if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
-      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () { var b = SR.querySelector('[data-f="full"]'); b.textContent = "不支持"; setTimeout(function () { b.textContent = "全屏"; }, 1500); });
-    } catch (e) { /* 部分窗口不允许全屏 */ }
+  else if (name === "proj") {
+    var pid = new URLSearchParams(location.search).get("projectId");
+    if (pid) location.href = "/#/projects/" + encodeURIComponent(pid);
+    else toast("缺少 projectId，无法返回项目");
   }
   syncButtons();
 }
 SR.addEventListener("click", function (e) { var b = closest(e, "[data-act]"); if (b && !closest(e, "#pfl")) act(b.getAttribute("data-act")); });
-document.addEventListener("fullscreenchange", function () { var b = SR.querySelector('[data-f="full"]'); if (b) b.textContent = document.fullscreenElement ? "退出全屏" : "全屏"; });
 document.addEventListener("keydown", function (e) {
   if (host.hidden) return;
   var t0 = e.composedPath ? e.composedPath()[0] : e.target, tag0 = (t0 && t0.tagName) || "";
@@ -3244,7 +3516,7 @@ var REAL_DEPARTMENTS = [
   { key: "integration", zh: "集成部", en: "INTEGRATION", c: "#84dcc6", fn: "路由、接口与冲突集成" },
   { key: "verification", zh: "验证部", en: "VERIFY", c: "#c8e05a", fn: "构建、浏览器与需求证据" },
   { key: "repair", zh: "自愈部", en: "REPAIR", c: "#b8a1ff", fn: "结构化失败诊断与修复" },
-  { key: "delivery", zh: "交付归档", en: "DELIVERY", c: "#e0b48a", fn: "生产构建与交付证据" }
+  { key: "delivery", zh: "交付归档", en: "DELIVERY", c: "#e0b48a", fn: "验收通过后系统自动归档交付证据" }
 ];
 function configureRealDepartments() {
   REAL_DEPARTMENTS.forEach(function (department, index) {
@@ -3276,6 +3548,7 @@ function configureRealDepartments() {
     }
   });
   CHIEF.n = "项目总控";
+  tagSync(CHIEF);
   CHIEF.role = "Future Cup";
   setHTML(CHL.nm, "项目总控 · Future Cup");
 }
@@ -3298,6 +3571,19 @@ function realDeptForTask(task) {
 function realPerson(agentId) {
   for (var i = 0; i < PEOPLE.length; i++) if (PEOPLE[i].__realId === agentId) return PEOPLE[i];
   return null;
+}
+function realClock(iso) {
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? "--:--" : pad(d.getHours(), 2) + ":" + pad(d.getMinutes(), 2);
+}
+/* 项目总控牌的状态词：真实模式按权威 runStatus 显示，模拟模式才走 pStatus 的派单中 */
+function realRunLabel(status) {
+  if (status === "RUNNING") return "派单中";
+  if (status === "PASSED") return "运行完成";
+  if (status === "FAILED") return "处理异常";
+  if (status === "CANCELLED") return "已取消";
+  if (status === "ESCALATED") return "升级人工";
+  return "待命";
 }
 function configureRealPeople(projection) {
   PEOPLE.forEach(function (p) {
@@ -3395,7 +3681,10 @@ function realPacket(from, to, color, label) {
   FLYS.push(token);
 }
 function realAgentMotion(person) {
-  if (!person || person.gone || person.mode === "walk" || person.at !== person.home || !person.visit) return;
+  if (!person || person.gone) return;
+  /* 派单打断休息：在茶水区/会议室（或正走过去）的小人先走回工位 */
+  if (person.task === "lounge" || person.task === "meet" || (person.at !== person.home && person.mode !== "walk")) { cancelBreak(person); return; }
+  if (person.mode === "walk" || person.at !== person.home || !person.visit) return;
   person.task = "real-event";
   walkTo(person, person.visit, function () {
     person.wait = 0.7;
@@ -3441,9 +3730,27 @@ function animateRealAction(action) {
     });
   }
   say(CHIEF, action.label, realToneClass(action.tone), 3);
-  if (action.tone === "error" || action.tone === "warning" || action.tone === "success") {
-    toast(action.label);
-  }
+  if (action.tone === "success") deliveryPopup();
+  else toast(action.label);
+}
+var dxT = 0;
+/* 交付归档弹窗：仅验收自愈归档完成（run PASSED 终态）触发，从顶部流体落下，点击或 6.5s 后收回 */
+function deliveryPopup() {
+  var pr = REAL_PROJECTION; if (!pr) return;
+  var done = pr.tasks.filter(function (t) { return t.status === "COMPLETED"; });
+  var pct = pr.tasks.length ? Math.round(done.length / pr.tasks.length * 100) : 100;
+  var h = '<div class="dx-h"><span class="dx-tag">交付归档</span><b>' + esc(pr.projectName) + '</b><span class="dx-ok">● 已归档</span></div>' +
+    '<div class="dx-req">' + esc(pr.requirement) + '</div>' +
+    '<div class="dx-b"><span class="dx-pct">' + pct + '%</span><span class="dx-cnt">' + done.length + " / " + pr.tasks.length + " 任务完成</span></div>";
+  var last = done.slice(-3);
+  if (last.length) h += '<div class="dx-list">' + last.map(function (t) { return '<div><span>' + esc(t.title) + "</span><em>✓</em></div>"; }).join("") + "</div>";
+  var el = $("dx");
+  setHTML(el, h);
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+  clearTimeout(dxT);
+  dxT = setTimeout(function () { el.classList.remove("show"); }, 6500);
 }
 configureRealDepartments();
 configureRealPeople({ agents: [] });
@@ -3468,13 +3775,30 @@ function applyRealProjection(projection) {
       var it = { id: task.id, P: P, k: k, t: task.title, s: k, st: "back", who: null, wk: null, prog: 0, dur: 1, rw: false, rwN: 0, born: now, kind: "work", realStatus: task.status };
       var person = task.assignedAgentId ? realPerson(task.assignedAgentId) : null;
       if (task.status === "COMPLETED") { it.st = "fin"; it.prog = 1; P.done++; }
-      else if (task.status === "RUNNING") { it.st = "work"; it.prog = 0.45; it.who = person; if (person) { person.cur = it; person.task = null; } }
+      else if (task.status === "RUNNING") { it.st = "work"; it.prog = 0.45; it.who = person; if (person) { cancelBreak(person); person.cur = it; person.task = null; } }
       else if (task.status === "READY") { it.st = "q"; it.who = person; if (person) person.q.push(it); }
       else if (task.status === "FAILED" || task.status === "CANCELLED") { it.st = "fin"; it.failed = true; }
       return it;
     });
     P.pp = projProg(P);
   }
+  /* 人员档案回填：完成/失败/事件/历史来自权威投影，每次 apply 全量重算；Chief 用运行级事件（无 agentId 的编排动作） */
+  PEOPLE.forEach(function (p) {
+    if (!p.__realId) return;
+    var mine = tasks.filter(function (task) { return task.assignedAgentId === p.__realId; });
+    p.doneN = mine.filter(function (task) { return task.status === "COMPLETED"; }).length;
+    p.failN = mine.filter(function (task) { return task.status === "FAILED" || task.status === "CANCELLED"; }).length;
+    p.evN = projection.events.filter(function (event) { return event.agentId === p.__realId; }).length;
+    p.hist = mine.filter(function (task) { return task.status === "COMPLETED"; }).slice(-4).reverse().map(function (task) {
+      return { t: realClock(task.updatedAt), s: "完成 " + task.title };
+    });
+  });
+  var chiefEvents = projection.events.filter(function (event) { return event.agentId === undefined; });
+  CHIEF.evN = chiefEvents.length;
+  CHIEF.failN = tasks.filter(function (task) { return task.status === "FAILED" || task.status === "CANCELLED"; }).length;
+  CHIEF.hist = chiefEvents.slice(-4).reverse().map(function (event) {
+    return { t: realClock(event.occurredAt), s: event.message };
+  });
   ST.done = tasks.filter(function (task) { return task.status === "COMPLETED"; }).length;
   ST.stages = tasks.length;
   ST.rev = projection.verification.findings;
@@ -3483,10 +3807,23 @@ function applyRealProjection(projection) {
   ST.tokRate = 0;
   LOG.length = 0;
   projection.events.slice(-80).forEach(function (event) {
-    log("HQ", CHIEF_C, event.message, event.type.indexOf("failed") >= 0 || event.type.indexOf("escalated") >= 0 ? "r" : "", { j: projection.projectId, d: [], p: [] });
+    /* 按事件的 Agent/任务反推部门与人员打标，让部门/项目/人员三种视图的动态过滤都能命中；
+       无 Agent 无任务的运行级编排事件记到 Chief 名下。 */
+    var g = { j: projection.projectId, d: [], p: [] };
+    var person = event.agentId ? realPerson(event.agentId) : null;
+    if (person) { g.p.push(person.id); if (person.d >= 0 && g.d.indexOf(person.d) < 0) g.d.push(person.d); }
+    var task = event.taskId ? tasks.filter(function (t) { return t.id === event.taskId; })[0] : null;
+    if (task) {
+      var di = realDeptForTask(task);
+      if (di >= 0 && g.d.indexOf(di) < 0) g.d.push(di);
+      var assigned = task.assignedAgentId ? realPerson(task.assignedAgentId) : null;
+      if (assigned && g.p.indexOf(assigned.id) < 0) g.p.push(assigned.id);
+    }
+    if (!person && !task) g.p.push(CHIEF.id);
+    log("HQ", CHIEF_C, event.message, event.type.indexOf("failed") >= 0 || event.type.indexOf("escalated") >= 0 ? "r" : "", g, event.occurredAt);
   });
   setTxt($("realStatus"), projection.runStatus === "RUNNING" ? "实时 · " + projection.lastEventSeq : projection.runStatus + " · " + projection.lastEventSeq);
-  setTxt($("mSub"), "智能总部 · 真实项目");
+  setTxt($("mSub"), "调度平台 · 真实项目");
   setTxt($("subN"), String(projection.agents.length));
   var fail = $("glFail");
   if (fail && gl) fail.hidden = true;
@@ -3498,7 +3835,7 @@ host.__real = {
   animate: animateRealAction,
   setStatus: function (status, detail) {
     setTxt($("realStatus"), status === "live" ? "实时连接" : status === "connecting" ? "连接中" : "重连中");
-    if (detail) setTxt($("mSub"), "智能总部 · " + detail);
+    if (detail) setTxt($("mSub"), "调度平台 · " + detail);
   },
   error: function (message) {
     setTxt($("realStatus"), "连接异常");

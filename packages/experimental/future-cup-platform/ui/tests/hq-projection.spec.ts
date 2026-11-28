@@ -10,10 +10,12 @@ import type {
 import {
   applyProductEvent,
   createProjection,
+  mergeProjectionEvents,
   needsSnapshotResync,
   parseProductEvent,
   parseSnapshot,
 } from '../src/hq/projection.ts'
+import type { HqEventProjection } from '../src/hq/projection.ts'
 
 function realAgent(
   id: string,
@@ -309,6 +311,46 @@ describe('HQ realtime projection', () => {
     expect(projection.runStatus).toBe('ESCALATED')
   })
 
+  it('seats the planning department on the produced DAG', () => {
+    const withTasks = createProjection(realSnapshot(), [realAgent('planner', 'planner')])
+    expect(withTasks.departments.find(department => department.key === 'planning'))
+      .toMatchObject({ status: 'COMPLETED', progress: 1, completedTasks: 2 })
+
+    const pending = createProjection({ ...realSnapshot(), tasks: [] }, [realAgent('planner', 'planner')])
+    expect(pending.departments.find(department => department.key === 'planning'))
+      .toMatchObject({ status: 'ACTIVE', progress: 0, completedTasks: 0 })
+  })
+
+  it('derives the delivery department from the run status', () => {
+    let projection = createProjection(realSnapshot(), [
+      realAgent('planner', 'planner'),
+    ])
+    expect(projection.departments.find(department => department.key === 'delivery'))
+      .toMatchObject({ status: 'IDLE', progress: 0, totalTasks: 0 })
+
+    projection = applyProductEvent(projection, {
+      type: 'run.completed',
+      projectId: 'project-hq',
+      seq: 4,
+      occurredAt: '2026-11-01T10:00:04.000Z',
+      payload: { runId: 'run-hq', status: 'PASSED' },
+    })
+    expect(projection.runStatus).toBe('PASSED')
+    expect(projection.departments.find(department => department.key === 'delivery'))
+      .toMatchObject({ status: 'COMPLETED', progress: 1, completedTasks: 1, totalTasks: 1 })
+  })
+
+  it('counts blocked tasks in their department and keeps delivery clean', () => {
+    const snapshot = realSnapshot()
+    snapshot.tasks.push(realTask('frontend-blocked', 'frontend', 'BLOCKED', 'frontend-a'))
+    const projection = createProjection(snapshot, [realAgent('frontend-a', 'frontend')])
+
+    expect(projection.departments.find(department => department.key === 'frontend-a'))
+      .toMatchObject({ blockedTasks: 1, totalTasks: 2 })
+    expect(projection.departments.find(department => department.key === 'delivery'))
+      .toMatchObject({ blockedTasks: 0 })
+  })
+
   it('validates snapshots and events at the socket boundary', () => {
     expect(parseSnapshot(realSnapshot())?.project.id).toBe('project-hq')
     expect(parseProductEvent({
@@ -340,6 +382,30 @@ describe('HQ realtime projection', () => {
     expect(needsSnapshotResync(projection, event)).toBe(true)
     expect(needsSnapshotResync(projection, { ...event, seq: 4 })).toBe(false)
     expect(needsSnapshotResync(projection, { ...event, projectId: 'other-project' })).toBe(false)
+  })
+
+  it('merges incremental socket snapshot events without losing the display log', () => {
+    const logged: HqEventProjection[] = [
+      { seq: 1, type: 'run.started', occurredAt: '2026-11-01T10:00:00.000Z', message: '运行开始' },
+      { seq: 2, type: 'task.created', occurredAt: '2026-11-01T10:00:01.000Z', message: '新建任务' },
+    ]
+    const incoming: HqEventProjection[] = [
+      { seq: 2, type: 'task.created', occurredAt: '2026-11-01T10:00:01.000Z', message: '新建任务' },
+      { seq: 3, type: 'task.dispatched', occurredAt: '2026-11-01T10:00:02.000Z', message: '任务派发' },
+    ]
+
+    expect(mergeProjectionEvents(logged, incoming).map(event => event.seq)).toEqual([1, 2, 3])
+    expect(mergeProjectionEvents(logged, [])).toEqual(logged)
+    expect(mergeProjectionEvents([], incoming).map(event => event.seq)).toEqual([2, 3])
+    expect(mergeProjectionEvents(
+      Array.from({ length: 100 }, (_, index) => ({
+        seq: index + 1,
+        type: 'task.created' as const,
+        occurredAt: '2026-11-01T10:00:00.000Z',
+        message: '新建任务',
+      })),
+      [{ seq: 101, type: 'task.ready', occurredAt: '2026-11-01T10:00:02.000Z', message: '任务就绪' }],
+    ).map(event => event.seq)).toEqual(Array.from({ length: 100 }, (_, index) => index + 2))
   })
 
   it('keeps the structured task failure when the Agent failure event follows', () => {

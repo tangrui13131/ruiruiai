@@ -27,15 +27,22 @@ export class SessionTurnError extends Error {
   readonly code: string
   /** Whether retrying the complete turn can reasonably recover. */
   readonly retryable: boolean
+  /** Every root-session event observed through the failed `turn/end`, in wire order. */
+  readonly events: readonly SessionEvent[]
 
   /**
-   * @param failure - failed turn reason carried by `turn/end`.
+   * @param failure - failed turn reason carried by `turn/end`, plus the transcript it settled.
    */
-  constructor(failure: { readonly message: string; readonly code: string }) {
+  constructor(failure: {
+    readonly message: string
+    readonly code: string
+    readonly events?: readonly SessionEvent[]
+  }) {
     super(failure.message)
     this.name = 'SessionTurnError'
     this.code = failure.code
     this.retryable = RETRYABLE_TURN_ERROR_CODES.has(failure.code)
+    this.events = failure.events ?? []
   }
 }
 
@@ -280,6 +287,7 @@ export class HarnessSession {
       throw new SessionTurnError({
         message: terminal.data.reason.error.message,
         code: terminal.data.reason.error.code,
+        events,
       })
     }
 

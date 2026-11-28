@@ -1,4 +1,9 @@
-import { BranchesOutlined, PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import {
+  BranchesOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  RedoOutlined,
+} from '@ant-design/icons'
 import { Button, Space, Tooltip } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { useProjectCommands } from '../hooks/useProjectCommands.ts'
@@ -22,7 +27,20 @@ export function ProjectActions({
   const running = latestRun?.status === 'RUNNING'
   const canRun = latestRun === undefined
   const canDerive = latestRun?.status === 'PASSED'
+  const canRerun = latestRun?.status === 'CANCELLED'
+    || latestRun?.status === 'FAILED'
+    || latestRun?.status === 'ESCALATED'
   const commands = useProjectCommands(projectId, async () => { await store.refresh() })
+
+  async function rerun(): Promise<void> {
+    const sourceName = state.snapshot?.project.name ?? projectId
+    const newProjectId = await commands.rerun(
+      `${sourceName} · ${dictionary.projects.rerun}`.slice(0, 120),
+    )
+    if (newProjectId !== undefined) {
+      navigate(`/projects/${encodeURIComponent(newProjectId)}`)
+    }
+  }
 
   return (
     <Space size={6}>
@@ -52,11 +70,27 @@ export function ProjectActions({
           </Button>
         </Tooltip>
       ) : (
-        <SelfHealDrillButton
-          projectId={projectId}
-          compact={compact}
-          onLaunched={() => { void store.refresh() }}
-        />
+        [
+          canRerun ? (
+            <Tooltip key="rerun" title={dictionary.projects.rerunHint}>
+              <Button
+                type={compact ? 'text' : 'primary'}
+                icon={<RedoOutlined />}
+                loading={commands.pending === 'rerun'}
+                aria-label={dictionary.projects.rerun}
+                onClick={() => { void rerun() }}
+              >
+                {compact ? null : dictionary.projects.rerun}
+              </Button>
+            </Tooltip>
+          ) : null,
+          <SelfHealDrillButton
+            key="drill"
+            projectId={projectId}
+            compact={compact}
+            onLaunched={() => { void store.refresh() }}
+          />,
+        ]
       )}
       <Tooltip title={canDerive ? dictionary.projects.derive : dictionary.projects.deriveUnavailable}>
         <Button

@@ -52,7 +52,15 @@ export async function verifyBrowser(
 
   let browser: Browser
   try {
-    browser = await chromium.launch({ headless: true })
+    // A packaged desktop build can fall back to the system Edge when no bundled Chromium is present.
+    const requestedChannel = process.env.FUTURE_CUP_BROWSER_CHANNEL?.trim()
+    const channel = requestedChannel === 'msedge' || requestedChannel === 'chrome' || requestedChannel === 'chromium'
+      ? requestedChannel
+      : undefined
+    browser = await chromium.launch({
+      headless: true,
+      ...(channel === undefined ? {} : { channel }),
+    })
   } catch (error: unknown) {
     return {
       status: 'INCOMPLETE',

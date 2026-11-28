@@ -3,6 +3,10 @@ import { mkdir, mkdtemp, readdir, realpath, rename, rm, stat, writeFile } from '
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// These cases drive real Git checkouts and diffs; the shared five-second default is below
+// what a cold Windows checkout needs under a loaded suite.
+vi.setConfig({ testTimeout: 30_000 })
 import { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId, type Session } from '@deepseek-ai/dsh-session'

@@ -98,7 +98,7 @@ export function SelfHealDrillModal({
       open={open}
       title={(
         <Space>
-          <ThunderboltOutlined style={{ color: '#fa8c16' }} />
+          <ThunderboltOutlined style={{ color: 'var(--neu-warn)' }} />
           <span>{dictionary.drill.modalTitle}</span>
         </Space>
       )}

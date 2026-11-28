@@ -8,7 +8,7 @@ import { useLocale } from '../locale/LocaleProvider.tsx'
 export function useProjectCommands(projectId: string, onChanged: () => void | Promise<void>) {
   const { dictionary } = useLocale()
   const { message } = App.useApp()
-  const [pending, setPending] = useState<'run' | 'cancel'>()
+  const [pending, setPending] = useState<'run' | 'cancel' | 'rerun'>()
 
   async function start(): Promise<void> {
     setPending('run')
@@ -41,5 +41,20 @@ export function useProjectCommands(projectId: string, onChanged: () => void | Pr
     }
   }
 
-  return { pending, start, cancel }
+  async function rerun(name: string): Promise<string | undefined> {
+    setPending('rerun')
+    try {
+      const result = await api.rerunProject(projectId, { name })
+      message.success(dictionary.projects.rerunStarted)
+      await onChanged()
+      return result.project.id
+    } catch (error: unknown) {
+      message.error(localizedApiError(error, dictionary.errors, dictionary.errors.rerunProject))
+      return undefined
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  return { pending, start, cancel, rerun }
 }

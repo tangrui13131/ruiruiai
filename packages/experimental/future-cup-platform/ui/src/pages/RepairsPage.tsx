@@ -41,16 +41,16 @@ export function RepairsView({
             return {
               key: repair.id,
               label: (
-                <span className="page-heading-actions">
+                <span className="collapse-heading">
                   <strong>{dictionary.repairs.round.replace('{round}', String(repair.repairRound))}</strong>
                   <StatusBadge status={repair.afterStatus} />
                   <Tag>{repair.repairAgentId}</Tag>
-                  {strategy === undefined ? null : <Tag color="blue">{strategy.strategyId}</Tag>}
+                  {strategy === undefined ? null : <Tag>{strategy.strategyId}</Tag>}
                 </span>
               ),
               children: (
                 <div className="page-stack">
-                  <Descriptions size="small" bordered column={1}>
+                  <Descriptions size="small" bordered column={1} className="repair-descriptions">
                     <Descriptions.Item label={dictionary.repairs.before}>
                       <StatusBadge status={repair.beforeStatus} />
                     </Descriptions.Item>
@@ -58,19 +58,19 @@ export function RepairsView({
                       <StatusBadge status={repair.afterStatus} />
                     </Descriptions.Item>
                     <Descriptions.Item label={dictionary.repairs.error}>
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{repair.errorSummary}</pre>
+                      <pre className="code-block code-block-scroll">{repair.errorSummary}</pre>
                     </Descriptions.Item>
                     <Descriptions.Item label={dictionary.repairs.change}>
                       {repair.changeSummary}
                     </Descriptions.Item>
                     <Descriptions.Item label={dictionary.verification.signature}>
-                      <code>{repair.failureSignature}</code>
+                      <code className="code-chip">{repair.failureSignature}</code>
                     </Descriptions.Item>
                   </Descriptions>
                   {strategy === undefined ? null : (
                     <div>
                       <div className="agent-metric-label">{dictionary.repairs.strategy}</div>
-                      <Descriptions size="small" bordered column={1}>
+                      <Descriptions size="small" bordered column={1} className="repair-descriptions">
                         <Descriptions.Item label={dictionary.repairs.strategyReason}>
                           {strategyReason(strategy.decision, dictionary)}
                         </Descriptions.Item>

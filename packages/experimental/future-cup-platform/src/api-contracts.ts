@@ -150,6 +150,14 @@ const memoryPolicySchema = z.object({
   kinds: z.array(memoryKindSchema),
 }).strict()
 
+/** Request body shared by the HTTP project route and the MCP create-project tool. */
+export const createProjectInputSchema = z.object({
+  id: z.string().min(1).max(120).optional(),
+  name: z.string().min(1).max(120),
+  requirement: z.string().min(1).max(20_000),
+  teamVersionId: z.string().min(1).max(160).optional(),
+}).strict()
+
 /** One selected published Agent version in a team recommendation. */
 export const recommendedTeamMemberSchema = z.object({
   role: agentRoleSchema,
@@ -435,12 +443,16 @@ export const createTeamRuntimeMemberRequestSchema = z.object({
 export const createTeamDraftRequestSchema = z.object({
   version: z.string().trim().min(1).max(160),
   members: z.array(createTeamRuntimeMemberRequestSchema).max(7),
+  // jscpd:ignore-start
+  // Wire contract: restated from the orchestration registry on purpose, so this request shape
+  // can change independently of the domain's internal validation schema.
   requiredCapabilities: z.record(z.string(), z.number().min(0)).optional(),
   requiredConcurrency: z.number().int().positive().max(1_000_000).optional(),
   toolPolicy: teamToolPolicySchema.optional(),
   memoryPolicy: teamMemoryPolicySchema.optional(),
   inputSchema: jsonSchemaDescriptorSchema.optional(),
   requiredOutputSchemas: z.array(jsonSchemaDescriptorSchema).max(64).optional(),
+  // jscpd:ignore-end
 }).strict()
 
 /** Result of publishing one Team draft. */

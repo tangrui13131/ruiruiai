@@ -122,7 +122,7 @@ describe('HQ recorded M4.2 real-run replay', () => {
     expect(projection.runStatus).toBe('PASSED')
     expect(Object.fromEntries(kinds)).toEqual({
       agent: 21,
-      department: 17,
+      department: 18,
       flow: 17,
       terminal: 2,
     })

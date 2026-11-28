@@ -2,10 +2,13 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { runInNewContext } from 'node:vm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// These cases pack tarballs and drive a mock server; a loaded host exceeds the shared 5s default.
+vi.setConfig({ testTimeout: 30_000 })
 
 const packageRoot = resolve(import.meta.dirname, '..')
 const bundlePath = join(packageRoot, 'lib/client.js')
@@ -51,13 +54,18 @@ describe('published document preview licenses', () => {
       const packed = JSON.parse(runPnpm([
         'pack', '--json', '--pack-destination', output,
       ], packageRoot, task.timeout)) as { filename: string; files: { path: string }[] }
+      // Extract by base name from the tarball's own directory: GNU tar on Windows reads a drive
+      // letter in an absolute path as a remote host ("Cannot connect to C:").
+      const tarballPath = resolve(packageRoot, packed.filename)
+      const tarballDir = dirname(tarballPath)
+      const tarballName = basename(tarballPath)
       expect(packed.files.map(file => file.path)).toContain('lib/client.js')
       expect(packed.files.map(file => file.path)).toContain('lib/client.pdf.js')
       expect(packed.files.map(file => file.path)).toContain('lib/client.frontmatter-fields.js')
       expect(packed.files.some(file => file.path.endsWith('pdfjs-NOTICES.txt'))).toBe(false)
 
-      const client = run('tar', ['-xOf', resolve(packageRoot, packed.filename), 'package/lib/client.js'], packageRoot, task.timeout)
-      const pdf = run('tar', ['-xOf', resolve(packageRoot, packed.filename), 'package/lib/client.pdf.js'], packageRoot, task.timeout)
+      const client = run('tar', ['-xOf', tarballName, 'package/lib/client.js'], tarballDir, task.timeout)
+      const pdf = run('tar', ['-xOf', tarballName, 'package/lib/client.pdf.js'], tarballDir, task.timeout)
       expect([...client.matchAll(/require\.async\("(\.\/client[^"/]*\.js)"\)/gu)].map(match => match[1]))
         .toEqual(['./client.frontmatter-fields.js', './client.pdf.js', './client.excel.js'])
       expect(client).not.toMatch(/\brequire\("\.\/client[^"/]*\.js"\)/u)
@@ -66,7 +74,7 @@ describe('published document preview licenses', () => {
       expect(client).not.toContain('//! Bundled PDF.js license notices')
       expect(client).not.toContain('/pdfjs-dist/')
       expect(pdf).toContain('//! Bundled PDF.js license notices')
-      const excel = run('tar', ['-xOf', resolve(packageRoot, packed.filename), 'package/lib/client.excel.js'], packageRoot, task.timeout)
+      const excel = run('tar', ['-xOf', tarballName, 'package/lib/client.excel.js'], tarballDir, task.timeout)
       expect(excel).not.toMatch(/\brequire\("\.\/client[^"/]*\.js"\)/u)
       expect(client).not.toContain('FortuneSheet')
       expect(excel).toContain('//! Bundled spreadsheet license notices')
@@ -77,7 +85,7 @@ describe('published document preview licenses', () => {
         const license = readFileSync(join(root, 'LICENSE'), 'utf8').trimEnd()
         expect(excel).toContain(license.split('\n').map(line => `// ${line}`).join('\n'))
       }
-      const frontmatter = run('tar', ['-xOf', resolve(packageRoot, packed.filename), 'package/lib/client.frontmatter-fields.js'], packageRoot, task.timeout)
+      const frontmatter = run('tar', ['-xOf', tarballName, 'package/lib/client.frontmatter-fields.js'], tarballDir, task.timeout)
       expect(frontmatter).not.toMatch(/\brequire\("\.\/client[^"/]*\.js"\)/u)
       let frontmatterInitialized = false
       runInNewContext(frontmatter, { window: { __ModuleLoader__: { load: (registration: {

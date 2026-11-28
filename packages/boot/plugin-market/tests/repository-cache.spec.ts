@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+
+// These cases stage and fetch real repository caches; a loaded Windows host exceeds the
+// shared five-second default.
+vi.setConfig({ testTimeout: 30_000 })
 import { DetailFailure } from '@deepseek-ai/dsh-plugin-detail'
 import { RepositoryCache, type RepositoryCacheOptions } from '../src/repository-cache.ts'
 
@@ -149,9 +153,19 @@ it('reports an unreachable host as a network failure, a failed local command as 
   await expect(broken).rejects.toThrow('git update-ref')
   await expect(broken).rejects.not.toBeInstanceOf(DetailFailure)
   expect(readdirSync(join(root, 'cache'))).toEqual([])
-  // Git that cannot answer `git --version` within the deadline cannot run.
+  // Git that cannot answer `git --version` within the deadline cannot run. A
+  // one-millisecond deadline races the process start on a loaded runner, so the
+  // probe meets a Git that never answers instead.
   const other = repository('t2', { 'README.md': 'x' })
-  await expectRejection(cache({ timeoutMs: 1 }).read(other.url, other.commit, 'README.md', 100, signal), { reason: 'git-unavailable' }, 'timed out')
+  const slowGit = join(root, 'slow-git')
+  mkdirSync(slowGit)
+  if (process.platform === 'win32') {
+    writeFileSync(join(slowGit, 'git.cmd'), '@echo off\r\nping -n 3 127.0.0.1 >nul\r\n')
+  } else {
+    writeFileSync(join(slowGit, 'git'), '#!/bin/sh\nsleep 1\n', { mode: 0o755 })
+  }
+  vi.stubEnv('PATH', slowGit)
+  await expectRejection(cache({ timeoutMs: 20 }).read(other.url, other.commit, 'README.md', 100, signal), { reason: 'git-unavailable' }, 'timed out')
   vi.stubEnv('PATH', join(root, 'no-git'))
   const missing = cache().read(other.url, other.commit, 'README.md', 100, signal)
   await expectRejection(missing, { reason: 'git-unavailable' }, 'git --version')

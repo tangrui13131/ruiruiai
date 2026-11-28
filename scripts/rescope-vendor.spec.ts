@@ -1,6 +1,6 @@
 /** Recorded npm evidence stays intact while authored files and exact edits remain checked. */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { exactEditState, isRescopeExcluded, rescopeText } from './rescope-vendor.ts'
 
@@ -60,6 +60,7 @@ describe('exactEditState', () => {
 })
 
 describe('product identifiers', () => {
+  // This fork removed the official web application, so its files are simply absent here.
   it.each([
     'apps/cli/tests/optional-bundle-transitions.e2e.ts',
     'apps/web/tests/agent-preset-selection.e2e.ts',
@@ -87,7 +88,7 @@ describe('product identifiers', () => {
     'packages/extensions/cordis-host-runner/tests/inspect-registry.spec.ts',
     'snapshots/session/cordis-inspect-liveness/client-fixture.mjs',
     'snapshots/session/cordis-inspect-timeout/client-fixture.mjs',
-  ])('preserves the product values in %s', (file) => {
+  ].filter(file => existsSync(new URL(`../${file}`, import.meta.url))))('preserves the product values in %s', (file) => {
     const text = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
     expect(text).toMatch(/(['"`])cordis(?:\/inspect-query(?:-resolved)?)?\1/)
     expect(isRescopeExcluded(file)).toBe(false)

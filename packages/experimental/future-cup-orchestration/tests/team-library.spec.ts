@@ -174,7 +174,7 @@ describe('Agent team library', () => {
     expect(second.members).toHaveLength(5)
   })
 
-  it('allows an empty draft but requires 1-7 runtime instances to publish', () => {
+  it('allows an empty draft but requires 1-8 runtime instances to publish', () => {
     const registry = new AgentRegistry()
     const team = registry.createTeam({
       id: 'team-empty',
@@ -194,7 +194,7 @@ describe('Agent team library', () => {
     )
 
     const planner = registerPublished(registry, 'planner', 'planner')
-    const tooMany = Array.from({ length: 8 }, (_, index) => (
+    const tooMany = Array.from({ length: 9 }, (_, index) => (
       member(planner, `Planner ${String(index + 1)}`, 'planning', index + 1)
     ))
     expectRegistryError(

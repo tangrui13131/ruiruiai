@@ -370,18 +370,12 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       })
       expect(web.code).toBe(0)
       expect(web.stderr).toBe('')
-      expect(web.stdout).toContain('Usage: dsh --profile web')
-      expect(web.stdout).toContain('--port <port>')
-      expect(web.stdout).toContain('--public-url <url>')
+      expect(web.stdout).toContain('Usage: dsh')
+      expect(web.stdout).toContain('--no-open')
       expect(web.stdout).not.toContain('dsh web: http://')
-
-      const wildcardHost = await runBuiltBin(['web', '--host', '0.0.0.0'], {
-        DSH_HOME: home,
-        DSH_TELEMETRY_DISABLED: '1',
-      })
-      expect(wildcardHost.code).toBe(1)
-      expect(wildcardHost.stdout).toBe('')
-      expect(wildcardHost.stderr).not.toContain('dsh web: http://')
+      // The Future Cup platform reads its bind address from the profile Config,
+      // whose host is typed as a loopback address; a non-loopback host has no
+      // CLI surface to reject here.
 
       const headlessHelp = await runBuiltBin(['headless', '--help'], {
         DSH_HOME: home,
@@ -681,7 +675,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       )
       expect(created.code).toBe(0)
       expect(created.stderr).toBe('')
-      expect(created.stdout).toContain('Usage: dsh --profile web')
+      expect(created.stdout).toContain('Usage: dsh')
 
       const dir = join(home, 'profiles', 'rescue')
       const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
@@ -690,7 +684,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       }
       expect(manifest.dependencies).toEqual({})
       expect(manifest.dsh.profile).toEqual({
-        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
+        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-experimental-future-cup-platform'],
       })
       expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toContain('[]')
       expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('nodeLinker: hoisted')
@@ -710,7 +704,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       )
       expect(reopened.code).toBe(0)
       expect(reopened.stderr).toBe('')
-      expect(reopened.stdout).toContain('Usage: dsh --profile web')
+      expect(reopened.stdout).toContain('Usage: dsh')
     } finally {
       rmSync(home, { recursive: true, force: true })
     }
@@ -733,7 +727,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       )
       expect(retried.code).toBe(0)
       expect(retried.stderr).toBe('')
-      expect(retried.stdout).toContain('Usage: dsh --profile web')
+      expect(retried.stdout).toContain('Usage: dsh')
     } finally {
       rmSync(home, { recursive: true, force: true })
     }
@@ -790,7 +784,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         NODE_OPTIONS: `--import=${webReadyExitHook}`,
       })
       expect(result.code, result.stderr).toBe(0)
-      expect(result.stdout).toMatch(/^dsh web: http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+$/u)
+      expect(result.stdout).toContain('Future Cup Platform: http://127.0.0.1:')
       expect(result.stderr).toContain('llm-pi-ai')
     } finally {
       rmSync(home, { recursive: true, force: true })
@@ -1198,7 +1192,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       expect(stdout).toContain("name: '@deepseek-ai/dsh-agent-loop'")
       expect(stdout).toContain('agents: []')
       expect(stdout).toContain('# == @deepseek-ai/dsh-base')
-      expect(stdout).toContain("name: '@deepseek-ai/dsh-host-webserver'")
+      expect(stdout).toContain("name: '@deepseek-ai/dsh-experimental-future-cup-platform'")
       expect(existsSync(join(home, 'profiles', 'node_modules'))).toBe(false)
     }, SPAWN_TIMEOUT_MS + 30_000)
 
@@ -1209,7 +1203,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       )
       expect(code).toBe(0)
       expect(stderr).toBe('')
-      expect(stdout).toContain('# == @deepseek-ai/dsh-web-app')
+      expect(stdout).toContain('# == @deepseek-ai/dsh-experimental-future-cup-platform')
       expect(existsSync(join(home, 'profiles', 'rescue', 'package.json'))).toBe(true)
     }, SPAWN_TIMEOUT_MS + 30_000)
 

@@ -33,8 +33,22 @@ import {
 /** Stable identity of the default published team. */
 export const DEFAULT_AGENT_TEAM_ID = 'future-cup-default-team-2.0.0'
 
+/** Stable identity of the revised default team used for new projects. */
+export const DEFAULT_AGENT_TEAM_REVISION_ID = 'future-cup-default-team-2.0.1'
+
+/** Stable identity of the legacy published team retained as a selectable default. */
+export const LEGACY_AGENT_TEAM_ID = 'future-cup-default-team-1.0.0'
+
+/** Display name of the legacy team; Team names are unique per owner. */
+const LEGACY_AGENT_TEAM_NAME = 'future-cup-default-team-1.0.0'
+
+/** Logical parent of both 2.0 team versions. */
+const DEFAULT_AGENT_TEAM_TEAM_ID = 'team:future-cup-default-team'
+
 const VERSION = '1.0.0'
 const TEAM_VERSION = '2.0.0'
+const TEAM_REVISION_VERSION = '2.0.1'
+const LEGACY_TEAM_VERSION = '1.0.0'
 const MODEL = 'deepseek-flash'
 const commonInputSchema = descriptor(
   'future-cup.agent-task-input',
@@ -174,7 +188,64 @@ export function listAgentRoleTemplates(): readonly AgentRoleTemplate[] {
 export function createDefaultAgentTeam(registry: AgentRegistry): AgentTeamVersion {
   const existing = registry.listTeamVersions().find(team => team.id === DEFAULT_AGENT_TEAM_ID)
   if (existing !== undefined) return existing
+  const versions = ensureAgentVersions(registry)
+  return registry.createTeamVersion(teamInput(versions, {
+    id: DEFAULT_AGENT_TEAM_ID,
+    name: 'future-cup-default-team',
+    version: TEAM_VERSION,
+    testerInstances: 1,
+    frontendInstances: 2,
+    includeVerifier: false,
+  }))
+}
 
+/**
+ * Create or repair the 2.0.1 revision used by new projects.
+ *
+ * The revision keeps the 2.0 verifier-out design but adds a second tester so
+ * the team has eight runtime members, matching the legacy 1.0.0 headcount.
+ * @param registry - empty or partially seeded registry.
+ * @returns the published 2.0.1 team version.
+ */
+export function createDefaultTeamRevision(registry: AgentRegistry): AgentTeamVersion {
+  const existing = registry.listTeamVersions().find(team => team.id === DEFAULT_AGENT_TEAM_REVISION_ID)
+  if (existing !== undefined) return existing
+  const versions = ensureAgentVersions(registry)
+  return registry.createTeamVersion(teamInput(versions, {
+    id: DEFAULT_AGENT_TEAM_REVISION_ID,
+    teamId: DEFAULT_AGENT_TEAM_TEAM_ID,
+    name: 'future-cup-default-team',
+    version: TEAM_REVISION_VERSION,
+    testerInstances: 2,
+    frontendInstances: 2,
+    includeVerifier: false,
+  }))
+}
+
+/**
+ * Create or repair the legacy eight-member default team.
+ *
+ * Version 1.0.0 kept the verifier in the team membership, capability set, and
+ * required outputs. Version 2.0.0 removed the verifier from the team while
+ * keeping the Agent definition available for standalone verification.
+ * @param registry - empty or partially seeded registry.
+ * @returns the published legacy team version.
+ */
+export function createLegacyAgentTeam(registry: AgentRegistry): AgentTeamVersion {
+  const existing = registry.listTeamVersions().find(team => team.id === LEGACY_AGENT_TEAM_ID)
+  if (existing !== undefined) return existing
+  const versions = ensureAgentVersions(registry)
+  return registry.createTeamVersion(teamInput(versions, {
+    id: LEGACY_AGENT_TEAM_ID,
+    name: LEGACY_AGENT_TEAM_NAME,
+    version: LEGACY_TEAM_VERSION,
+    testerInstances: 1,
+    frontendInstances: 2,
+    includeVerifier: true,
+  }))
+}
+
+function ensureAgentVersions(registry: AgentRegistry): Map<AgentRegistryRole, string> {
   const versions = new Map<AgentRegistryRole, string>()
   for (const role of Object.keys(DEFINITIONS) as AgentRegistryRole[]) {
     const metadata = DEFINITIONS[role]
@@ -194,8 +265,7 @@ export function createDefaultAgentTeam(registry: AgentRegistry): AgentTeamVersio
     }
     versions.set(role, version.id)
   }
-
-  return registry.createTeamVersion(teamInput(versions))
+  return versions
 }
 
 function versionInput(role: AgentRegistryRole): RegisterAgentVersionInput {
@@ -215,24 +285,48 @@ function versionInput(role: AgentRegistryRole): RegisterAgentVersionInput {
   }
 }
 
-function teamInput(versions: ReadonlyMap<AgentRegistryRole, string>): CreateAgentTeamVersionInput {
+interface TeamVariant {
+  /** Team version identity. */
+  readonly id: string
+  /** Optional logical Team parent; omitted when derived from the name. */
+  readonly teamId?: string
+  /** Human-readable team template name, unique per owner. */
+  readonly name: string
+  /** Caller-owned semantic team version. */
+  readonly version: string
+  /** Tester runtime instances; the second tester raises 2.0.1 to eight members. */
+  readonly testerInstances: 1 | 2
+  /** Frontend runtime instances; the registry caps a team at eight members. */
+  readonly frontendInstances: 1 | 2
+  /** Whether the verifier participates as a runtime team member. */
+  readonly includeVerifier: boolean
+}
+
+function teamInput(
+  versions: ReadonlyMap<AgentRegistryRole, string>,
+  variant: TeamVariant,
+): CreateAgentTeamVersionInput {
   return {
-    id: DEFAULT_AGENT_TEAM_ID,
-    name: 'future-cup-default-team',
-    version: TEAM_VERSION,
+    id: variant.id,
+    ...(variant.teamId === undefined ? {} : { teamId: variant.teamId }),
+    name: variant.name,
+    version: variant.version,
     purpose: 'Deliver a verified React frontend project with controlled specialist Agents.',
     members: [...versions.entries()]
-      .filter(([role]) => role !== 'verifier')
+      .filter(([role]) => variant.includeVerifier || role !== 'verifier')
       .map(([role, agentVersionId]) => ({
         agentVersionId,
-        instanceCount: role === 'frontend' ? 2 : 1,
+        instanceCount: role === 'frontend'
+          ? variant.frontendInstances
+          : role === 'tester' ? variant.testerInstances : 1,
       })),
     requiredCapabilities: {
       planning: 1,
       design: 1,
-      testing: 1,
+      testing: variant.testerInstances,
       frontend: 1,
       integration: 1,
+      ...(variant.includeVerifier ? { verification: 1 } : {}),
       repair: 1,
     },
     requiredConcurrency: 5,
@@ -252,9 +346,11 @@ function teamInput(versions: ReadonlyMap<AgentRegistryRole, string>): CreateAgen
       requiredKinds: ['requirement', 'design-decision', 'failure-signature'],
     },
     inputSchema: commonInputSchema,
-    requiredOutputSchemas: Object.entries(OUTPUT_SCHEMAS)
-      .filter(([role]) => role !== 'verifier')
-      .map(([, schema]) => schema),
+    requiredOutputSchemas: variant.includeVerifier
+      ? Object.values(OUTPUT_SCHEMAS)
+      : Object.entries(OUTPUT_SCHEMAS)
+        .filter(([role]) => role !== 'verifier')
+        .map(([, schema]) => schema),
   }
 }
 

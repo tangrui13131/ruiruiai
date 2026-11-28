@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, IconCloseOutlineRegular, IconWarningTriangleOutlineRegular, Tooltip, useAnchoredPosition, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
-import common from '../TextPreview.module.css'
+import common from '../text/TextPreview.module.css'
 import css from './FontNotice.module.css'
 
 /** Notice inputs supplied by the document owner and Office locale registration. */

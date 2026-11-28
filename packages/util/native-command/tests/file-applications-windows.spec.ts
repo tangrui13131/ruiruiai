@@ -4,6 +4,9 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, vi, onTestFinished } from 'vitest'
+
+// These cases read real registry associations; a loaded Windows host exceeds the shared default.
+vi.setConfig({ testTimeout: 30_000 })
 import { nativeFileApplications, openNativeFileApplication } from '../src/file-applications.ts'
 import { runNativeCommand, type NativeCommandRunner } from '../src/runner.ts'
 

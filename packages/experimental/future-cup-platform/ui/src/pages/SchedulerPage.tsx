@@ -6,9 +6,62 @@ import { EmptyPanel } from '../components/EmptyPanel.tsx'
 import { PageHeading } from '../components/PageHeading.tsx'
 import { StatusBadge } from '../components/StatusBadge.tsx'
 import { useLocale } from '../locale/LocaleProvider.tsx'
+import type { Dictionary } from '../locale/types.ts'
 import { useProjectState } from '../state/ProjectStoreContext.tsx'
 
 type Candidate = SchedulerDecisionView['candidates'][number]
+
+const roleReasonPrefix = 'highest weighted score for role '
+const retryReasonPrefix = 'highest weighted score for reassignment of retry '
+const failureReasonPrefix = 'previous attempt failed with '
+const capabilitiesRejectionPrefix = 'missing required capabilities: '
+
+/**
+ * Render one localized selection reason.
+ * @param dictionary - active locale dictionary.
+ * @param reason - raw selection reason emitted by the scheduler.
+ * @returns a localized retry or role reason; unknown text falls back to the raw reason.
+ */
+export function schedulerReason(dictionary: Dictionary, reason: string): string {
+  if (reason.startsWith(retryReasonPrefix)) {
+    return dictionary.scheduler.reasonRetry.replace('{retry}', reason.slice(retryReasonPrefix.length))
+  }
+  if (reason.startsWith(roleReasonPrefix)) {
+    const roles = dictionary.teamBuilder.roles
+    const role = reason.slice(roleReasonPrefix.length)
+    const label = role in roles ? roles[role as keyof typeof roles] : role
+    return dictionary.scheduler.reasonRole.replace('{role}', label)
+  }
+  return reason
+}
+
+/**
+ * Render one localized reassignment reason.
+ * @param dictionary - active locale dictionary.
+ * @param reason - raw reassignment reason emitted by the scheduler.
+ * @returns a localized failure reason; unknown text falls back to the raw reason.
+ */
+export function schedulerReassignReason(dictionary: Dictionary, reason: string): string {
+  if (!reason.startsWith(failureReasonPrefix)) return reason
+  return dictionary.scheduler.reasonFailure.replace('{code}', reason.slice(failureReasonPrefix.length))
+}
+
+/**
+ * Render one localized candidate rejection reason.
+ * @param dictionary - active locale dictionary.
+ * @param reason - raw rejection reason emitted by the scheduler.
+ * @returns a localized rejection reason; unknown text falls back to the raw reason.
+ */
+export function schedulerRejectionReason(dictionary: Dictionary, reason: string): string {
+  if (reason === 'excluded after the previous failed assignment') return dictionary.scheduler.rejectedExcluded
+  if (reason === 'Agent is unavailable') return dictionary.scheduler.rejectedUnavailable
+  if (reason === 'Agent is at concurrency capacity') return dictionary.scheduler.rejectedConcurrency
+  if (reason.startsWith(capabilitiesRejectionPrefix)) {
+    return dictionary.scheduler.rejectedCapabilities
+      .replace('{capabilities}', reason.slice(capabilitiesRejectionPrefix.length))
+  }
+  return reason
+}
 
 /** Explain every scheduling candidate and the selected Agent. */
 export function SchedulerPage() {
@@ -31,7 +84,9 @@ export function SchedulerPage() {
     {
       title: dictionary.scheduler.rejected,
       dataIndex: 'rejectionReason',
-      render: (value: string | undefined) => value ?? dictionary.common.none,
+      render: (value: string | undefined) => value === undefined
+        ? dictionary.common.none
+        : schedulerRejectionReason(dictionary, value),
     },
     { title: dictionary.scheduler.score, dataIndex: 'score', render: (value: number) => value.toFixed(4) },
     {
@@ -87,15 +142,15 @@ export function SchedulerPage() {
               <div className="page-stack">
                 <div className="section-panel-heading">
                   <h3>{selected.taskId}</h3>
-                  <Tag color="cyan">{selected.selectedAgentId}</Tag>
+                  <Tag>{selected.selectedAgentId}</Tag>
                 </div>
                 <div>
                   <div className="agent-metric-label">{dictionary.scheduler.reason}</div>
-                  <p>{selected.selectedReason}</p>
+                  <p>{schedulerReason(dictionary, selected.selectedReason)}</p>
                   {selected.reassignReason === undefined ? null : (
                     <>
                       <div className="agent-metric-label">{dictionary.scheduler.reassign}</div>
-                      <p>{selected.reassignReason}</p>
+                      <p>{schedulerReassignReason(dictionary, selected.reassignReason)}</p>
                     </>
                   )}
                 </div>

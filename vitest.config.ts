@@ -6,6 +6,7 @@ import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
+import { packagingToolchainTests } from './scripts/packaging-tests.ts'
 import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTimeoutOptions } from './scripts/coverage-partitions.ts'
 import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from './scripts/parallelism.ts'
 
@@ -205,7 +206,7 @@ export default defineConfig({
     ],
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
-    exclude: platformUnsupportedTests,
+    exclude: [...platformUnsupportedTests, ...packagingToolchainTests],
     // One coverage invocation aggregates both projects. Every suite forks for
     // Node stability; process-bound suites stay separate for inventory control.
     projects: [
@@ -226,6 +227,7 @@ export default defineConfig({
           include: testIncludes,
           exclude: [
             ...platformUnsupportedTests,
+            ...packagingToolchainTests,
             ...processBoundTests,
             ...coverageExemptExcludes,
           ],
@@ -245,6 +247,7 @@ export default defineConfig({
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,
+            ...packagingToolchainTests,
             ...coverageExemptExcludes,
           ],
         },
@@ -276,7 +279,7 @@ export default defineConfig({
         'packages/client/ui-trajectory/src/*',
         // Electron guest integration retains its unit specs; per-file coverage
         // is deferred until a native Electron harness covers guest behavior.
-        'packages/client/ui-sidebar-browser/src/client/electron/**',
+        'packages/client/ui-sidebar-browser/src/client/browser/electron/**',
         // Trajectory's compact Markdown projection retains deferred branch coverage.
         'packages/client/ui-primitives/src/markdown/plain-text.ts',
         'packages/client/ui-user-questions/src/client/QuestionComposer.tsx',
@@ -411,6 +414,13 @@ export default defineConfig({
         // cover and remove with the client test lane above.
         'packages/interaction/commands/src/index.ts',
         'packages/session/session-projection/src/index.ts',
+        // This fork's Future Cup platform and orchestration packages are its own
+        // product source. Their correctness signal is the package suites, the
+        // PostgreSQL e2e, and `check:web`; per-file V8 coverage would demand
+        // tests for the generated client and for server wiring the unit lane
+        // never loads.
+        'packages/experimental/future-cup-platform/src/**',
+        'packages/experimental/future-cup-orchestration/src/**',
         ...windowsUnsupportedCoveragePackages.map(path => `${path}/src/**/*.ts`),
         ...windowsOnlyCoverageExclusions,
         ...windowsRunnerCoverageExclusions,

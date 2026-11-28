@@ -1,14 +1,1088 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#f2e8e0" />
     <link rel="icon" type="image/svg+xml" href="/brand/future-cup-mark.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f2e8e0" />
     <title>Future Cup · 多 Agent 调度工作站</title>
+    <style>
+/* Boot overlay, assembled from ui/boot-src/ (markup + compiled Tailwind
+   utilities + hand-ported styles). Critical boot styles: painted before any
+   bundle arrives. Runs before the React app and its LocaleProvider exist, so
+   copy stays inline here (bilingual zh labels + en sublabels) and is exempt
+   from the locale dictionary on purpose. */
+
+/* Boot overlay custom styles, ported from the approved preview page
+   (D:/qq记录/RuiRuiAI _ Future Cup 工作台自检.html). Paper theme only; tokens are
+   scoped to #fc-boot so they never leak into the app. Assembled into
+   ui/index.html by ui/boot-src/assemble.mjs together with the compiled
+   Tailwind utilities; see boot-utilities.css for the utility layer. */
+
+/* Self-hosted latin subsets (OFL); Chinese glyphs fall through to system fonts. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/inter-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-600-normal.woff2") format("woff2");
+}
+
+/* Preflight replacement scoped to the boot overlay: the compiled utility layer
+   has no preflight, so border utilities need a solid zero-width base. Zero
+   specificity (:where) keeps every utility and custom rule in control. */
+:where(#fc-boot) :where(*, *::before, *::after) {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: currentColor;
+}
+
+/* Design tokens (warm ivory paper + luminous cobalt-violet), scoped. */
+#fc-boot {
+  --paper-center: #f4f2ec;
+  --paper-mid: #eceae2;
+  --paper-edge: #e1ded5;
+  --bg-surface: #eeece5;
+  --bg-card: rgba(255, 254, 250, 0.78);
+  --bg-card-solid: #f7f5f0;
+  --bg-subtle: rgba(45, 43, 39, 0.045);
+
+  --ink-primary: #252421;
+  --ink-secondary: rgba(37, 36, 33, 0.66);
+  --ink-muted: rgba(37, 36, 33, 0.42);
+  --ink-micro: rgba(65, 62, 56, 0.45);
+
+  --hud-frame: rgba(118, 111, 100, 0.48);
+  --hud-bracket: rgba(96, 90, 80, 0.74);
+  --hud-track: rgba(145, 138, 126, 0.24);
+  --hud-fill: #9b9386;
+  --hud-tick-off: rgba(135, 128, 117, 0.28);
+  --hud-tick-on: #5f5a51;
+
+  --accent: #2558eb;
+  --accent-soft: rgba(37, 88, 235, 0.1);
+  --accent-glow: rgba(37, 88, 235, 0.28);
+  --accent-contrast: #ffffff;
+
+  --aura-core: rgba(175, 215, 255, 0.48);
+  --aura-mid: rgba(135, 175, 255, 0.18);
+
+  --hairline: rgba(95, 89, 79, 0.18);
+  --hairline-strong: rgba(95, 89, 79, 0.36);
+
+  --status-ok: #137a4b;
+  --status-ok-bg: rgba(19, 122, 75, 0.11);
+  --status-err: #d93829;
+  --status-err-bg: rgba(217, 56, 41, 0.12);
+  --status-heal: #d97706;
+  --status-heal-bg: rgba(217, 119, 6, 0.12);
+  --status-recover: #0d9488;
+  --status-recover-bg: rgba(13, 148, 136, 0.13);
+
+  --sweep-soft-a: rgba(92, 148, 255, 0.26);
+  --sweep-soft-b: rgba(244, 242, 236, 0.88);
+}
+
+/* Hand-defined semantic colors used across the boot markup and boot.ts. */
+#fc-boot .b-hairline { border-color: var(--hairline); }
+#fc-boot .b-hairline-strong { border-color: var(--hairline-strong); }
+#fc-boot .text-ink { color: var(--ink-primary); }
+#fc-boot .text-ink-sec { color: var(--ink-secondary); }
+#fc-boot .text-ink-muted { color: var(--ink-muted); }
+#fc-boot .text-accent { color: var(--accent); }
+#fc-boot .bg-accent {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* Font stacks matching the preview page's tailwind.config override. */
+#fc-boot {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#fc-boot .font-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+#fc-boot .font-sans {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+/* =========================================================================
+   BOOT OVERLAY (#fc-boot) — 60FPS GPU-ACCELERATED STAGE
+   ========================================================================= */
+#fc-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  background-color: #0b0e16;
+  color: var(--ink-primary);
+  user-select: none;
+  will-change: transform, opacity;
+  transition: transform 0.44s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#fc-boot { display: none; }
+html.fc-boot-armed #fc-boot { display: block; }
+
+#fc-boot.boot-hidden {
+  display: none;
+  pointer-events: none;
+}
+#fc-boot.boot-exiting {
+  transform: translate3d(0, -24px, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Warm Ivory Paper Stage Layer */
+#fc-boot .boot-stage {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 48%, var(--paper-center) 0%, var(--paper-mid) 54%, var(--paper-edge) 100%);
+  opacity: 0;
+  will-change: opacity;
+}
+
+/* Fine Tactile Paper Grain Overlay */
+#fc-boot .paper-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.042;
+  mix-blend-mode: multiply;
+}
+
+/* Soft Icy-Blue Ambient Glow Behind Center RR Emblem */
+#fc-boot .center-ambient-aura {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: min(620px, 88vw);
+  height: min(620px, 88vw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--aura-core) 0%, var(--aura-mid) 42%, transparent 72%);
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: filter 0.35s ease;
+}
+
+/* Act 1 Obsidian Dark Curtain */
+#fc-boot .boot-curtain {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 48%, #131826 0%, #0b0e16 64%, #06080e 100%);
+  z-index: 15;
+  pointer-events: none;
+  will-change: opacity;
+}
+#fc-boot .curtain-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(120, 170, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 170, 255, 0.045) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+}
+
+/* Act 2 Diagonal Luminous Sweep Beam */
+#fc-boot .boot-sweep-beam {
+  position: absolute;
+  top: -35%;
+  left: -65%;
+  width: 56%;
+  height: 170%;
+  z-index: 42;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-40%, 0, 0) skewX(-22deg);
+  will-change: transform, opacity;
+}
+#fc-boot .boot-sweep-beam.sweep-soft {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--sweep-soft-a) 30%,
+    var(--sweep-soft-b) 50%,
+    var(--sweep-soft-a) 70%,
+    transparent 100%
+  );
+  filter: blur(14px);
+}
+
+/* =========================================================================
+   REFERENCE HUD FRAME (SELF_CHECK_SCAN)
+   ========================================================================= */
+#fc-boot .hud-wrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 8px 14px;
+}
+@media (min-width: 640px) {
+  #fc-boot .hud-wrapper {
+    padding: 18px 24px 10px 24px;
+  }
+}
+
+#fc-boot .hud-frame {
+  position: relative;
+  flex: 1;
+  border: 1px solid var(--hud-frame);
+  border-radius: 10px;
+  overflow: hidden;
+  will-change: opacity, transform;
+}
+
+#fc-boot .hud-bracket {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+#fc-boot .hud-bracket::before,
+#fc-boot .hud-bracket::after {
+  content: "";
+  position: absolute;
+  background-color: var(--hud-bracket);
+}
+#fc-boot .hud-bracket::before { height: 1.2px; width: 14px; }
+#fc-boot .hud-bracket::after { width: 1.2px; height: 14px; }
+
+#fc-boot .hb-tl { top: 14px; left: 14px; }
+#fc-boot .hb-tl::before { top: 0; left: 0; }
+#fc-boot .hb-tl::after { top: 0; left: 0; }
+#fc-boot .hb-tr { top: 14px; right: 14px; }
+#fc-boot .hb-tr::before { top: 0; right: 0; }
+#fc-boot .hb-tr::after { top: 0; right: 0; }
+#fc-boot .hb-bl { bottom: 14px; left: 14px; }
+#fc-boot .hb-bl::before { bottom: 0; left: 0; }
+#fc-boot .hb-bl::after { bottom: 0; left: 0; }
+#fc-boot .hb-br { bottom: 14px; right: 14px; }
+#fc-boot .hb-br::before { bottom: 0; right: 0; }
+#fc-boot .hb-br::after { bottom: 0; right: 0; }
+
+#fc-boot .hud-side-axis {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+#fc-boot .hud-side-axis.left { left: 16px; }
+#fc-boot .hud-side-axis.right { right: 16px; }
+#fc-boot .hud-side-axis .v-stem {
+  width: 1px;
+  height: clamp(46px, 11vh, 96px);
+  background-color: var(--hud-frame);
+}
+#fc-boot .hud-side-axis .v-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--hud-bracket);
+}
+
+#fc-boot .hud-hatch-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+#fc-boot .hud-hatch {
+  width: 1.4px;
+  height: 11px;
+  background-color: var(--hud-bracket);
+  transform: skewX(-24deg);
+  opacity: 0.72;
+}
+
+#fc-boot .diag-tick-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+@media (max-width: 640px) {
+  #fc-boot .diag-tick-row { gap: 3.5px; }
+}
+#fc-boot .diag-tick {
+  width: 1.25px;
+  height: 6px;
+  background-color: var(--hud-tick-off);
+  transform: skewX(-28deg);
+  transition: background-color 0.1s ease;
+  flex-shrink: 0;
+}
+#fc-boot .diag-tick.lit {
+  background-color: var(--hud-tick-on);
+}
+#fc-boot .diag-tick.err {
+  background-color: var(--status-err);
+}
+#fc-boot .diag-tick.healing {
+  background-color: var(--status-heal);
+}
+#fc-boot .diag-tick.recovered {
+  background-color: var(--status-recover);
+}
+
+/* Preflight compensations: the utility layer was compiled without preflight,
+   so these composite-var utilities lose their --tw-* defaults and resolve to
+   invalid (dropped) declarations. Plain equivalents, scoped, win on id
+   specificity regardless of order. */
+#fc-boot .-translate-x-1\/2 { transform: translateX(-50%); }
+#fc-boot .tabular-nums { font-variant-numeric: tabular-nums; }
+#fc-boot .backdrop-blur-sm {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+#fc-boot .backdrop-blur-md {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* =========================================================================
+   HERO CENTERPIECE (RR 3D EMBOSSED SVG + ORBITALS + GLITCH + PARTICLES)
+   ========================================================================= */
+#fc-boot .hero-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#fc-boot .hero-emblem-wrap {
+  position: relative;
+  width: clamp(270px, 60vmin, 560px);
+  aspect-ratio: 640 / 440;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, -4%, 0);
+  will-change: transform, opacity;
+}
+
+/* Fault / Self-Healing / Recovery Smooth Color Transitions */
+#fc-boot .orbit-color-group {
+  transition: filter 0.42s ease;
+}
+#fc-boot.is-fault-state .orbit-color-group {
+  filter: hue-rotate(138deg) saturate(1.45) brightness(1.06);
+}
+#fc-boot.is-fault-state .center-ambient-aura {
+  filter: hue-rotate(140deg) saturate(1.6);
+}
+#fc-boot.is-healing-state .orbit-color-group {
+  filter: hue-rotate(178deg) saturate(1.42) brightness(1.1);
+}
+#fc-boot.is-healing-state .center-ambient-aura {
+  filter: hue-rotate(174deg) saturate(1.45);
+}
+#fc-boot.is-recovered-state .orbit-color-group {
+  filter: hue-rotate(-56deg) saturate(1.38) brightness(1.1);
+}
+#fc-boot.is-recovered-state .center-ambient-aura {
+  filter: hue-rotate(-52deg) saturate(1.5);
+}
+
+#fc-boot .rr-glitch-clone {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+#fc-boot .rr-glitch-clone.fault-crimson {
+  filter: hue-rotate(96deg) saturate(2.1) brightness(1.05);
+}
+
+@keyframes fc-boot-spin-diag {
+  to { transform: rotate(360deg); }
+}
+#fc-boot .diag-spinner {
+  animation: fc-boot-spin-diag 0.9s linear infinite;
+}
+
+#fc-boot #hud-fault-capsule {
+  transition: border-color 0.28s ease, box-shadow 0.28s ease, opacity 0.24s ease, transform 0.24s ease;
+}
+#fc-boot #hud-fault-capsule.capsule-alert {
+  border-color: rgba(217, 56, 41, 0.5);
+  box-shadow: 0 10px 28px rgba(217, 56, 41, 0.14);
+}
+#fc-boot #hud-fault-capsule.capsule-healing {
+  border-color: rgba(217, 119, 6, 0.52);
+  box-shadow: 0 10px 30px rgba(37, 88, 235, 0.14), 0 0 0 1px rgba(245, 158, 11, 0.14);
+}
+#fc-boot #hud-fault-capsule.capsule-recovered {
+  border-color: rgba(13, 148, 136, 0.55);
+  box-shadow: 0 10px 28px rgba(13, 148, 136, 0.18);
+}
+
+#fc-boot #boot-particles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 24;
+  pointer-events: none;
+}
+
+/* =========================================================================
+   CLEAN END-STATE WELCOME OVERLAY (LOGO-ONLY + MATTE CTA BUTTON)
+   ========================================================================= */
+#fc-boot .welcome-layer {
+  position: absolute;
+  left: 50%;
+  top: 59%;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: min(440px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+#fc-boot .welcome-layer.welcome-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#fc-boot .welcome-stagger {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0) scale(0.96);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.68s cubic-bezier(0.34, 1.48, 0.64, 1);
+  will-change: transform, opacity;
+}
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-1 { transition-delay: 0.05s; }
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-2 { transition-delay: 0.14s; }
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-3 { transition-delay: 0.24s; }
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-4 { transition-delay: 0.35s; }
+
+/* Real-probe health note under the CTA; hidden unless probes report failures. */
+#fc-boot .welcome-note {
+  margin-top: 10px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--status-err);
+  opacity: 0;
+  transition: opacity 0.4s ease 0.45s;
+}
+#fc-boot .welcome-layer.welcome-visible .welcome-note {
+  opacity: 1;
+}
+
+/* Restrained Low-Saturation Matte Ink Pill Button */
+#fc-boot .welcome-cta-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 32px;
+  border-radius: 9999px;
+  border: 1px solid rgba(37, 36, 33, 0.14);
+  background: linear-gradient(180deg, #353430 0%, #262522 100%);
+  color: #f6f4ee;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(37, 36, 33, 0.14),
+    0 2px 6px rgba(37, 36, 33, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.26s ease,
+    background 0.24s ease,
+    border-color 0.24s ease;
+}
+#fc-boot .welcome-cta-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -115%;
+  width: 68%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  transform: skewX(-24deg);
+  transition: left 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+#fc-boot .welcome-cta-btn:hover {
+  transform: translate3d(0, -2px, 0) scale(1.02);
+  background: linear-gradient(180deg, #3f3e39 0%, #2d2c28 100%);
+  box-shadow:
+    0 14px 30px rgba(37, 36, 33, 0.2),
+    0 3px 8px rgba(37, 36, 33, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+#fc-boot .welcome-cta-btn:hover::before {
+  left: 145%;
+}
+#fc-boot .welcome-cta-btn:active {
+  transform: translate3d(0, 0, 0) scale(0.98);
+}
+#fc-boot .welcome-cta-btn:focus-visible {
+  outline: 2px solid var(--hud-bracket);
+  outline-offset: 3px;
+}
+#fc-boot .welcome-cta-arrow {
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#fc-boot .welcome-cta-btn:hover .welcome-cta-arrow {
+  transform: translateX(4px);
+}
+
+/* Belt-and-braces a11y guard; the boot never arms under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  #fc-boot, #fc-boot *, #fc-boot *::before, #fc-boot *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Compiled Tailwind utilities for the boot markup (no preflight). */
+.pointer-events-auto{pointer-events:auto}.absolute{position:absolute}.relative{position:relative}.bottom-5{bottom:1.25rem}.bottom-6{bottom:1.5rem}.left-1\/2{left:50%}.left-6{left:1.5rem}.right-6{right:1.5rem}.right-7{right:1.75rem}.top-5{top:1.25rem}.z-20{z-index:20}.z-30{z-index:30}.m-0{margin:0}.mb-3{margin-bottom:.75rem}.mb-6{margin-bottom:1.5rem}.mt-0\.5{margin-top:.125rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-3{margin-top:.75rem}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.hidden{display:none}.h-1\.5{height:.375rem}.h-2{height:.5rem}.h-3\.5{height:.875rem}.h-5{height:1.25rem}.h-\[3px\]{height:3px}.h-full{height:100%}.w-1\.5{width:.375rem}.w-2{width:.5rem}.w-3\.5{width:.875rem}.w-5{width:1.25rem}.w-\[82\%\]{width:82%}.w-\[86\%\]{width:86%}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[44px\]{min-width:44px}.max-w-\[500px\]{max-width:500px}.max-w-\[540px\]{max-width:540px}.max-w-\[56\%\]{max-width:56%}.shrink-0{flex-shrink:0}.origin-left{transform-origin:left}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.flex-col{flex-direction:column}.items-end{align-items:flex-end}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.overflow-hidden{overflow:hidden}.overflow-visible{overflow:visible}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rounded{border-radius:.25rem}.rounded-full{border-radius:9999px}.rounded-xl{border-radius:.75rem}.border{border-width:1px}.border-\[\#d93829\]\/35{border-color:rgba(217,56,41,.35)}.bg-\[\#d93829\]{--tw-bg-opacity:1;background-color:rgb(217 56 41/var(--tw-bg-opacity,1))}.bg-\[\#d93829\]\/10{background-color:rgba(217,56,41,.1)}.bg-\[var\(--bg-card\)\]{background-color:var(--bg-card)}.bg-\[var\(--bg-subtle\)\]{background-color:var(--bg-subtle)}.bg-\[var\(--status-recover-bg\)\]{background-color:var(--status-recover-bg)}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.pl-\[0\.26em\]{padding-left:.26em}.pt-0\.5{padding-top:.125rem}.text-right{text-align:right}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.font-sans{font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji}.text-2xl{font-size:1.5rem;line-height:2rem}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[13px\]{font-size:13px}.text-\[15px\]{font-size:15px}.text-\[7\.5px\]{font-size:7.5px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.tabular-nums{--tw-numeric-spacing:tabular-nums;font-variant-numeric:var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction)}.leading-\[1\.45\]{line-height:1.45}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-\[0\.04em\]{letter-spacing:.04em}.tracking-\[0\.06em\]{letter-spacing:.06em}.tracking-\[0\.08em\]{letter-spacing:.08em}.tracking-\[0\.11em\]{letter-spacing:.11em}.tracking-\[0\.12em\]{letter-spacing:.12em}.tracking-\[0\.14em\]{letter-spacing:.14em}.tracking-\[0\.1em\]{letter-spacing:.1em}.tracking-\[0\.24em\]{letter-spacing:.24em}.tracking-\[0\.26em\]{letter-spacing:.26em}.tracking-tight{letter-spacing:-.025em}.text-\[\#d93829\]{--tw-text-opacity:1;color:rgb(217 56 41/var(--tw-text-opacity,1))}.text-\[var\(--status-heal\)\]{color:var(--status-heal)}.text-\[var\(--status-recover\)\]{color:var(--status-recover)}.text-sky-300\/60{color:rgba(125,211,252,.6)}.text-white\/75{color:hsla(0,0%,100%,.75)}.blur{--tw-blur:blur(8px)}.blur,.filter{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px)}.backdrop-blur-md,.backdrop-blur-sm{-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.backdrop-blur-sm{--tw-backdrop-blur:blur(4px)}.transition-colors{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.duration-200{transition-duration:.2s}.hover\:border-\[var\(--accent\)\]:hover{border-color:var(--accent)}.hover\:border-\[var\(--ink-primary\)\]:hover{border-color:var(--ink-primary)}@media (min-width:640px){.sm\:bottom-6{bottom:1.5rem}.sm\:bottom-7{bottom:1.75rem}.sm\:bottom-9{bottom:2.25rem}.sm\:left-7{left:1.75rem}.sm\:right-10{right:2.5rem}.sm\:right-7{right:1.75rem}.sm\:right-8{right:2rem}.sm\:top-6{top:1.5rem}.sm\:block{display:block}.sm\:inline-block{display:inline-block}.sm\:flex{display:flex}.sm\:w-\[66\%\]{width:66%}.sm\:w-\[72\%\]{width:72%}.sm\:w-\[78\%\]{width:78%}.sm\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.sm\:flex-row{flex-direction:row}.sm\:items-center{align-items:center}.sm\:gap-2{gap:.5rem}.sm\:text-\[11px\]{font-size:11px}.sm\:text-\[13px\]{font-size:13px}.sm\:text-\[15px\]{font-size:15px}.sm\:text-\[17px\]{font-size:17px}.sm\:text-\[32px\]{font-size:32px}.sm\:text-\[8\.5px\]{font-size:8.5px}.sm\:text-\[9\.5px\]{font-size:9.5px}}
+    </style>
+    <script>
+      /* Decide before first paint; never depend on the app bundle for this. */
+      (function () {
+        var params = new URLSearchParams(window.location.search)
+        var force = params.get('boot') === '1'
+        var skip = params.get('noboot') === '1'
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        var key = 'future-cup:boot:v1'
+        var version = '2026-11-21.4'
+        var play = !skip && !reduced
+        function readStored() {
+          try {
+            var fromLocal = window.localStorage.getItem(key)
+            if (fromLocal !== null) return JSON.parse(fromLocal)
+          } catch (err) { /* private mode may reject localStorage */ }
+          try {
+            var fromSession = window.sessionStorage.getItem(key)
+            if (fromSession !== null) return JSON.parse(fromSession)
+          } catch (err) { /* session storage can be unavailable too */ }
+          return null
+        }
+        if (play && !force) {
+          var saved = readStored()
+          if (saved && saved.version === version && Date.now() - Number(saved.at || 0) < 6 * 60 * 60 * 1000) {
+            play = false
+          }
+        }
+        /* ?boot=1 is a one-shot replay: remove it from the address bar so F5 does not force it again. */
+        if (force) {
+          try {
+            var nextUrl = new URL(window.location.href)
+            nextUrl.searchParams.delete('boot')
+            window.history.replaceState(null, '', nextUrl.pathname + nextUrl.search + nextUrl.hash)
+          } catch (err) { /* history API can be unavailable in embedded views */ }
+        }
+        window.__FC_BOOT__ = { play: play, key: key, version: version }
+      })()
+    </script>
   </head>
   <body>
+    <script>
+      /* Inject the boot overlay only when this load will play it. The not-playing
+         document keeps the exact shell of a bootless build: no overlay element, no
+         state classes, no reserved space. If the bundle never takes over, the shell
+         guard removes the overlay after 8s so the page still becomes usable. */
+      (function () {
+        var config = window.__FC_BOOT__
+        if (!config || config.play !== true) return
+        document.write(`
+<div id="fc-boot" role="dialog" aria-modal="true" aria-label="Future Cup 工作台自检启动画面">
+  <div id="boot-full-view" class="relative w-full h-full">
+
+    <!-- Layer 0: Warm Paper Surface -->
+    <div id="boot-stage" class="boot-stage">
+      <svg class="paper-grain w-full h-full" aria-hidden="true">
+        <filter id="paper-noise">
+          <feTurbulence type="fractalNoise" baseFrequency="0.88" numOctaves="3" stitchTiles="stitch" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#paper-noise)" />
+      </svg>
+      <div id="center-aura" class="center-ambient-aura"></div>
+    </div>
+
+    <!-- Layer 1: Act 1 Dark Obsidian Curtain -->
+    <div id="boot-curtain" class="boot-curtain">
+      <div class="curtain-grid"></div>
+      <div class="absolute bottom-6 right-6 sm:bottom-9 sm:right-10 font-mono text-right">
+        <div class="text-[11px] tracking-[0.24em] text-white/75">BOOT / 001</div>
+        <div id="curtain-clock" class="mt-0.5 text-[11px] tracking-[0.14em] text-sky-300/60 tabular-nums">0.00s</div>
+      </div>
+    </div>
+
+    <!-- Layer 2: Act 2 Diagonal Luminous Sweep Beam -->
+    <div id="boot-sweep-beam" class="boot-sweep-beam sweep-soft" aria-hidden="true"></div>
+
+    <!-- Layer 3: Hero Centerpiece — 3D Embossed RR + Interleaved Orbitals -->
+    <div class="hero-stage">
+      <div id="hero-emblem-wrap" class="hero-emblem-wrap">
+        <svg id="rr-glitch-cyan" class="rr-glitch-clone" viewBox="0 0 640 440" fill="none" aria-hidden="true">
+          <path d="M 218 110 L 318 110 C 356 110 376 132 371 165 C 367 190 350 206 326 213 L 352 268 C 355 274 351 279 344 279 L 316 279 C 310 279 306 275 303 269 L 281 221 C 278 215 272 213 264 213 L 258 213 L 232 273 C 229 278 225 279 219 279 L 194 279 C 188 279 185 274 188 268 L 222 195 C 229 181 241 174 260 174 L 306 174 C 325 174 335 166 335 154 C 335 142 325 136 306 136 L 243 136 C 234 136 227 131 222 123 L 214 114 C 212 111 214 110 218 110 Z" fill="#00e5ff" />
+          <path d="M 366 158 L 399 158 C 430 158 446 176 441 204 C 437 224 422 238 402 244 L 427 302 C 429 308 425 313 418 313 L 391 313 C 385 313 381 309 378 303 L 336 227 C 334 223 336 219 342 219 L 382 218 C 399 217 407 209 407 198 C 407 187 398 182 381 182 L 364 182 C 360 182 358 179 359 175 L 362 162 C 363 159 364 158 366 158 Z" fill="#00e5ff" />
+        </svg>
+        <svg id="rr-glitch-violet" class="rr-glitch-clone" viewBox="0 0 640 440" fill="none" aria-hidden="true">
+          <path d="M 218 110 L 318 110 C 356 110 376 132 371 165 C 367 190 350 206 326 213 L 352 268 C 355 274 351 279 344 279 L 316 279 C 310 279 306 275 303 269 L 281 221 C 278 215 272 213 264 213 L 258 213 L 232 273 C 229 278 225 279 219 279 L 194 279 C 188 279 185 274 188 268 L 222 195 C 229 181 241 174 260 174 L 306 174 C 325 174 335 166 335 154 C 335 142 325 136 306 136 L 243 136 C 234 136 227 131 222 123 L 214 114 C 212 111 214 110 218 110 Z" fill="#8b3dff" />
+          <path d="M 366 158 L 399 158 C 430 158 446 176 441 204 C 437 224 422 238 402 244 L 427 302 C 429 308 425 313 418 313 L 391 313 C 385 313 381 309 378 303 L 336 227 C 334 223 336 219 342 219 L 382 218 C 399 217 407 209 407 198 C 407 187 398 182 381 182 L 364 182 C 360 182 358 179 359 175 L 362 162 C 363 159 364 158 366 158 Z" fill="#8b3dff" />
+        </svg>
+        <svg id="hero-svg" class="w-full h-full overflow-visible" viewBox="0 0 640 440" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rr-clay-face" x1="18%" y1="8%" x2="86%" y2="94%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="46%" stop-color="#f6f4ef" />
+              <stop offset="82%" stop-color="#e7e3da" />
+              <stop offset="100%" stop-color="#d7d2c7" />
+            </linearGradient>
+            <linearGradient id="rr-clay-bevel" x1="10%" y1="0%" x2="90%" y2="100%">
+              <stop offset="0%" stop-color="#ebe7df" />
+              <stop offset="55%" stop-color="#d3cdc2" />
+              <stop offset="100%" stop-color="#b8b0a3" />
+            </linearGradient>
+            <linearGradient id="rr-rim-light" x1="0%" y1="0%" x2="80%" y2="90%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+              <stop offset="50%" stop-color="#ffffff" stop-opacity="0.55" />
+              <stop offset="100%" stop-color="#c6d4f2" stop-opacity="0.2" />
+            </linearGradient>
+            <linearGradient id="rr-sheen-grad" x1="0%" y1="0%" x2="100%" y2="28%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
+              <stop offset="42%" stop-color="#ffffff" stop-opacity="0.05" />
+              <stop offset="50%" stop-color="#ffffff" stop-opacity="0.88" />
+              <stop offset="58%" stop-color="#d8f0ff" stop-opacity="0.22" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+            </linearGradient>
+            <linearGradient id="swoosh-main-grad" x1="12%" y1="85%" x2="92%" y2="18%">
+              <stop offset="0%" stop-color="#6b30ff" />
+              <stop offset="32%" stop-color="#4846ff" />
+              <stop offset="68%" stop-color="#1778ff" />
+              <stop offset="90%" stop-color="#15c8ff" />
+              <stop offset="100%" stop-color="#7ef2ff" />
+            </linearGradient>
+            <linearGradient id="swoosh-back-grad" x1="10%" y1="65%" x2="90%" y2="25%">
+              <stop offset="0%" stop-color="#5d3aff" stop-opacity="0.25" />
+              <stop offset="50%" stop-color="#2a86ff" stop-opacity="0.65" />
+              <stop offset="100%" stop-color="#4ce0ff" stop-opacity="0.85" />
+            </linearGradient>
+            <linearGradient id="halo-ring-grad" x1="15%" y1="10%" x2="85%" y2="90%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+              <stop offset="35%" stop-color="#87c8ff" stop-opacity="0.78" />
+              <stop offset="70%" stop-color="#a5a4ff" stop-opacity="0.58" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0.9" />
+            </linearGradient>
+            <radialGradient id="star-core-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="28%" stop-color="#8cf0ff" />
+              <stop offset="62%" stop-color="#1b74ff" />
+              <stop offset="100%" stop-color="#1842d8" />
+            </radialGradient>
+            <radialGradient id="star-halo-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+              <stop offset="30%" stop-color="#54d8ff" stop-opacity="0.65" />
+              <stop offset="65%" stop-color="#2970ff" stop-opacity="0.22" />
+              <stop offset="100%" stop-color="#2970ff" stop-opacity="0" />
+            </radialGradient>
+            <linearGradient id="heal-scan-beam-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#f59e0b" stop-opacity="0" />
+              <stop offset="20%" stop-color="#f59e0b" stop-opacity="0.72" />
+              <stop offset="50%" stop-color="#38e8ff" stop-opacity="0.98" />
+              <stop offset="80%" stop-color="#f59e0b" stop-opacity="0.72" />
+              <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
+            </linearGradient>
+            <linearGradient id="heal-scan-fill-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#f59e0b" stop-opacity="0" />
+              <stop offset="45%" stop-color="#f59e0b" stop-opacity="0.22" />
+              <stop offset="50%" stop-color="#ffffff" stop-opacity="0.92" />
+              <stop offset="55%" stop-color="#38e8ff" stop-opacity="0.32" />
+              <stop offset="100%" stop-color="#38e8ff" stop-opacity="0" />
+            </linearGradient>
+            <radialGradient id="recovery-wave-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="62%" stop-color="#10b981" stop-opacity="0" />
+              <stop offset="84%" stop-color="#2dd4bf" stop-opacity="0.58" />
+              <stop offset="94%" stop-color="#a7f3d0" stop-opacity="0.95" />
+              <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0" />
+            </radialGradient>
+            <filter id="rr-3d-shadow" x="-25%" y="-25%" width="150%" height="155%">
+              <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#5e594f" flood-opacity="0.23" />
+              <feDropShadow dx="-4" dy="5" stdDeviation="5" flood-color="#3c5a99" flood-opacity="0.14" />
+            </filter>
+            <filter id="orbital-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="5.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="halo-bloom" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="4" result="blur1" />
+              <feMerge>
+                <feMergeNode in="blur1" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="wireframe-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="2.5" result="wb" />
+              <feMerge>
+                <feMergeNode in="wb" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <g id="rr-big-shape">
+              <path d="M 218 110 L 318 110 C 356 110 376 132 371 165 C 367 190 350 206 326 213 L 352 268 C 355 274 351 279 344 279 L 316 279 C 310 279 306 275 303 269 L 281 221 C 278 215 272 213 264 213 L 258 213 L 232 273 C 229 278 225 279 219 279 L 194 279 C 188 279 185 274 188 268 L 222 195 C 229 181 241 174 260 174 L 306 174 C 325 174 335 166 335 154 C 335 142 325 136 306 136 L 243 136 C 234 136 227 131 222 123 L 214 114 C 212 111 214 110 218 110 Z" />
+            </g>
+            <g id="rr-small-shape">
+              <path d="M 366 158 L 399 158 C 430 158 446 176 441 204 C 437 224 422 238 402 244 L 427 302 C 429 308 425 313 418 313 L 391 313 C 385 313 381 309 378 303 L 336 227 C 334 223 336 219 342 219 L 382 218 C 399 217 407 209 407 198 C 407 187 398 182 381 182 L 364 182 C 360 182 358 179 359 175 L 362 162 C 363 159 364 158 366 158 Z" />
+            </g>
+            <clipPath id="rr-sheen-clip">
+              <path d="M 218 110 L 318 110 C 356 110 376 132 371 165 C 367 190 350 206 326 213 L 352 268 C 355 274 351 279 344 279 L 316 279 C 310 279 306 275 303 269 L 281 221 C 278 215 272 213 264 213 L 258 213 L 232 273 C 229 278 225 279 219 279 L 194 279 C 188 279 185 274 188 268 L 222 195 C 229 181 241 174 260 174 L 306 174 C 325 174 335 166 335 154 C 335 142 325 136 306 136 L 243 136 C 234 136 227 131 222 123 L 214 114 C 212 111 214 110 218 110 Z" />
+              <path d="M 366 158 L 399 158 C 430 158 446 176 441 204 C 437 224 422 238 402 244 L 427 302 C 429 308 425 313 418 313 L 391 313 C 385 313 381 309 378 303 L 336 227 C 334 223 336 219 342 219 L 382 218 C 399 217 407 209 407 198 C 407 187 398 182 381 182 L 364 182 C 360 182 358 179 359 175 L 362 162 C 363 159 364 158 366 158 Z" />
+            </clipPath>
+          </defs>
+
+          <g id="svg-orbit-back" class="orbit-color-group" style="opacity: 0; transform-origin: 320px 212px;">
+            <g id="svg-halo-rot" style="transform-origin: 320px 212px;">
+              <circle cx="320" cy="212" r="146" stroke="url(#halo-ring-grad)" stroke-width="4.5" stroke-opacity="0.34" filter="url(#halo-bloom)" />
+              <circle cx="320" cy="212" r="146" stroke="url(#halo-ring-grad)" stroke-width="1.6" stroke-opacity="0.92" />
+              <path d="M 248 86 A 146 146 0 0 1 408 96" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-opacity="0.88" filter="url(#halo-bloom)" />
+            </g>
+            <g transform="rotate(-19 320 226)">
+              <path id="orbit-back-path" d="M 142 238 C 142 184 224 148 328 148 C 424 148 498 182 496 228" stroke="url(#swoosh-back-grad)" stroke-width="3.2" stroke-linecap="round" fill="none" opacity="0.72" />
+              <path d="M 122 252 C 134 212 174 182 220 168" stroke="#5b8cff" stroke-width="1.3" stroke-linecap="round" opacity="0.45" />
+            </g>
+          </g>
+
+          <g id="svg-rr-wireframe" filter="url(#wireframe-glow)" style="opacity: 1;">
+            <path id="wire-rr-big" d="M 218 110 L 318 110 C 356 110 376 132 371 165 C 367 190 350 206 326 213 L 352 268 C 355 274 351 279 344 279 L 316 279 C 310 279 306 275 303 269 L 281 221 C 278 215 272 213 264 213 L 258 213 L 232 273 C 229 278 225 279 219 279 L 194 279 C 188 279 185 274 188 268 L 222 195 C 229 181 241 174 260 174 L 306 174 C 325 174 335 166 335 154 C 335 142 325 136 306 136 L 243 136 C 234 136 227 131 222 123 L 214 114 C 212 111 214 110 218 110 Z" stroke="#7be8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            <path id="wire-rr-small" d="M 366 158 L 399 158 C 430 158 446 176 441 204 C 437 224 422 238 402 244 L 427 302 C 429 308 425 313 418 313 L 391 313 C 385 313 381 309 378 303 L 336 227 C 334 223 336 219 342 219 L 382 218 C 399 217 407 209 407 198 C 407 187 398 182 381 182 L 364 182 C 360 182 358 179 359 175 L 362 162 C 363 159 364 158 366 158 Z" stroke="#8ea8ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          </g>
+
+          <g id="svg-rr-solid" style="opacity: 0; transform-origin: 315px 212px;">
+            <g filter="url(#rr-3d-shadow)">
+              <g transform="translate(2.2, 3.8)">
+                <use href="#rr-small-shape" fill="url(#rr-clay-bevel)" />
+              </g>
+              <use href="#rr-small-shape" fill="url(#rr-clay-face)" stroke="url(#rr-rim-light)" stroke-width="1.6" stroke-linejoin="round" />
+              <g transform="translate(2.5, 4.2)">
+                <use href="#rr-big-shape" fill="url(#rr-clay-bevel)" />
+              </g>
+              <use href="#rr-big-shape" fill="url(#rr-clay-face)" stroke="url(#rr-rim-light)" stroke-width="1.8" stroke-linejoin="round" />
+            </g>
+            <use href="#rr-big-shape" fill="none" stroke="#ffffff" stroke-opacity="0.78" stroke-width="1" transform="translate(-0.7, -0.7)" />
+            <use href="#rr-small-shape" fill="none" stroke="#ffffff" stroke-opacity="0.72" stroke-width="0.9" transform="translate(-0.6, -0.6)" />
+            <g clip-path="url(#rr-sheen-clip)">
+              <rect id="rr-sheen-bar" x="100" y="60" width="96" height="320" fill="url(#rr-sheen-grad)" transform="translate(-140, 0) skewX(-24)" />
+              <rect id="rr-heal-scan-clipped" x="150" y="180" width="340" height="44" fill="url(#heal-scan-fill-grad)" style="opacity: 0;" />
+            </g>
+          </g>
+
+          <g id="svg-heal-reticle" style="opacity: 0; pointer-events: none;">
+            <g id="svg-heal-ring-outer" style="transform-origin: 320px 212px;">
+              <circle cx="320" cy="212" r="166" stroke="#f59e0b" stroke-width="1.6" stroke-opacity="0.78" stroke-dasharray="28 14 8 14" stroke-linecap="round" filter="url(#wireframe-glow)" />
+              <line x1="320" y1="36" x2="320" y2="52" stroke="#38e8ff" stroke-width="1.8" stroke-linecap="round" />
+              <line x1="320" y1="372" x2="320" y2="388" stroke="#38e8ff" stroke-width="1.8" stroke-linecap="round" />
+              <line x1="144" y1="212" x2="160" y2="212" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" />
+              <line x1="480" y1="212" x2="496" y2="212" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" />
+            </g>
+            <g id="svg-heal-ring-inner" style="transform-origin: 320px 212px;">
+              <circle cx="320" cy="212" r="126" stroke="#38e8ff" stroke-width="1.4" stroke-opacity="0.82" stroke-dasharray="44 22 12 22" stroke-linecap="round" filter="url(#wireframe-glow)" />
+            </g>
+          </g>
+
+          <g id="rr-heal-scanline" style="opacity: 0; pointer-events: none;">
+            <rect x="155" y="0" width="330" height="16" fill="url(#heal-scan-beam-grad)" opacity="0.32" filter="url(#orbital-glow)" transform="translate(0, -8)" />
+            <line x1="162" y1="0" x2="478" y2="0" stroke="url(#heal-scan-beam-grad)" stroke-width="2.4" stroke-linecap="round" filter="url(#wireframe-glow)" />
+            <circle cx="176" cy="0" r="2.5" fill="#f59e0b" />
+            <circle cx="464" cy="0" r="2.5" fill="#38e8ff" />
+          </g>
+
+          <g id="svg-recovery-wave" style="opacity: 0; transform-origin: 320px 212px; pointer-events: none;">
+            <circle cx="320" cy="212" r="150" fill="url(#recovery-wave-grad)" />
+            <circle cx="320" cy="212" r="148" stroke="#34d399" stroke-width="2.4" stroke-opacity="0.92" filter="url(#orbital-glow)" />
+          </g>
+
+          <g id="svg-orbit-front" class="orbit-color-group" style="opacity: 0; transform-origin: 320px 226px;">
+            <g transform="rotate(-19 320 226)">
+              <path id="swoosh-glow-path" d="M 152 248 C 148 292 222 316 332 308 C 434 300 508 262 496 218 C 490 198 468 184 432 178" stroke="url(#swoosh-main-grad)" stroke-width="17" stroke-linecap="round" fill="none" opacity="0.34" filter="url(#orbital-glow)" />
+              <path id="swoosh-body-ribbon" d="M 164 236 C 140 274 202 310 318 304 C 430 298 510 256 498 208 C 492 186 462 172 418 169 C 454 176 479 190 482 208 C 488 244 418 281 316 287 C 214 293 160 264 172 238 Z" fill="url(#swoosh-main-grad)" filter="url(#orbital-glow)" />
+              <path id="swoosh-plasma-1" d="M 154 248 C 154 290 228 310 330 302 C 430 294 504 256 492 212 C 486 192 462 179 428 174" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.92" />
+              <path id="swoosh-plasma-2" d="M 176 266 C 212 294 278 302 356 292 C 438 281 488 248 486 216" stroke="#7cf4ff" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.85" />
+              <path id="swoosh-wisp-left" d="M 134 268 C 150 310 232 330 326 320" stroke="url(#swoosh-main-grad)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.72" />
+              <path id="swoosh-wisp-right" d="M 412 298 C 468 282 514 254 522 224" stroke="#18c5ff" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.86" />
+              <path d="M 122 204 L 154 190" stroke="#3b5bff" stroke-width="2.8" stroke-linecap="round" opacity="0.85" />
+            </g>
+          </g>
+
+          <g id="svg-star-group" class="orbit-color-group" transform="translate(418, 108)" style="opacity: 0;">
+            <g id="svg-star-inner">
+              <circle cx="0" cy="0" r="34" fill="url(#star-halo-grad)" />
+              <line x1="-26" y1="0" x2="26" y2="0" stroke="#7ceeff" stroke-width="1" stroke-opacity="0.6" />
+              <line x1="0" y1="-28" x2="0" y2="28" stroke="#7ceeff" stroke-width="1" stroke-opacity="0.6" />
+              <path d="M 0 -24 C 2.2 -7 7 -2.2 23 0 C 7 2.2 2.2 7 0 24 C -2.2 7 -7 2.2 -23 0 C -7 -2.2 -2.2 -7 0 -24 Z" fill="url(#star-core-grad)" filter="url(#orbital-glow)" />
+              <path d="M 0 -11 C 1.2 -3 3 -1.2 11 0 C 3 1.2 1.2 3 0 11 C -1.2 3 -3 1.2 -11 0 C -3 -1.2 -1.2 -3 0 -11 Z" fill="#ffffff" />
+            </g>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Layer 4: 60fps Canvas Stardust -->
+    <canvas id="boot-particles" aria-hidden="true"></canvas>
+
+    <!-- Layer 5: Technical HUD Overlay -->
+    <div id="boot-hud" class="hud-wrapper" style="opacity: 0;">
+      <div class="hud-frame">
+        <div class="hud-bracket hb-tl"></div>
+        <div class="hud-bracket hb-tr"></div>
+        <div class="hud-bracket hb-bl"></div>
+        <div class="hud-bracket hb-br"></div>
+
+        <div class="hud-side-axis left">
+          <span class="v-stem"></span>
+          <span class="v-dot"></span>
+          <span class="v-stem"></span>
+        </div>
+        <div class="hud-side-axis right">
+          <span class="v-stem"></span>
+          <span class="v-dot"></span>
+          <span class="v-stem"></span>
+        </div>
+
+        <div class="absolute top-5 left-6 sm:top-6 sm:left-7 z-20 max-w-[56%]">
+          <div id="hud-scan-title" class="text-[13px] sm:text-[15px] font-normal tracking-[0.08em] text-ink leading-none transition-colors duration-200">
+            SELF_CHECK_SCAN
+          </div>
+          <div id="hud-micro-tl" class="mt-1.5 font-mono text-[7.5px] sm:text-[8.5px] leading-[1.45] tracking-[0.11em] uppercase" style="color: var(--ink-micro);">
+            <div>SYS.BOOT // RUIRUIAI-FUTURE-CUP</div>
+            <div>NODE.3090 // FASTIFY HANDSHAKE OK</div>
+            <div>ARCHIVE.ID // FC-2026-SCAN-04</div>
+          </div>
+        </div>
+
+        <div id="hud-top-actions" class="absolute top-5 right-6 sm:top-6 sm:right-7 z-30 flex flex-col items-end gap-1.5 pointer-events-auto">
+          <div class="hidden sm:block text-right font-mono text-[7.5px] leading-[1.4] tracking-[0.1em] uppercase" style="color: var(--ink-micro);">
+            <div>RENDER.ENGINE // 60FPS GPU COMPOSITE</div>
+            <div>GUARD.LOCK // INERT + 8S FAILSAFE</div>
+            <div>WORKBENCH.OS // VER 2.4.1-STABLE</div>
+          </div>
+        </div>
+
+        <div class="absolute bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 w-[86%] sm:w-[66%] max-w-[540px] flex flex-col items-center">
+
+          <div id="hud-fusion-strip" class="w-full mb-3 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2"></div>
+
+          <div class="relative w-[86%] sm:w-[78%] h-[3px] rounded-full overflow-hidden" style="background-color: var(--hud-track);">
+            <div
+              id="hud-bar-fill"
+              class="h-full w-full origin-left rounded-full"
+              style="transform: scaleX(0); background: linear-gradient(90deg, var(--hud-fill) 0%, var(--hud-fill) 82%, var(--accent) 100%); will-change: transform;"
+            ></div>
+          </div>
+
+          <div id="hud-diag-ticks" class="diag-tick-row w-[82%] sm:w-[72%]" aria-hidden="true"></div>
+
+          <div id="hud-fault-capsule" class="hidden pointer-events-auto mt-3 w-full max-w-[500px] rounded-xl border bg-[var(--bg-card)] backdrop-blur-md px-3.5 py-2.5 capsule-alert">
+
+            <div id="capsule-alert-view" class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-[#d93829]">
+                  <span class="h-2 w-2 rounded-full bg-[#d93829] animate-pulse shrink-0"></span>
+                  <span>SCHEDULER // ERR: 3090 TIMEOUT</span>
+                </div>
+                <div id="capsule-alert-sub" class="text-[11px] text-ink-sec mt-0.5 leading-snug">
+                  检测到 3090 调度端口无响应，自动启动自检修复协议...
+                </div>
+              </div>
+              <div id="capsule-auto-badge" class="flex items-center gap-1.5 shrink-0">
+                <span class="rounded border border-[#d93829]/35 bg-[#d93829]/10 px-2 py-1 font-mono text-[10px] font-medium text-[#d93829]">
+                  AUTO-HEAL ARMED
+                </span>
+              </div>
+            </div>
+
+            <div id="capsule-heal-view" class="hidden space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                  <svg class="diag-spinner h-3.5 w-3.5 shrink-0 text-[var(--status-heal)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-opacity="0.25" />
+                    <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" />
+                  </svg>
+                  <span class="font-mono text-[10.5px] sm:text-[11px] font-semibold tracking-[0.04em] text-ink truncate">
+                    AUTO SELF-HEAL // 正在执行自检修复
+                  </span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span id="heal-pct" class="font-mono text-[11px] font-semibold text-[var(--status-heal)] tabular-nums">0%</span>
+                </div>
+              </div>
+
+              <div class="h-1.5 w-full rounded-full overflow-hidden" style="background-color: var(--hud-track);">
+                <div
+                  id="heal-progress-fill"
+                  class="h-full w-full origin-left rounded-full"
+                  style="transform: scaleX(0); background: linear-gradient(90deg, #f59e0b 0%, #38bdf8 68%, #10b981 100%); will-change: transform;"
+                ></div>
+              </div>
+
+              <div class="space-y-1 pt-0.5 font-mono text-[10px]">
+                <div id="heal-step-0" class="flex items-center justify-between gap-2 rounded px-2 py-1 bg-[var(--bg-subtle)]">
+                  <span class="text-ink-sec truncate">01 扫描端口 3090 阻塞进程与僵尸句柄</span>
+                  <span class="step-badge shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-semibold">WAIT</span>
+                </div>
+                <div id="heal-step-1" class="flex items-center justify-between gap-2 rounded px-2 py-1 bg-[var(--bg-subtle)]">
+                  <span class="text-ink-sec truncate">02 重置 Fastify Scheduler 连接池与心跳</span>
+                  <span class="step-badge shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-semibold">WAIT</span>
+                </div>
+                <div id="heal-step-2" class="flex items-center justify-between gap-2 rounded px-2 py-1 bg-[var(--bg-subtle)]">
+                  <span class="text-ink-sec truncate">03 二次真实探活校验 (/health)</span>
+                  <span class="step-badge shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-semibold">WAIT</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="capsule-recovered-view" class="hidden flex items-center justify-between gap-2.5 py-0.5">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--status-recover-bg)] text-[var(--status-recover)] font-mono text-xs font-bold">
+                  ✓
+                </span>
+                <div class="text-[11.5px] font-medium text-[var(--status-recover)] leading-snug">
+                  ✓ 自检修复完成 · 端口 3090 已恢复在线，正在继续...
+                </div>
+              </div>
+              <span class="hidden sm:inline-block shrink-0 rounded bg-[var(--status-recover-bg)] px-2 py-0.5 font-mono text-[10px] font-semibold text-[var(--status-recover)]">
+                21ms OK
+              </span>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="absolute bottom-6 right-7 sm:bottom-7 sm:right-8 hidden sm:flex items-center">
+          <div class="hud-hatch-group" aria-hidden="true">
+            <span class="hud-hatch"></span>
+            <span class="hud-hatch"></span>
+            <span class="hud-hatch"></span>
+            <span class="hud-hatch"></span>
+            <span class="hud-hatch"></span>
+            <span class="hud-hatch"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer 6: Clean End-State Welcome Layer -->
+    <div id="boot-welcome-layer" class="welcome-layer" role="region" aria-label="欢迎进入工作台">
+      <h1 class="welcome-stagger welcome-stagger-1 m-0 text-2xl sm:text-[32px] font-semibold tracking-[0.26em] pl-[0.26em] text-ink leading-tight">
+        欢迎光临
+      </h1>
+      <p class="welcome-stagger welcome-stagger-2 mt-2 mb-6 text-xs sm:text-[13px] tracking-[0.12em] text-ink-sec">
+        RuiRuiAI · Future Cup 智能工作台
+      </p>
+      <div class="welcome-stagger welcome-stagger-3">
+        <button id="btn-welcome-enter" type="button" class="welcome-cta-btn">
+          <span>点击进入工作台</span>
+          <svg class="welcome-cta-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.5 8H12.5M12.5 8L8.5 4M12.5 8L8.5 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
+      <div id="welcome-health-note" class="welcome-note hidden"></div>
+      <div class="welcome-stagger welcome-stagger-4 mt-3 font-mono text-[10px] tracking-[0.12em] text-ink-muted">
+        点击按钮或按 <kbd class="rounded border b-hairline px-1.5 py-0.5 text-[9.5px] text-ink-sec">ENTER</kbd> 进入
+      </div>
+    </div>
+
+  </div>
+</div>
+`)
+        document.documentElement.classList.add('fc-boot-armed')
+        window.setTimeout(function () {
+          if (window.__FC_BOOT_RUNNING__ === true) return
+          var el = document.getElementById('fc-boot')
+          if (el && el.parentNode) el.parentNode.removeChild(el)
+          document.documentElement.classList.remove('fc-boot-armed')
+          document.body.style.overflow = ''
+        }, 8000)
+      })()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

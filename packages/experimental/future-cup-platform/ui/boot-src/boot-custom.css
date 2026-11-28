@@ -1,0 +1,606 @@
+/* Boot overlay custom styles, ported from the approved preview page
+   (D:/qq记录/RuiRuiAI _ Future Cup 工作台自检.html). Paper theme only; tokens are
+   scoped to #fc-boot so they never leak into the app. Assembled into
+   ui/index.html by ui/boot-src/assemble.mjs together with the compiled
+   Tailwind utilities; see boot-utilities.css for the utility layer. */
+
+/* Self-hosted latin subsets (OFL); Chinese glyphs fall through to system fonts. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/inter-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-600-normal.woff2") format("woff2");
+}
+
+/* Preflight replacement scoped to the boot overlay: the compiled utility layer
+   has no preflight, so border utilities need a solid zero-width base. Zero
+   specificity (:where) keeps every utility and custom rule in control. */
+:where(#fc-boot) :where(*, *::before, *::after) {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: currentColor;
+}
+
+/* Design tokens (warm ivory paper + luminous cobalt-violet), scoped. */
+#fc-boot {
+  --paper-center: #f4f2ec;
+  --paper-mid: #eceae2;
+  --paper-edge: #e1ded5;
+  --bg-surface: #eeece5;
+  --bg-card: rgba(255, 254, 250, 0.78);
+  --bg-card-solid: #f7f5f0;
+  --bg-subtle: rgba(45, 43, 39, 0.045);
+
+  --ink-primary: #252421;
+  --ink-secondary: rgba(37, 36, 33, 0.66);
+  --ink-muted: rgba(37, 36, 33, 0.42);
+  --ink-micro: rgba(65, 62, 56, 0.45);
+
+  --hud-frame: rgba(118, 111, 100, 0.48);
+  --hud-bracket: rgba(96, 90, 80, 0.74);
+  --hud-track: rgba(145, 138, 126, 0.24);
+  --hud-fill: #9b9386;
+  --hud-tick-off: rgba(135, 128, 117, 0.28);
+  --hud-tick-on: #5f5a51;
+
+  --accent: #2558eb;
+  --accent-soft: rgba(37, 88, 235, 0.1);
+  --accent-glow: rgba(37, 88, 235, 0.28);
+  --accent-contrast: #ffffff;
+
+  --aura-core: rgba(175, 215, 255, 0.48);
+  --aura-mid: rgba(135, 175, 255, 0.18);
+
+  --hairline: rgba(95, 89, 79, 0.18);
+  --hairline-strong: rgba(95, 89, 79, 0.36);
+
+  --status-ok: #137a4b;
+  --status-ok-bg: rgba(19, 122, 75, 0.11);
+  --status-err: #d93829;
+  --status-err-bg: rgba(217, 56, 41, 0.12);
+  --status-heal: #d97706;
+  --status-heal-bg: rgba(217, 119, 6, 0.12);
+  --status-recover: #0d9488;
+  --status-recover-bg: rgba(13, 148, 136, 0.13);
+
+  --sweep-soft-a: rgba(92, 148, 255, 0.26);
+  --sweep-soft-b: rgba(244, 242, 236, 0.88);
+}
+
+/* Hand-defined semantic colors used across the boot markup and boot.ts. */
+#fc-boot .b-hairline { border-color: var(--hairline); }
+#fc-boot .b-hairline-strong { border-color: var(--hairline-strong); }
+#fc-boot .text-ink { color: var(--ink-primary); }
+#fc-boot .text-ink-sec { color: var(--ink-secondary); }
+#fc-boot .text-ink-muted { color: var(--ink-muted); }
+#fc-boot .text-accent { color: var(--accent); }
+#fc-boot .bg-accent {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* Font stacks matching the preview page's tailwind.config override. */
+#fc-boot {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#fc-boot .font-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+#fc-boot .font-sans {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+/* =========================================================================
+   BOOT OVERLAY (#fc-boot) — 60FPS GPU-ACCELERATED STAGE
+   ========================================================================= */
+#fc-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  background-color: #0b0e16;
+  color: var(--ink-primary);
+  user-select: none;
+  will-change: transform, opacity;
+  transition: transform 0.44s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#fc-boot { display: none; }
+html.fc-boot-armed #fc-boot { display: block; }
+
+#fc-boot.boot-hidden {
+  display: none;
+  pointer-events: none;
+}
+#fc-boot.boot-exiting {
+  transform: translate3d(0, -24px, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Warm Ivory Paper Stage Layer */
+#fc-boot .boot-stage {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 48%, var(--paper-center) 0%, var(--paper-mid) 54%, var(--paper-edge) 100%);
+  opacity: 0;
+  will-change: opacity;
+}
+
+/* Fine Tactile Paper Grain Overlay */
+#fc-boot .paper-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.042;
+  mix-blend-mode: multiply;
+}
+
+/* Soft Icy-Blue Ambient Glow Behind Center RR Emblem */
+#fc-boot .center-ambient-aura {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: min(620px, 88vw);
+  height: min(620px, 88vw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  corner-shape: round;
+  background: radial-gradient(circle, var(--aura-core) 0%, var(--aura-mid) 42%, transparent 72%);
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: filter 0.35s ease;
+}
+
+/* Act 1 Obsidian Dark Curtain */
+#fc-boot .boot-curtain {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 48%, #131826 0%, #0b0e16 64%, #06080e 100%);
+  z-index: 15;
+  pointer-events: none;
+  will-change: opacity;
+}
+#fc-boot .curtain-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(120, 170, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 170, 255, 0.045) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+}
+
+/* Act 2 Diagonal Luminous Sweep Beam */
+#fc-boot .boot-sweep-beam {
+  position: absolute;
+  top: -35%;
+  left: -65%;
+  width: 56%;
+  height: 170%;
+  z-index: 42;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-40%, 0, 0) skewX(-22deg);
+  will-change: transform, opacity;
+}
+#fc-boot .boot-sweep-beam.sweep-soft {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--sweep-soft-a) 30%,
+    var(--sweep-soft-b) 50%,
+    var(--sweep-soft-a) 70%,
+    transparent 100%
+  );
+  filter: blur(14px);
+}
+
+/* =========================================================================
+   REFERENCE HUD FRAME (SELF_CHECK_SCAN)
+   ========================================================================= */
+#fc-boot .hud-wrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 8px 14px;
+}
+@media (min-width: 640px) {
+  #fc-boot .hud-wrapper {
+    padding: 18px 24px 10px 24px;
+  }
+}
+
+#fc-boot .hud-frame {
+  position: relative;
+  flex: 1;
+  border: 1px solid var(--hud-frame);
+  border-radius: 10px;
+  overflow: hidden;
+  will-change: opacity, transform;
+}
+
+#fc-boot .hud-bracket {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+#fc-boot .hud-bracket::before,
+#fc-boot .hud-bracket::after {
+  content: "";
+  position: absolute;
+  background-color: var(--hud-bracket);
+}
+#fc-boot .hud-bracket::before { height: 1.2px; width: 14px; }
+#fc-boot .hud-bracket::after { width: 1.2px; height: 14px; }
+
+#fc-boot .hb-tl { top: 14px; left: 14px; }
+#fc-boot .hb-tl::before { top: 0; left: 0; }
+#fc-boot .hb-tl::after { top: 0; left: 0; }
+#fc-boot .hb-tr { top: 14px; right: 14px; }
+#fc-boot .hb-tr::before { top: 0; right: 0; }
+#fc-boot .hb-tr::after { top: 0; right: 0; }
+#fc-boot .hb-bl { bottom: 14px; left: 14px; }
+#fc-boot .hb-bl::before { bottom: 0; left: 0; }
+#fc-boot .hb-bl::after { bottom: 0; left: 0; }
+#fc-boot .hb-br { bottom: 14px; right: 14px; }
+#fc-boot .hb-br::before { bottom: 0; right: 0; }
+#fc-boot .hb-br::after { bottom: 0; right: 0; }
+
+#fc-boot .hud-side-axis {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+#fc-boot .hud-side-axis.left { left: 16px; }
+#fc-boot .hud-side-axis.right { right: 16px; }
+#fc-boot .hud-side-axis .v-stem {
+  width: 1px;
+  height: clamp(46px, 11vh, 96px);
+  background-color: var(--hud-frame);
+}
+#fc-boot .hud-side-axis .v-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  corner-shape: round;
+  border: 1px solid var(--hud-bracket);
+}
+
+#fc-boot .hud-hatch-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+#fc-boot .hud-hatch {
+  width: 1.4px;
+  height: 11px;
+  background-color: var(--hud-bracket);
+  transform: skewX(-24deg);
+  opacity: 0.72;
+}
+
+#fc-boot .diag-tick-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+@media (max-width: 640px) {
+  #fc-boot .diag-tick-row { gap: 3.5px; }
+}
+#fc-boot .diag-tick {
+  width: 1.25px;
+  height: 6px;
+  background-color: var(--hud-tick-off);
+  transform: skewX(-28deg);
+  transition: background-color 0.1s ease;
+  flex-shrink: 0;
+}
+#fc-boot .diag-tick.lit {
+  background-color: var(--hud-tick-on);
+}
+#fc-boot .diag-tick.err {
+  background-color: var(--status-err);
+}
+#fc-boot .diag-tick.healing {
+  background-color: var(--status-heal);
+}
+#fc-boot .diag-tick.recovered {
+  background-color: var(--status-recover);
+}
+
+/* Preflight compensations: the utility layer was compiled without preflight,
+   so these composite-var utilities lose their --tw-* defaults and resolve to
+   invalid (dropped) declarations. Plain equivalents, scoped, win on id
+   specificity regardless of order. */
+#fc-boot .-translate-x-1\/2 { transform: translateX(-50%); }
+#fc-boot .tabular-nums { font-variant-numeric: tabular-nums; }
+#fc-boot .backdrop-blur-sm {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+#fc-boot .backdrop-blur-md {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* =========================================================================
+   HERO CENTERPIECE (RR 3D EMBOSSED SVG + ORBITALS + GLITCH + PARTICLES)
+   ========================================================================= */
+#fc-boot .hero-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#fc-boot .hero-emblem-wrap {
+  position: relative;
+  width: clamp(270px, 60vmin, 560px);
+  aspect-ratio: 640 / 440;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, -4%, 0);
+  will-change: transform, opacity;
+}
+
+/* Fault / Self-Healing / Recovery Smooth Color Transitions */
+#fc-boot .orbit-color-group {
+  transition: filter 0.42s ease;
+}
+#fc-boot.is-fault-state .orbit-color-group {
+  filter: hue-rotate(138deg) saturate(1.45) brightness(1.06);
+}
+#fc-boot.is-fault-state .center-ambient-aura {
+  filter: hue-rotate(140deg) saturate(1.6);
+}
+#fc-boot.is-healing-state .orbit-color-group {
+  filter: hue-rotate(178deg) saturate(1.42) brightness(1.1);
+}
+#fc-boot.is-healing-state .center-ambient-aura {
+  filter: hue-rotate(174deg) saturate(1.45);
+}
+#fc-boot.is-recovered-state .orbit-color-group {
+  filter: hue-rotate(-56deg) saturate(1.38) brightness(1.1);
+}
+#fc-boot.is-recovered-state .center-ambient-aura {
+  filter: hue-rotate(-52deg) saturate(1.5);
+}
+
+#fc-boot .rr-glitch-clone {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+#fc-boot .rr-glitch-clone.fault-crimson {
+  filter: hue-rotate(96deg) saturate(2.1) brightness(1.05);
+}
+
+@keyframes fc-boot-spin-diag {
+  to { transform: rotate(360deg); }
+}
+#fc-boot .diag-spinner {
+  animation: fc-boot-spin-diag 0.9s linear infinite;
+}
+
+#fc-boot #hud-fault-capsule {
+  transition: border-color 0.28s ease, box-shadow 0.28s ease, opacity 0.24s ease, transform 0.24s ease;
+}
+#fc-boot #hud-fault-capsule.capsule-alert {
+  border-color: rgba(217, 56, 41, 0.5);
+  box-shadow: 0 10px 28px rgba(217, 56, 41, 0.14);
+}
+#fc-boot #hud-fault-capsule.capsule-healing {
+  border-color: rgba(217, 119, 6, 0.52);
+  box-shadow: 0 10px 30px rgba(37, 88, 235, 0.14), 0 0 0 1px rgba(245, 158, 11, 0.14);
+}
+#fc-boot #hud-fault-capsule.capsule-recovered {
+  border-color: rgba(13, 148, 136, 0.55);
+  box-shadow: 0 10px 28px rgba(13, 148, 136, 0.18);
+}
+
+#fc-boot #boot-particles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 24;
+  pointer-events: none;
+}
+
+/* =========================================================================
+   CLEAN END-STATE WELCOME OVERLAY (LOGO-ONLY + MATTE CTA BUTTON)
+   ========================================================================= */
+#fc-boot .welcome-layer {
+  position: absolute;
+  left: 50%;
+  top: 59%;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: min(440px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+#fc-boot .welcome-layer.welcome-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#fc-boot .welcome-stagger {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0) scale(0.96);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.68s cubic-bezier(0.34, 1.48, 0.64, 1);
+  will-change: transform, opacity;
+}
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-1 { transition-delay: 0.05s; }
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-2 { transition-delay: 0.14s; }
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-3 { transition-delay: 0.24s; }
+#fc-boot .welcome-layer.welcome-visible .welcome-stagger-4 { transition-delay: 0.35s; }
+
+/* Real-probe health note under the CTA; hidden unless probes report failures. */
+#fc-boot .welcome-note {
+  margin-top: 10px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--status-err);
+  opacity: 0;
+  transition: opacity 0.4s ease 0.45s;
+}
+#fc-boot .welcome-layer.welcome-visible .welcome-note {
+  opacity: 1;
+}
+
+/* Restrained Low-Saturation Matte Ink Pill Button */
+#fc-boot .welcome-cta-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 32px;
+  border-radius: 9999px;
+  corner-shape: round;
+  border: 1px solid rgba(37, 36, 33, 0.14);
+  background: linear-gradient(180deg, #353430 0%, #262522 100%);
+  color: #f6f4ee;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(37, 36, 33, 0.14),
+    0 2px 6px rgba(37, 36, 33, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.26s ease,
+    background 0.24s ease,
+    border-color 0.24s ease;
+}
+#fc-boot .welcome-cta-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -115%;
+  width: 68%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  transform: skewX(-24deg);
+  transition: left 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+#fc-boot .welcome-cta-btn:hover {
+  transform: translate3d(0, -2px, 0) scale(1.02);
+  background: linear-gradient(180deg, #3f3e39 0%, #2d2c28 100%);
+  box-shadow:
+    0 14px 30px rgba(37, 36, 33, 0.2),
+    0 3px 8px rgba(37, 36, 33, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+#fc-boot .welcome-cta-btn:hover::before {
+  left: 145%;
+}
+#fc-boot .welcome-cta-btn:active {
+  transform: translate3d(0, 0, 0) scale(0.98);
+}
+#fc-boot .welcome-cta-btn:focus-visible {
+  outline: 2px solid var(--hud-bracket);
+  outline-offset: 3px;
+}
+#fc-boot .welcome-cta-arrow {
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#fc-boot .welcome-cta-btn:hover .welcome-cta-arrow {
+  transform: translateX(4px);
+}
+
+/* Belt-and-braces a11y guard; the boot never arms under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  #fc-boot, #fc-boot *, #fc-boot *::before, #fc-boot *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

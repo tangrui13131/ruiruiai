@@ -142,6 +142,10 @@ export const TRANSLATION_SCOPE_GLOB_EXCLUDES = [
   '**/__pycache__/**',
   '**/.pytest_cache/**',
   'apps/web/dist/**',
+  // Desktop packaging writes an Electron runtime and NSIS output trees next to
+  // their sources; they are ignored build products, not documentation.
+  'apps/desktop/runtime/**',
+  'apps/desktop/release*/**',
   '.artifacts/**',
   'python/sdk-runtime/src/deepseek_harness_runtime/runtime/**',
   'vendor/**',

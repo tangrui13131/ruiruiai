@@ -589,6 +589,16 @@ interface ActiveRun {
   settlementIssue?: ProjectRunSettlementIssue
 }
 
+/** Lease, fencing, and startup heartbeat acquired before a run's Team exists. */
+interface RunStartLease {
+  readonly ownerId: string
+  readonly resourceId: string
+  readonly leaseToken: bigint
+  readonly write: WorkflowWriteContext
+  readonly fencedStore: FencedOrchestrationStore
+  readonly startupHeartbeat: NodeJS.Timeout
+}
+
 /** Launches real Harness teams without exposing process-local state as durable truth. */
 export class FutureCupRunLauncher implements ProjectRunLauncher {
   private readonly profiles: readonly AgentProfile[]
@@ -614,60 +624,170 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     this.createDrillTeam = options.createDrillTeam ?? ((request, spec) => this.defaultDrillTeam(request, spec))
   }
 
+  /**
+   * Acquire the workflow lease and fencing context shared by a run and a drill.
+   *
+   * The caller owns cleanup after this resolves, so later startup steps run outside it:
+   * a failure there must still release the lease through {@link failStartup}.
+   * @param projectId - project the lease covers.
+   * @param ownerPrefix - owner-id prefix naming the launching flow.
+   * @returns the lease, write context, fenced store, and startup heartbeat.
+   */
+  private async acquireStartLease(projectId: string, ownerPrefix: string): Promise<RunStartLease> {
+    const ownerId = `${ownerPrefix}-${randomUUID()}`
+    const resourceId = `workflow:${projectId}`
+    const lease = await this.options.store.acquireWorkflowLease(
+      resourceId,
+      projectId,
+      ownerId,
+      this.options.leaseDurationMs,
+    )
+    if (!lease.acquired || lease.fencingToken === undefined) {
+      throw new ProjectRunConflictError(projectId)
+    }
+    const leaseToken = lease.fencingToken
+    const startupHeartbeat = setInterval(() => {
+      void this.renewLease(resourceId, ownerId, leaseToken)
+    }, this.options.heartbeatIntervalMs)
+    startupHeartbeat.unref()
+    const write: WorkflowWriteContext = {
+      resourceId,
+      ownerId,
+      fencingToken: leaseToken,
+    }
+    const fencedStore = new FencedOrchestrationStore(this.options.store, write)
+    return { ownerId, resourceId, leaseToken, write, fencedStore, startupHeartbeat }
+  }
+
+  /**
+   * Publish the startup barrier other callers await before starting the same project.
+   * @param projectId - project whose startup is now in flight.
+   * @returns the resolver that releases the barrier.
+   */
+  private beginStarting(projectId: string): () => void {
+    let finishStarting!: () => void
+    const starting = new Promise<void>((resolve) => {
+      finishStarting = resolve
+    })
+    this.starting.set(projectId, starting)
+    return finishStarting
+  }
+
+  /**
+   * Reconcile interrupted work before a new run starts under the acquired lease.
+   * @param projectId - project whose interrupted runs are reconciled.
+   * @param fencedStore - store writing under the new lease.
+   */
+  private async reconcileForStart(projectId: string, fencedStore: FencedOrchestrationStore): Promise<void> {
+    await this.reconcileInterruptedRun(projectId, fencedStore)
+    this.settlementFailures.delete(projectId)
+    this.throwIfClosed()
+  }
+
+  /**
+   * Create the per-run directories both flows own.
+   * @param ownerId - owner id naming the run's directory.
+   * @returns the run root, agent home, and screenshot directory.
+   */
+  private async prepareRunDirectories(
+    ownerId: string,
+  ): Promise<{ runRoot: string; homeRoot: string; screenshotDir: string }> {
+    const runRoot = resolve(this.options.workspaceRoot, ownerId)
+    const homeRoot = resolve(this.options.agentHomeRoot, ownerId)
+    const screenshotDir = resolve(runRoot, 'screenshots')
+    await mkdir(runRoot, { recursive: true, mode: 0o700 })
+    await mkdir(homeRoot, { recursive: true, mode: 0o700 })
+    await mkdir(screenshotDir, { recursive: true, mode: 0o700 })
+    return { runRoot, homeRoot, screenshotDir }
+  }
+
+  /**
+   * Publish the active run once its Team exists and start executing it.
+   * @param project - project being run.
+   * @param run - created run record.
+   * @param lease - acquired lease context.
+   * @param team - started Team.
+   * @param workspace - workspace the run executes in.
+   */
+  private async activateRun(
+    project: PlatformProjectSummary,
+    run: ProjectRunRecord,
+    lease: RunStartLease,
+    team: FutureCupRunTeam,
+    workspace: string,
+  ): Promise<void> {
+    if (this.isClosed()) {
+      await team.close()
+      throw new Error('FutureCupRunLauncher closed during startup')
+    }
+    clearInterval(lease.startupHeartbeat)
+    const heartbeat = setInterval(() => {
+      void this.renew(project.id, lease.ownerId, lease.leaseToken)
+    }, this.options.heartbeatIntervalMs)
+    heartbeat.unref()
+    const active = {
+      project,
+      run,
+      write: lease.write,
+      team,
+      heartbeat,
+      cancelled: false,
+      settled: false,
+      job: Promise.resolve(),
+    } satisfies ActiveRun
+    active.job = this.execute(active, workspace).catch((error: unknown) => {
+      this.options.onError?.(error)
+    })
+    this.active.set(project.id, active)
+  }
+
+  /**
+   * Release whatever the failed start acquired and rethrow in the launcher's error shape.
+   * @param error - failure being reported.
+   * @param run - run record, when creation got that far.
+   * @param lease - lease context, when acquisition got that far.
+   */
+  private async failStartup(
+    error: unknown,
+    run: ProjectRunRecord | undefined,
+    lease: RunStartLease | undefined,
+  ): Promise<never> {
+    if (run !== undefined && lease !== undefined) {
+      await this.failStart(run, error, lease.write, lease.startupHeartbeat)
+    } else if (lease !== undefined) {
+      clearInterval(lease.startupHeartbeat)
+      await this.options.store.releaseWorkflowLease(lease.resourceId, lease.ownerId, lease.leaseToken)
+    }
+    if (error instanceof ProjectRunConflictError) throw error
+    throw new ProjectRunStartError(
+      error instanceof Error ? error.message : String(error),
+      { cause: error },
+    )
+  }
+
   /** {@inheritDoc ProjectRunLauncher.start} */
   async start(project: PlatformProjectSummary): Promise<{ runId: string }> {
     if (this.closed) throw new Error('FutureCupRunLauncher is closed')
     if (this.active.has(project.id) || this.starting.has(project.id)) {
       throw new ProjectRunConflictError(project.id)
     }
-    let finishStarting!: () => void
-    const starting = new Promise<void>((resolve) => {
-      finishStarting = resolve
-    })
-    this.starting.set(project.id, starting)
-    const ownerId = `future-cup-run-${randomUUID()}`
-    const resourceId = `workflow:${project.id}`
-    let leaseToken: bigint | undefined
+    const finishStarting = this.beginStarting(project.id)
+    let lease: RunStartLease | undefined
     let run: ProjectRunRecord | undefined
-    let startupHeartbeat: NodeJS.Timeout | undefined
     try {
-      const lease = await this.options.store.acquireWorkflowLease(
-        resourceId,
-        project.id,
-        ownerId,
-        this.options.leaseDurationMs,
-      )
-      if (!lease.acquired || lease.fencingToken === undefined) {
-        throw new ProjectRunConflictError(project.id)
-      }
-      leaseToken = lease.fencingToken
-      const fencingToken = lease.fencingToken
-      startupHeartbeat = setInterval(() => {
-        void this.renewLease(resourceId, ownerId, fencingToken)
-      }, this.options.heartbeatIntervalMs)
-      startupHeartbeat.unref()
-      const write: WorkflowWriteContext = {
-        resourceId,
-        ownerId,
-        fencingToken,
-      }
-      const fencedStore = new FencedOrchestrationStore(this.options.store, write)
-      await this.reconcileInterruptedRun(project.id, fencedStore)
-      this.settlementFailures.delete(project.id)
-      this.throwIfClosed()
-      const runRoot = resolve(this.options.workspaceRoot, ownerId)
+      const started = await this.acquireStartLease(project.id, 'future-cup-run')
+      lease = started
+      await this.reconcileForStart(project.id, started.fencedStore)
+      const { ownerId, fencedStore } = started
+      const { runRoot, homeRoot, screenshotDir } = await this.prepareRunDirectories(ownerId)
       const workspace = resolve(runRoot, 'workspace')
-      const homeRoot = resolve(this.options.agentHomeRoot, ownerId)
-      const screenshotDir = resolve(runRoot, 'screenshots')
       await mkdir(workspace, { recursive: true, mode: 0o700 })
-      await mkdir(homeRoot, { recursive: true, mode: 0o700 })
-      await mkdir(screenshotDir, { recursive: true, mode: 0o700 })
       this.throwIfClosed()
       await this.prepareDerivedWorkspace(project, workspace)
       run = await fencedStore.createProjectRun(
         project.id,
         ownerId,
-        leaseToken,
+        started.leaseToken,
         workspace,
       )
       const team = await this.createTeam({
@@ -681,49 +801,10 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
         profiles: await this.resolveProfiles(project.id),
         preserveExistingWorkspace: project.derivationMode === 'UPGRADE',
       })
-      if (this.isClosed()) {
-        await team.close()
-        throw new Error('FutureCupRunLauncher closed during startup')
-      }
-      clearInterval(startupHeartbeat)
-      startupHeartbeat = undefined
-      const heartbeat = setInterval(() => {
-        void this.renew(project.id, ownerId, fencingToken)
-      }, this.options.heartbeatIntervalMs)
-      heartbeat.unref()
-      const active = {
-        project,
-        run,
-        write,
-        team,
-        heartbeat,
-        cancelled: false,
-        settled: false,
-        job: Promise.resolve(),
-      } satisfies ActiveRun
-      active.job = this.execute(active, workspace).catch((error: unknown) => {
-        this.options.onError?.(error)
-      })
-      this.active.set(project.id, active)
+      await this.activateRun(project, run, started, team, workspace)
       return { runId: run.id }
     } catch (error: unknown) {
-      if (run !== undefined && leaseToken !== undefined) {
-        await this.failStart(run, error, {
-          resourceId,
-          ownerId,
-          fencingToken: leaseToken,
-        }, startupHeartbeat)
-      } else {
-        if (startupHeartbeat !== undefined) clearInterval(startupHeartbeat)
-        if (leaseToken !== undefined) {
-          await this.options.store.releaseWorkflowLease(resourceId, ownerId, leaseToken)
-        }
-      }
-      if (error instanceof ProjectRunConflictError) throw error
-      throw new ProjectRunStartError(
-        error instanceof Error ? error.message : String(error),
-        { cause: error },
-      )
+      return await this.failStartup(error, run, lease)
     } finally {
       finishStarting()
       this.starting.delete(project.id)
@@ -754,50 +835,16 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
     }
     const spec = testerOutputSchema.parse(testerTask.result)
 
-    let finishStarting!: () => void
-    const starting = new Promise<void>((resolve) => {
-      finishStarting = resolve
-    })
-    this.starting.set(project.id, starting)
-    const ownerId = `future-cup-drill-${randomUUID()}`
-    const resourceId = `workflow:${project.id}`
-    let leaseToken: bigint | undefined
+    const finishStarting = this.beginStarting(project.id)
+    let lease: RunStartLease | undefined
     let run: ProjectRunRecord | undefined
-    let startupHeartbeat: NodeJS.Timeout | undefined
 
     try {
-      const lease = await this.options.store.acquireWorkflowLease(
-        resourceId,
-        project.id,
-        ownerId,
-        this.options.leaseDurationMs,
-      )
-      if (!lease.acquired || lease.fencingToken === undefined) {
-        throw new ProjectRunConflictError(project.id)
-      }
-      leaseToken = lease.fencingToken
-      const fencingToken = lease.fencingToken
-      startupHeartbeat = setInterval(() => {
-        void this.renewLease(resourceId, ownerId, fencingToken)
-      }, this.options.heartbeatIntervalMs)
-      startupHeartbeat.unref()
-
-      const write: WorkflowWriteContext = {
-        resourceId,
-        ownerId,
-        fencingToken,
-      }
-      const fencedStore = new FencedOrchestrationStore(this.options.store, write)
-      await this.reconcileInterruptedRun(project.id, fencedStore)
-      this.settlementFailures.delete(project.id)
-      this.throwIfClosed()
-
-      const runRoot = resolve(this.options.workspaceRoot, ownerId)
-      const homeRoot = resolve(this.options.agentHomeRoot, ownerId)
-      const screenshotDir = resolve(runRoot, 'screenshots')
-      await mkdir(runRoot, { recursive: true, mode: 0o700 })
-      await mkdir(homeRoot, { recursive: true, mode: 0o700 })
-      await mkdir(screenshotDir, { recursive: true, mode: 0o700 })
+      const started = await this.acquireStartLease(project.id, 'future-cup-drill')
+      lease = started
+      await this.reconcileForStart(project.id, started.fencedStore)
+      const { ownerId, fencedStore } = started
+      const { runRoot, homeRoot, screenshotDir } = await this.prepareRunDirectories(ownerId)
       this.throwIfClosed()
 
       await ensureGoldenWorkspaceSnapshot(workspace, tasks)
@@ -808,7 +855,7 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
       run = await fencedStore.createProjectRun(
         project.id,
         ownerId,
-        leaseToken,
+        started.leaseToken,
         workspace,
       )
       const team = await this.createDrillTeam({
@@ -822,49 +869,10 @@ export class FutureCupRunLauncher implements ProjectRunLauncher {
         profiles: await this.resolveProfiles(project.id),
       }, spec)
 
-      if (this.isClosed()) {
-        await team.close()
-        throw new Error('FutureCupRunLauncher closed during startup')
-      }
-      clearInterval(startupHeartbeat)
-      startupHeartbeat = undefined
-      const heartbeat = setInterval(() => {
-        void this.renew(project.id, ownerId, fencingToken)
-      }, this.options.heartbeatIntervalMs)
-      heartbeat.unref()
-      const active = {
-        project,
-        run,
-        write,
-        team,
-        heartbeat,
-        cancelled: false,
-        settled: false,
-        job: Promise.resolve(),
-      } satisfies ActiveRun
-      active.job = this.execute(active, workspace).catch((error: unknown) => {
-        this.options.onError?.(error)
-      })
-      this.active.set(project.id, active)
+      await this.activateRun(project, run, started, team, workspace)
       return { runId: run.id, injectedFault }
     } catch (error: unknown) {
-      if (run !== undefined && leaseToken !== undefined) {
-        await this.failStart(run, error, {
-          resourceId,
-          ownerId,
-          fencingToken: leaseToken,
-        }, startupHeartbeat)
-      } else {
-        if (startupHeartbeat !== undefined) clearInterval(startupHeartbeat)
-        if (leaseToken !== undefined) {
-          await this.options.store.releaseWorkflowLease(resourceId, ownerId, leaseToken)
-        }
-      }
-      if (error instanceof ProjectRunConflictError) throw error
-      throw new ProjectRunStartError(
-        error instanceof Error ? error.message : String(error),
-        { cause: error },
-      )
+      return await this.failStartup(error, run, lease)
     } finally {
       finishStarting()
       this.starting.delete(project.id)

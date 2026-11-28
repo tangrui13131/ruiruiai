@@ -4,13 +4,17 @@ import { mkdir, readFile, symlink, unlink, writeFile } from 'node:fs/promises'
 import { availableParallelism, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { execa } from 'execa'
 import type { SessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 import { encodeSegment, generationLogFilename, type JsonlCompression } from '../packages/session/session-persistence-jsonl/src/format.ts'
 import { compressZstdFrame, decompressZstdFrame, scanZstdFrames } from '../packages/session/session-persistence-jsonl/src/zstd.ts'
 import { runMigrationJobs } from './migrate-sessions-to-v4.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
+
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
 
 const repository = resolve(import.meta.dirname, '..')
 const script = join(repository, 'scripts/migrate-sessions-to-v4.ts')

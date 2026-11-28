@@ -96,7 +96,7 @@ describe('MyTeamsPage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '编辑成员' }).at(-1) as HTMLElement)
 
     expect(await screen.findByDisplayValue('Planner')).toBeTruthy()
-    expect(screen.getByText(/1\/7/)).toBeTruthy()
+    expect(screen.getByText(/1\/8/)).toBeTruthy()
   })
 
   it('creates a logical Team from the create dialog', async () => {

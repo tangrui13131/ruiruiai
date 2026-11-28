@@ -28,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api/client.ts'
 import type {
   AgentDefinitionView,
@@ -107,6 +107,154 @@ function sanitizeAgentId(raw: string): string | undefined {
   const trimmed = raw.trim()
   if (trimmed === '') return undefined
   return trimmed
+}
+
+type PageDictionary = ReturnType<typeof useLocale>['dictionary']
+
+/** Shared modal wiring: localized confirm/cancel labels and the pending flag. */
+function modalWiring(
+  dictionary: PageDictionary,
+  open: boolean,
+  close: () => void,
+  onOk: () => void,
+  confirming: boolean,
+) {
+  return {
+    open,
+    onCancel: close,
+    onOk,
+    confirmLoading: confirming,
+    okText: dictionary.common.confirm,
+    cancelText: dictionary.common.cancel,
+  }
+}
+
+/** Inline modal error banner shared by every form on this page. */
+function ModalError({ error }: { error: string | undefined }): ReactNode {
+  return error === undefined ? null : (
+    <Alert
+      type="error"
+      showIcon
+      style={{ marginBottom: 12 }}
+      title={error}
+    />
+  )
+}
+
+/** Version identifier input shared by the create and version forms. */
+function VersionField(
+  { label, value, onChange }: { label: string; value: string; onChange: (value: string) => void },
+): ReactNode {
+  return (
+    <Form.Item label={label} required>
+      <Input
+        value={value}
+        onChange={(event) => { onChange(event.target.value) }}
+      />
+    </Form.Item>
+  )
+}
+
+/** Model selector shared by the create and version forms. */
+function ModelField(
+  { label, value, onChange }: { label: string; value: string; onChange: (value: string) => void },
+): ReactNode {
+  return (
+    <Form.Item label={label} required>
+      <Select
+        value={value}
+        onChange={(next: string) => { onChange(next) }}
+        options={MODEL_OPTIONS}
+      />
+    </Form.Item>
+  )
+}
+
+/** Per-agent concurrency cap shared by the create and version forms. */
+function MaxConcurrencyField(
+  { label, value, onChange }: { label: string; value: number; onChange: (value: number) => void },
+): ReactNode {
+  return (
+    <Form.Item label={label}>
+      <InputNumber
+        min={1}
+        max={16}
+        style={{ width: '100%' }}
+        value={value}
+        onChange={(next) => { onChange(next ?? 1) }}
+      />
+    </Form.Item>
+  )
+}
+
+/** Capability weight shared by the create and version forms. */
+function CapabilityWeightField(
+  { label, value, onChange }: { label: string; value: number; onChange: (value: number) => void },
+): ReactNode {
+  return (
+    <Form.Item label={label}>
+      <InputNumber
+        min={0.1}
+        max={1}
+        step={0.1}
+        style={{ width: '100%' }}
+        value={value}
+        onChange={(next) => { onChange(next ?? 1) }}
+      />
+    </Form.Item>
+  )
+}
+
+/** Prompt textarea shared by the create and version forms. */
+function PromptTextArea(
+  { value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void },
+): ReactNode {
+  return (
+    <Input.TextArea
+      rows={6}
+      value={value}
+      onChange={(event) => { onChange(event.target.value) }}
+      placeholder={placeholder}
+    />
+  )
+}
+
+/** Auto-publish switch shared by the create and version forms. */
+function AutoPublishSwitch(
+  { label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void },
+): ReactNode {
+  return (
+    <Form.Item style={{ marginBottom: 0 }}>
+      <Checkbox
+        checked={checked}
+        onChange={(event) => { onChange(event.target.checked) }}
+      >
+        {label}
+      </Checkbox>
+    </Form.Item>
+  )
+}
+
+/** Prompt editor and auto-publish switch shared by the create and version forms. */
+function PromptSection(
+  { label, prompt, placeholder, publishLabel, autoPublish, onPrompt, onAutoPublish }: {
+    label: ReactNode
+    prompt: string
+    placeholder: string
+    publishLabel: string
+    autoPublish: boolean
+    onPrompt: (value: string) => void
+    onAutoPublish: (checked: boolean) => void
+  },
+): ReactNode {
+  return (
+    <>
+      <Form.Item label={label} required>
+        <PromptTextArea value={prompt} placeholder={placeholder} onChange={onPrompt} />
+      </Form.Item>
+      <AutoPublishSwitch label={publishLabel} checked={autoPublish} onChange={onAutoPublish} />
+    </>
+  )
 }
 
 /** Browse built-in and custom Agent definitions, manage versions, and customize prompts. */
@@ -548,7 +696,7 @@ export function AgentsPage() {
                   return (
                     <List.Item
                       className={selectedDefinition?.id === definition.id
-                        ? 'my-team-row my-team-row-active'
+                        ? 'my-team-row selected'
                         : 'my-team-row'}
                       onClick={() => { setSelectedId(definition.id) }}
                       actions={[
@@ -586,11 +734,11 @@ export function AgentsPage() {
                         title={(
                           <Space wrap size={6}>
                             <Text strong>{definition.name}</Text>
-                            <Tag color={isBuiltin ? 'blue' : 'cyan'}>
+                            <Tag>
                               {isBuiltin ? dictionary.agents.builtinTag : dictionary.agents.customTag}
                             </Tag>
                             {latest === undefined ? null : (
-                              <Tag color="geekblue">{roleLabel(latest.role)}</Tag>
+                              <Tag>{roleLabel(latest.role)}</Tag>
                             )}
                             <Tag color={statusTagColor(definition.status)}>
                               {statusLabel(definition.status)}
@@ -630,7 +778,7 @@ export function AgentsPage() {
               title={(
                 <Space wrap>
                   <Text strong>{selectedDefinition.name}</Text>
-                  <Tag color={selectedDefinition.builtin === true ? 'blue' : 'cyan'}>
+                  <Tag>
                     {selectedDefinition.builtin === true
                       ? dictionary.agents.builtinTag
                       : dictionary.agents.customTag}
@@ -721,7 +869,7 @@ export function AgentsPage() {
                       <Space orientation="vertical" style={{ width: '100%' }} size={6}>
                         <Space wrap>
                           <Text strong>{ver.version}</Text>
-                          <Tag color="geekblue">{roleLabel(ver.role)}</Tag>
+                          <Tag>{roleLabel(ver.role)}</Tag>
                           <Tag color={statusTagColor(verStatus)}>{statusLabel(verStatus)}</Tag>
                           <Tag>{dictionary.agents.model}: {ver.model}</Tag>
                           {ver.maxConcurrency === undefined ? null : (
@@ -737,22 +885,14 @@ export function AgentsPage() {
                         </Space>
                         <Space wrap size={4}>
                           {Object.entries(ver.capabilities).map(([cap, weight]) => (
-                            <Tag key={cap} color="cyan">
+                            <Tag key={cap}>
                               {cap}: {String(weight)}
                             </Tag>
                           ))}
                         </Space>
                         {ver.prompt === undefined ? null : (
                           <Paragraph
-                            style={{
-                              marginBottom: 0,
-                              padding: '8px 12px',
-                              background: '#f6f8fa',
-                              borderRadius: 6,
-                              whiteSpace: 'pre-wrap',
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                            }}
+                            className="code-block"
                             ellipsis={{ rows: 3, expandable: true, symbol: dictionary.common.details }}
                           >
                             {ver.prompt}
@@ -770,26 +910,17 @@ export function AgentsPage() {
 
       <Modal
         title={dictionary.agents.createTitle}
-        open={createOpen}
         width={680}
-        onCancel={() => {
-          setCreateOpen(false)
-          setModalError(undefined)
-        }}
-        onOk={() => { void handleCreateAgent() }}
-        confirmLoading={pending === 'create'}
-        okText={dictionary.common.confirm}
-        cancelText={dictionary.common.cancel}
+        {...modalWiring(
+          dictionary,
+          createOpen,
+          () => { setCreateOpen(false); setModalError(undefined) },
+          () => { void handleCreateAgent() },
+          pending === 'create',
+        )}
       >
         <Form layout="vertical">
-          {modalError === undefined ? null : (
-            <Alert
-              type="error"
-              showIcon
-              style={{ marginBottom: 12 }}
-              title={modalError}
-            />
-          )}
+          <ModalError error={modalError} />
           <Row gutter={12}>
             <Col xs={24} sm={12}>
               <Form.Item label={dictionary.agents.role} required>
@@ -845,45 +976,13 @@ export function AgentsPage() {
           </Form.Item>
 
           <Row gutter={12}>
+            <Col xs={12} sm={6}><VersionField label={dictionary.agents.version} value={version} onChange={setVersion} /></Col>
+            <Col xs={12} sm={6}><ModelField label={dictionary.agents.model} value={model} onChange={setModel} /></Col>
             <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.version} required>
-                <Input
-                  value={version}
-                  onChange={(event) => { setVersion(event.target.value) }}
-                />
-              </Form.Item>
+              <MaxConcurrencyField label={dictionary.agents.maxConcurrency} value={maxConcurrency} onChange={setMaxConcurrency} />
             </Col>
             <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.model} required>
-                <Select
-                  value={model}
-                  onChange={(value) => { setModel(value) }}
-                  options={MODEL_OPTIONS}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.maxConcurrency}>
-                <InputNumber
-                  min={1}
-                  max={16}
-                  style={{ width: '100%' }}
-                  value={maxConcurrency}
-                  onChange={(value) => { setMaxConcurrency(value ?? 1) }}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.capabilityWeight}>
-                <InputNumber
-                  min={0.1}
-                  max={1}
-                  step={0.1}
-                  style={{ width: '100%' }}
-                  value={capabilityWeight}
-                  onChange={(value) => { setCapabilityWeight(value ?? 1) }}
-                />
-              </Form.Item>
+              <CapabilityWeightField label={dictionary.agents.capabilityWeight} value={capabilityWeight} onChange={setCapabilityWeight} />
             </Col>
           </Row>
 
@@ -899,7 +998,7 @@ export function AgentsPage() {
             />
           </Form.Item>
 
-          <Form.Item
+          <PromptSection
             label={(
               <Space>
                 <span>{dictionary.agents.prompt}</span>
@@ -915,58 +1014,31 @@ export function AgentsPage() {
                 </Button>
               </Space>
             )}
-            required
-          >
-            <Input.TextArea
-              rows={6}
-              value={prompt}
-              onChange={(event) => { setPrompt(event.target.value) }}
-              placeholder={dictionary.agents.promptPlaceholder}
-            />
-          </Form.Item>
-
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Checkbox
-              checked={autoPublish}
-              onChange={(event) => { setAutoPublish(event.target.checked) }}
-            >
-              {dictionary.agents.autoPublish}
-            </Checkbox>
-          </Form.Item>
+            prompt={prompt}
+            placeholder={dictionary.agents.promptPlaceholder}
+            publishLabel={dictionary.agents.autoPublish}
+            autoPublish={autoPublish}
+            onPrompt={setPrompt}
+            onAutoPublish={setAutoPublish}
+          />
         </Form>
       </Modal>
 
       <Modal
         title={`${dictionary.agents.newVersionTitle}${selectedDefinition === undefined ? '' : ` · ${selectedDefinition.name}`}`}
-        open={versionOpen}
         width={680}
-        onCancel={() => {
-          setVersionOpen(false)
-          setModalError(undefined)
-        }}
-        onOk={() => { void handleCreateVersion() }}
-        confirmLoading={pending === 'new-version'}
-        okText={dictionary.common.confirm}
-        cancelText={dictionary.common.cancel}
+        {...modalWiring(
+          dictionary,
+          versionOpen,
+          () => { setVersionOpen(false); setModalError(undefined) },
+          () => { void handleCreateVersion() },
+          pending === 'new-version',
+        )}
       >
         <Form layout="vertical">
-          {modalError === undefined ? null : (
-            <Alert
-              type="error"
-              showIcon
-              style={{ marginBottom: 12 }}
-              title={modalError}
-            />
-          )}
+          <ModalError error={modalError} />
           <Row gutter={12}>
-            <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.version} required>
-                <Input
-                  value={version}
-                  onChange={(event) => { setVersion(event.target.value) }}
-                />
-              </Form.Item>
-            </Col>
+            <Col xs={12} sm={6}><VersionField label={dictionary.agents.version} value={version} onChange={setVersion} /></Col>
             <Col xs={12} sm={6}>
               <Form.Item label={dictionary.agents.role} required>
                 <Select
@@ -979,69 +1051,36 @@ export function AgentsPage() {
                 />
               </Form.Item>
             </Col>
+            <Col xs={12} sm={6}><ModelField label={dictionary.agents.model} value={model} onChange={setModel} /></Col>
             <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.model} required>
-                <Select
-                  value={model}
-                  onChange={(value) => { setModel(value) }}
-                  options={MODEL_OPTIONS}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={12} sm={6}>
-              <Form.Item label={dictionary.agents.maxConcurrency}>
-                <InputNumber
-                  min={1}
-                  max={16}
-                  style={{ width: '100%' }}
-                  value={maxConcurrency}
-                  onChange={(value) => { setMaxConcurrency(value ?? 1) }}
-                />
-              </Form.Item>
+              <MaxConcurrencyField label={dictionary.agents.maxConcurrency} value={maxConcurrency} onChange={setMaxConcurrency} />
             </Col>
           </Row>
 
-          <Form.Item label={dictionary.agents.prompt} required>
-            <Input.TextArea
-              rows={6}
-              value={prompt}
-              onChange={(event) => { setPrompt(event.target.value) }}
-              placeholder={dictionary.agents.promptPlaceholder}
-            />
-          </Form.Item>
-
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Checkbox
-              checked={autoPublish}
-              onChange={(event) => { setAutoPublish(event.target.checked) }}
-            >
-              {dictionary.agents.autoPublish}
-            </Checkbox>
-          </Form.Item>
+          <PromptSection
+            label={dictionary.agents.prompt}
+            prompt={prompt}
+            placeholder={dictionary.agents.promptPlaceholder}
+            publishLabel={dictionary.agents.autoPublish}
+            autoPublish={autoPublish}
+            onPrompt={setPrompt}
+            onAutoPublish={setAutoPublish}
+          />
         </Form>
       </Modal>
 
       <Modal
         title={dictionary.agents.editMetaTitle}
-        open={editMetaOpen}
-        onCancel={() => {
-          setEditMetaOpen(false)
-          setModalError(undefined)
-        }}
-        onOk={() => { void handleUpdateMeta() }}
-        confirmLoading={pending === 'edit-meta'}
-        okText={dictionary.common.confirm}
-        cancelText={dictionary.common.cancel}
+        {...modalWiring(
+          dictionary,
+          editMetaOpen,
+          () => { setEditMetaOpen(false); setModalError(undefined) },
+          () => { void handleUpdateMeta() },
+          pending === 'edit-meta',
+        )}
       >
         <Form layout="vertical">
-          {modalError === undefined ? null : (
-            <Alert
-              type="error"
-              showIcon
-              style={{ marginBottom: 12 }}
-              title={modalError}
-            />
-          )}
+          <ModalError error={modalError} />
           <Form.Item label={dictionary.agents.name} required>
             <Input
               value={editName}

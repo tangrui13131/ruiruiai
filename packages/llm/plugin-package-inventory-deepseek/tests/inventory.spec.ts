@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Context, LoggerLevel } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -42,6 +42,9 @@ async function harness(
 ): Promise<{ ctx: Context; root: string; disposeInventory: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-plugin-packages-'))
   roots.push(root)
+  // The inventory walks up for the nearest manifest. A nameless root manifest keeps that walk
+  // inside the fixture, so a stray package.json above the temp directory cannot supply an identity.
+  await writeFile(join(root, 'package.json'), '{ "private": true }\n')
   const ctx = new Context()
   contexts.push(ctx)
   ctx.baseUrl = pathToFileURL(join(root, 'cordis.yml')).href
@@ -135,6 +138,11 @@ describe('DeepSeek plugin package inventory', () => {
     expect(warnings).toEqual(kind === 'deleted'
       ? []
       : [['plugin-package-inventory-deepseek: omitting unreadable package identity for %s: %o', bad, expect.any(Error)]])
+  })
+
+  it('reports no identity when no manifest exists up to the filesystem root', () => {
+    const modulePath = join(parse(tmpdir()).root, 'dsh-no-manifest', 'plugin.mjs')
+    expect(PluginInventory.nearestManifest(modulePath, () => false)).toBeUndefined()
   })
 
   it('omits a loose ESM module whose nearest manifest only marks the module type', async () => {

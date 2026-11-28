@@ -259,7 +259,12 @@ it('pins environment helpers to the workflow commit before selecting product sou
   }
 })
 
-it.skipIf(process.platform !== 'win32')('stages helpers that remain usable when product source lacks them', () => {
+// This fork's desktop shell carries its own scripts and does not include the upstream packaging
+// CI helpers, so the staging case has no source to copy until that surface is restored.
+const packagingHelpers = ['windows-packaging-priority.ps1', 'windows-build-workspace.mjs']
+  .every(name => existsSync(resolve(root, 'apps/desktop/scripts', name)))
+
+it.skipIf(process.platform !== 'win32' || !packagingHelpers)('stages helpers that remain usable when product source lacks them', () => {
   const directory = mkdtempSync(resolve(tmpdir(), 'workflow-helpers-'))
   try {
     const source = resolve(directory, 'source')

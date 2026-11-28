@@ -28,6 +28,10 @@ import * as gitTransport from '../src/git-transport.ts'
 import { parse, parseDocument } from 'yaml'
 import { isolateGitCommandLineConfig } from './git-environment.ts'
 
+// This suite drives real processes or large programs; a loaded host exceeds the shared
+// five-second default per case.
+vi.setConfig({ testTimeout: 30_000 })
+
 // These cases install through real Git and pnpm, so the host's command-line configuration group must not reach their children.
 let restoreGitCommandLineConfig: () => void
 beforeAll(() => { restoreGitCommandLineConfig = isolateGitCommandLineConfig() })
@@ -258,7 +262,7 @@ it('disposal waits for an active GitHub check to stop', async () => {
 
 it.each(['github:acme/connected', 'https://github.com/acme/connected.git', 'git+ssh://git@github.com/acme/connected.git'])(
   'installs %s through real Git and pnpm with private repository SSH fallback', async (spec) => {
-    const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+    const pnpm = fileURLToPath(new URL('../../../../node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
     const env = { GIT_CONFIG_GLOBAL: '', GIT_CONFIG_NOSYSTEM: '1' }
     const { manager, dir, connection } = await fixture('startup', false, undefined, {}, {
       command: process.execPath, args: ['--expose-internals', pnpm], env,
@@ -810,7 +814,7 @@ it('runs a real pnpm dependency script only after approval and retry', async () 
 it('offers approval for a real git-hosted package pnpm refused to prepare', async () => {
   // Both the fixture's Git and the manager's pnpm child read only this empty configuration.
   const env = { GIT_CONFIG_GLOBAL: '', GIT_CONFIG_NOSYSTEM: '1' }
-  const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+  const pnpm = fileURLToPath(new URL('../../../../node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
   const { manager, dir, profile } = await fixture('startup', false, undefined, {}, { command: process.execPath, args: ['--expose-internals', pnpm], env })
   const repository = join(profile.cwd, 'repository')
   mkdirSync(repository)
@@ -1458,7 +1462,7 @@ it('applies watched configuration while pnpm installation is still running', asy
 })
 
 it('installs and removes with the bundled pnpm when PATH contains no pnpm', async () => {
-  const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+  const pnpm = fileURLToPath(new URL('../../../../node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
   const { manager, dir } = await fixture('startup', false, undefined, { pnpmCommand: 'must-not-be-used' }, {
     command: process.execPath, args: ['--expose-internals', pnpm], env: { PATH: '', ELECTRON_RUN_AS_NODE: '1' },
   })

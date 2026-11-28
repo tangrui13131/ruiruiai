@@ -9,6 +9,9 @@ import { ModuleLoader } from '@deepseek-ai/cordis-plugin-loader'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PackageManifests } from '../src/package-manifest.ts'
 
+/** Strip the Windows namespace prefix Node adds to some cached manifest paths. */
+const plainManifestPath = (value: string): string => value.replace(/^\\\\\?\\/u, '')
+
 const require = createRequire(import.meta.url)
 const addon = require('node-addon-require-builtin') as { requireBuiltin(id: string): unknown }
 const reader = addon.requireBuiltin('internal/modules/package_json_reader') as {
@@ -34,6 +37,9 @@ function file(path: string, source: string): void {
 function fixture() {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-hmr-manifest-')))
   cleanup.push(() => { rmSync(root, { recursive: true, force: true }) })
+  // The reader walks up for the nearest manifest. A nameless root manifest keeps that walk inside
+  // the fixture, so a stray package.json above the temporary directory cannot become the scope.
+  file(join(root, 'package.json'), '{"private":true}')
   const dir = join(root, 'packages', 'pkg')
   const manifest = join(dir, 'package.json')
   const importer = join(root, 'importer', 'entry.mjs')
@@ -377,8 +383,9 @@ describe('package manifest reader parity', { concurrent: false }, () => {
     expect(reader.getPackageScopeConfig(pathToFileURL(source).href).type).toBe('module')
     rmSync(f.manifest)
     f.manifests.invalidate(f.manifest)
-    expect(reader.getPackageScopeConfig(pathToFileURL(source).href)).toMatchObject({
-      exists: true, type: 'commonjs', pjsonPath: toNamespacedPath(enclosing),
+    const scope = reader.getPackageScopeConfig(pathToFileURL(source).href)
+    expect({ ...scope, pjsonPath: plainManifestPath(scope.pjsonPath) }).toMatchObject({
+      exists: true, type: 'commonjs', pjsonPath: plainManifestPath(toNamespacedPath(enclosing)),
     })
     expect(formats.defaultGetFormatWithoutErrors(pathToFileURL(join(f.dir, 'bin', 'tool')))).toBe(
       formats.defaultGetFormatWithoutErrors(pathToFileURL(join(f.root, 'packages', 'tool'))),

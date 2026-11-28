@@ -22,6 +22,10 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
+// This suite drives real git worktrees and diffs; a cold Windows checkout needs more
+// than the shared 5s default per case, and the work is genuine rather than a hang.
+vi.setConfig({ testTimeout: 30_000 })
+
 const signal = new AbortController().signal
 
 const WORKTREE: ForgeSessionWorktree = {

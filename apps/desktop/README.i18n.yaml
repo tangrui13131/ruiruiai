@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/desktop/README.md
+/future-cup-desktop-shell:
+  en: 7c52f36212a41fea
+  zh: 1713d9448ba179c0
+/future-cup-desktop-shell/layout:
+  en: 1ab8b509e0fe148b
+  zh: 4addfdbe5378a6d7
+/future-cup-desktop-shell/development:
+  en: 82f8781d2193d139
+  zh: 9d4169dad64995ef
+/future-cup-desktop-shell/packaging:
+  en: 2f5d85788deb783b
+  zh: f1c585f814f40b5a
+/future-cup-desktop-shell/portable-drive:
+  en: bef88b45c659afa5
+  zh: d6eaa6531c5da366
+/future-cup-desktop-shell/import-web-history:
+  en: 1e797a5fa909f948
+  zh: 3b0be22edf2ee27b

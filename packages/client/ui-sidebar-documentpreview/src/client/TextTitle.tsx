@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { FileTypeIcon, classifyFileType } from '@deepseek-ai/dsh-client-ui-primitives'
-import css from './TextPreview.module.css'
+import css from './text/TextPreview.module.css'
 
 /**
  * The title as the chip and a floating panel's header show it.

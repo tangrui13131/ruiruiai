@@ -110,11 +110,48 @@ export const Config = z.object({
 })
 
 /**
+ * Resolve the port the launcher forwarded, failing loud on a bad value.
+ * @param argv - process arguments including the profile's app arguments.
+ * @param fallback - profile Config port used when no flag is present.
+ * @returns the flag value, or the configured port.
+ */
+function portArgument(argv: readonly string[], fallback: number): number {
+  const index = argv.lastIndexOf('--port')
+  if (index < 0) return fallback
+  const raw = argv[index + 1]
+  const parsed = raw === undefined || raw.trim() === '' ? Number.NaN : Number(raw)
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65_535) {
+    console.error('--port must be a number')
+    process.exit(1)
+  }
+  return parsed
+}
+
+/**
  * Start the Future Cup platform server for one profile lifetime.
  * @param ctx - plugin context that may provide a run launcher service.
  * @param config - explicit database and transport configuration.
  */
 export function apply(ctx: Context, config: Config): void {
+  // A profile invoked with --help must print its flags and exit; booting the
+  // server instead leaves the probe running until it is killed.
+  if (process.argv.some(argument => argument === '--help' || argument === '-h')) {
+    // Booted services keep the event loop alive, so help must end the process
+    // itself once the text has flushed.
+    process.stdout.write([
+      'Usage: dsh [--profile] <name> [--no-open]',
+      '',
+      'Future Cup platform: project orchestration, Agents, and the management UI.',
+      '',
+      'Options:',
+      '  --port <port>  port to bind; 0 asks the operating system to allocate one',
+      '  --no-open      do not open the platform UI in the browser',
+      '',
+      '',
+    ].join('\n'), () => { process.exit(0) })
+    return
+  }
+  const port = portArgument(process.argv, config.port)
   void ctx.effect(async () => {
     const store = config.databaseDriver === 'postgres'
       ? createPostgresStore(config.databaseUrl)
@@ -159,7 +196,7 @@ export function apply(ctx: Context, config: Config): void {
         currentUserId: config.ownerId,
         defaultTeamVersionId,
         host: config.host,
-        port: config.port,
+        port,
         outboxPollMs: config.outboxPollMs,
         outboxBatchSize: config.outboxBatchSize,
         outboxClaimMs: config.outboxClaimMs,

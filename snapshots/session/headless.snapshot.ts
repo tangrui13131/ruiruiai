@@ -1428,8 +1428,10 @@ describe('headless recorded-session snapshots', () => {
               ignoredRootEntries: ignoredWorkspaceEntries,
             })
             if (scenario.name === 'worktree') {
-              // The linked checkout's .git pointer contains the temporary source path; Git assertions verify it separately.
-              finalWorkspace = finalWorkspace.filter(entry => entry.path !== '.agents/worktrees/isolated/.git')
+              // The linked checkout is Git-owned state that verifyWorktree asserts
+              // directly, including its .git pointer and ignored result files; the
+              // file oracle keeps the main workspace only.
+              finalWorkspace = finalWorkspace.filter(entry => !entry.path.startsWith('.agents/worktrees/'))
             }
           },
         })

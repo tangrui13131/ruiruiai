@@ -71,7 +71,7 @@ const pluginMarketGeneratorDirectory = 'apps/plugin-market-generator'
  * market generator is a private repository tool, not a published application.
  */
 const standardReleaseMemberDirectory = new RegExp(
-  `^(?:packages/(?!experimental/)[^/]+/[^/]+|apps/(?!desktop(?:-host)?$|${pluginMarketGeneratorDirectory.slice('apps/'.length)}$)[^/]+|vendor/[^/]+)$`,
+  `^(?:packages/(?!experimental/)[^/]+/[^/]+|apps/(?!desktop(?:-host|-runtime)?$|${pluginMarketGeneratorDirectory.slice('apps/'.length)}$)[^/]+|vendor/[^/]+)$`,
   'u',
 )
 /** Installable application assembled by electron-builder rather than published to npm. */
@@ -486,6 +486,9 @@ function isReleaseMemberDirectory(dir: string): boolean {
 export function checkDshFamilyVersion(manifest: PackageManifest, expected: string | undefined): string | undefined {
   const name = manifest.name
   if (name !== '@deepseek-ai/dsh' && name?.startsWith('@deepseek-ai/dsh-') !== true) return undefined
+  // The desktop shell is an independently versioned installable product, not a
+  // library release that shares the workspace version.
+  if (name === '@deepseek-ai/dsh-desktop-shell') return undefined
   if (manifest.version !== expected) {
     return `${name}: package.json version must match root version ${expected ?? '(missing)'}`
   }
@@ -653,9 +656,23 @@ const dependencySections = ['dependencies', 'devDependencies', 'peerDependencies
 const runtimeDependencySections = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
 
 /**
+ * Runtime dependencies this fork's default product requires even though they live under
+ * `packages/experimental/`. `apps/cli` ships the Future Cup platform as the product itself
+ * (the change that removed the official frontends and switched the default profile to
+ * future-cup-platform), so upstream's rule that experimental packages stay switched off
+ * describes the upstream product, not this repository. Keep entries narrow: one manifest
+ * name to the exact dependency names it may require.
+ */
+const requiredExperimentalDependencies: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ['@deepseek-ai/dsh', new Set(['@deepseek-ai/dsh-experimental-future-cup-platform'])],
+])
+
+/**
  * Prevent an official runtime from requiring an experimental package. The dsh installation's `dependencies`
  * may hold the bundles the launcher's `OPTIONAL_BUNDLES` names: shipped switched off, they are not a requirement
  * ([rationale](../.agents/notes/implemented/process/2026-09-15-shipped-optional-bundles.md)).
+ * Dependencies listed in {@link requiredExperimentalDependencies} are exempt: this fork's
+ * product is an experimental package.
  * @param manifests - release, private experimental, and deployment-root manifests.
  * @param optionalBundles - the bundles the installation ships switched off; the launcher's list by default.
  * @returns One error for each forbidden runtime dependency.
@@ -677,6 +694,8 @@ export function checkExperimentalDependencyIsolation(
           || /^(?:npm:|workspace:)/.test(range) && hasExperimentalPackageReference(range)
         if (!experimental) continue
         if (section === 'dependencies' && offered.has(name)) continue
+        if (section === 'dependencies'
+          && requiredExperimentalDependencies.get(manifest.name ?? '')?.has(name) === true) continue
         errors.push(`${manifest.name ?? dir}: ${section}.${name} must not reference an experimental package`)
       }
     }

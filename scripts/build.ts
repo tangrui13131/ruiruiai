@@ -111,11 +111,14 @@ export function buildGates(
     for (const step of contractSteps(root, 'all')) gates.push(libraryGate(step, step.needs, env))
   }
   if (scope !== 'artifacts') {
+    // The UI program resolves workspace packages from their emitted declarations,
+    // so the Host compilation that writes them must finish first when it is in scope.
+    const uiCheckNeeds = gates.some(gate => gate.id === 'host-src') ? ['host-src'] : []
     gates.push(pnpmGate(
       'future-cup-ui-check',
       'Future Cup UI typecheck',
       ['--filter', '@deepseek-ai/dsh-experimental-future-cup-platform', 'run', 'typecheck:ui'],
-      [],
+      uiCheckNeeds,
       env,
     ))
     for (const face of ['host', 'client'] as const) {

@@ -22,6 +22,10 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
+// Every case drives real git worktrees and forge probes. A cold Windows checkout needs more
+// than the shared 5s default per case, and the work is genuine rather than a hang.
+vi.setConfig({ testTimeout: 30_000 })
+
 const signal = new AbortController().signal
 
 async function project(): Promise<{ root: string; repo: string }> {

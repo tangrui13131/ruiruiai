@@ -3,6 +3,10 @@ import { access, mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises
 import { join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// This suite drives real git checkouts and worktrees; a cold Windows checkout needs more
+// than the shared 5s default per case, and the work is genuine rather than a hang.
+vi.setConfig({ testTimeout: 30_000 })
 import type { Context } from '@deepseek-ai/cordis'
 import WorktreeService from '../src/index.ts'
 import type { RestoreWorktreeRequest } from '../src/index.ts'

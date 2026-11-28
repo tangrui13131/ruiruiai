@@ -416,7 +416,9 @@ describe('FutureCupRunLauncher', () => {
       },
     })
     const starting = launcher.start(project)
-    await new Promise(resolve => setTimeout(resolve, 10))
+    // Wait for the run record rather than a fixed delay: the close must land after creation, and
+    // a loaded host cannot reach that point on a schedule.
+    await expect.poll(() => repository.listProjectRuns(project.id).length, { timeout: 10_000 }).toBe(1)
     await launcher.close()
     await expect(starting).rejects.toThrow(/closed during startup/)
     const runs = repository.listProjectRuns(project.id)

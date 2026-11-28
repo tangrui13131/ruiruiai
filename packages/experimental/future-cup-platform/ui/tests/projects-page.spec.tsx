@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../src/api/client.ts'
 import { LocaleProvider } from '../src/locale/LocaleProvider.tsx'
 import { ProjectsPage } from '../src/pages/ProjectsPage.tsx'
+import { snapshot, task } from './fixtures.ts'
 
 afterEach(() => {
   cleanup()
@@ -73,6 +74,49 @@ describe('ProjectsPage', () => {
       const values = [...container.querySelectorAll('.digits')].map(node => node.textContent)
       expect(values).toContain('50.0')
     })
+  })
+
+  it('does not borrow another project snapshot for a pending focus project', async () => {
+    const oldProject = {
+      id: 'p-old',
+      name: '旧项目',
+      requirement: 'old requirement',
+      createdAt: '2026-11-01T10:00:00.000Z',
+      lastEventSeq: 20,
+      latestRunStatus: 'PASSED' as const,
+    }
+    const newProject = {
+      id: 'p-new',
+      name: '路演',
+      requirement: 'new requirement',
+      createdAt: '2026-11-27T10:00:00.000Z',
+      lastEventSeq: 0,
+    }
+    vi.spyOn(api, 'listProjects').mockResolvedValue([oldProject, newProject])
+    const getSnapshot = vi.spyOn(api, 'getSnapshot').mockResolvedValue({
+      ...snapshot([{ ...task('task-verifier', [], 'RUNNING'), projectId: 'p-old' }]),
+      project: oldProject,
+    })
+    const { container } = render(
+      <LocaleProvider>
+        <ConfigProvider locale={zhCN}>
+          <AntApp>
+            <MemoryRouter>
+              <ProjectsPage />
+            </MemoryRouter>
+          </AntApp>
+        </ConfigProvider>
+      </LocaleProvider>,
+    )
+    expect((await screen.findAllByText('路演')).length).toBeGreaterThan(0)
+    await waitFor(() => {
+      expect(getSnapshot).toHaveBeenCalledWith('p-new', 0, 100)
+      const steps = [...container.querySelectorAll('.dag-step')]
+      expect(steps.length).toBe(6)
+      expect(steps.every(step => step.classList.contains('pending'))).toBe(true)
+      expect(container.querySelectorAll('.node-spinner').length).toBe(0)
+    })
+    expect(screen.getByText('尚未开始')).toBeTruthy()
   })
 
   it('marks every stage done (and no spinner) for a passed project', async () => {

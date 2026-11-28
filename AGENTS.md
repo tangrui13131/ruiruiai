@@ -102,10 +102,14 @@ pnpm run hygiene        # publint + workspace/package/dependency checks + NodeNe
 pnpm run check:windows-wine  # ONLY when diagnosing a known Windows failure (needs wine); CI owns this signal
 pnpm run doc-sync       # documentation gates (scripts/run-gates.ts)
 pnpm run test:docs      # quick documentation checks (no build; doc-quick aggregate)
+pnpm run test:packaging # packaging toolchain suites (git, PowerShell, installer builders, staged links); not in the default unit run
+pnpm run check:web      # Future Cup web gate: platform typecheck/UI build, tests, client i18n, entrypoints, Cordis config
 pnpm dsh --profile headless "task"  # run one task from source (needs DEEPSEEK_API_KEY)
 pnpm run demo:ptc -- "task"  # headless PTC mode run (needs key)
 make platform|build  # launch the Future Cup platform or build the repository
 ```
+
+`check:web` is the acceptance gate for this fork's Future Cup web surface. `check:all` keeps the upstream DeepSeek Harness aggregate and still expects the upstream default `apps/web` product and client-domain rules, so it is not the Future Cup web gate. The desktop app is packaged separately and is outside the web gate scope.
 
 ### Host sandbox failures
 
@@ -116,8 +120,7 @@ If a required `gh`, `pnpm`, build, test, or generator command fails because the 
 Before pushing, follow [dsh-pre-push-checks](.agents/skills/dsh-pre-push-checks/SKILL.md) and report only commands run. Validate immediately after `gh stack sync`.
 
 - Match evidence to the surface: focused behavior tests, model/user-output snapshots, `doc-sync` for docs, built smokes for published paths, and real-API e2e for providers.
-- Never default to the full suite or repeat a passing check. CI owns exhaustive coverage and the platform matrix.
-- `test:coverage`, not `test`, is the CI coverage gate ([why](docs/testing.md)).
+- Every commit keeps the repository health score at or above the baseline in [docs/repo-health.md](docs/repo-health.md); print the five-dimension score and never weaken tests or checks to raise it.
 - Develop with `build:artifacts`; claim completion only after a later `build:check`, or after `build` ([layout](docs/development.md#typescript-project-layout)).
 ## Secrets / .env
 

@@ -1,0 +1,490 @@
+/* Future Cup motion layer — Phase 1 (pipeline + badges).
+   Only transforms, opacity, box-shadow and background positions are animated. */
+
+:root {
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Sidebar: a pressed (inset) shared-layout indicator that glides between items. */
+.app-sider-menu {
+  position: relative;
+}
+
+.app-sider-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  border: 1px solid #d2e2f5;
+  border-radius: 11px;
+  background: #e8f0fa;
+  box-shadow: 0 2px 8px rgb(59 106 156 / 8%);
+  pointer-events: none;
+  will-change: transform, height;
+  transition:
+    transform 320ms var(--motion-ease),
+    height 260ms var(--motion-ease);
+}
+
+/* 当前项的雾蓝指示灯，跟着选中胶囊一起移动 */
+.app-sider-indicator::after {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--neu-blue);
+  box-shadow:
+    0 0 0 2px rgb(59 106 156 / 12%),
+    0 0 8px rgb(59 106 156 / 55%);
+  content: '';
+}
+
+/* 默认：半透明白瓷胶囊底 */
+.app-sider .ant-menu-item {
+  border: 1px solid rgb(230 228 221 / 70%);
+  background: rgb(255 255 255 / 52%);
+  box-shadow: 0 2px 6px rgb(28 29 31 / 3%);
+  transition:
+    box-shadow 180ms var(--motion-ease),
+    background 180ms var(--motion-ease),
+    color 180ms var(--motion-ease),
+    transform 180ms var(--motion-ease);
+}
+
+/* 悬停：轻微浮起，底色变实 */
+.app-sider .ant-menu-item:hover:not(.ant-menu-item-selected) {
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgb(59 106 156 / 8%);
+  transform: translateY(-2px);
+}
+
+/* 按下：外阴影转内阴影，下沉 2px */
+.app-sider .ant-menu-item:active {
+  box-shadow: var(--neu-inset);
+  transform: translateY(2px);
+  transition-duration: 80ms;
+}
+
+/* 当前项保持按下状态（滑块本身是 inset，文本再下沉 1px 贴合） */
+.app-sider-menu .ant-menu-item-selected {
+  transform: translateY(1px);
+}
+
+.app-sider-menu .ant-menu {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.app-sider-menu .ant-menu-item.ant-menu-item-selected,
+.app-sider-menu .ant-menu-item.ant-menu-item-selected:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+/* 首屏标题：三行错峰入场 */
+.welcome-row .eyebrow,
+.welcome-row h1,
+.welcome-row p {
+  animation: fc-welcome-in 480ms var(--motion-ease) both;
+}
+
+.welcome-row .eyebrow {
+  animation-delay: 40ms;
+}
+
+.welcome-row h1 {
+  animation-delay: 120ms;
+}
+
+.welcome-row h1 span {
+  display: inline-block;
+  animation: fc-welcome-highlight 520ms var(--motion-ease) 260ms both;
+}
+
+.welcome-row p {
+  animation-delay: 220ms;
+}
+
+@keyframes fc-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fc-welcome-highlight {
+  from {
+    opacity: 0.2;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Agents 列表：机器人头像与卡片留白对齐 */
+.my-team-row.ant-list-item {
+  padding: 14px 16px;
+}
+
+.my-team-row .ant-list-item-meta-avatar {
+  margin-inline-end: 12px;
+}
+
+.my-team-row .ant-list-item-meta-avatar .anticon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d8e5f4;
+  border-radius: 10px;
+  background: #ebf1f8;
+  box-shadow: 0 2px 6px rgb(59 106 156 / 8%);
+  color: var(--neu-blue);
+  font-size: 15px;
+}
+
+/* 事件流：自动滚动开关 */
+.event-auto-scroll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  color: var(--neu-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.neu-switch {
+  --switch-thumb-offset: 0px;
+  position: relative;
+  width: 54px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.neu-switch.is-on {
+  --switch-thumb-offset: 24px;
+}
+
+.neu-switch-track {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 52%);
+  border-radius: 999px;
+  corner-shape: round;
+  background: linear-gradient(145deg, #e2e0d8, #f5f4ef);
+  box-shadow:
+    inset 3px 3px 6px rgb(28 29 31 / 8%),
+    inset -2px -2px 5px rgb(255 255 255 / 82%),
+    0 1px 0 rgb(255 255 255 / 62%);
+}
+
+.neu-switch-fill {
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: linear-gradient(145deg, #4d7ab3, #3b6a9c);
+  box-shadow:
+    inset 2px 2px 6px rgb(31 62 102 / 38%),
+    inset -2px -2px 5px rgb(198 220 255 / 55%);
+  opacity: 0;
+  transition: opacity 260ms var(--motion-ease);
+}
+
+.neu-switch.is-on .neu-switch-fill {
+  opacity: 1;
+}
+
+.neu-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  corner-shape: round;
+  background-color: #ffffff;
+  background-image: radial-gradient(circle at 34% 26%, rgb(255 255 255 / 96%) 0%, rgb(255 255 255 / 0%) 56%);
+  box-shadow:
+    2px 3px 6px rgb(28 29 31 / 14%),
+    1px 1px 2px rgb(28 29 31 / 8%),
+    inset 0 1px 1px #fff;
+  transform: translateX(var(--switch-thumb-offset));
+  transition:
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 180ms ease;
+}
+
+.neu-switch:not(.is-on):active .neu-switch-thumb {
+  transform: translateX(24px) scale(0.94);
+}
+
+.neu-switch.is-on:active .neu-switch-thumb {
+  transform: translateX(0) scale(0.94);
+}
+
+.neu-switch:active .neu-switch-thumb {
+  transition-duration: 90ms;
+  box-shadow:
+    1px 1px 3px rgb(28 29 31 / 12%),
+    inset 0 1px 1px #fff;
+}
+
+.neu-switch:focus-visible {
+  outline: 2px solid var(--neu-blue);
+  outline-offset: 3px;
+  border-radius: 999px;
+  corner-shape: round;
+}
+
+/* 卡片：悬停轻微浮起放大，离开平滑回弹 */
+.metric-card,
+.project-card {
+  transform: translateZ(0);
+  transform-origin: center bottom;
+  transition:
+    transform 220ms var(--motion-ease),
+    border-color 220ms var(--motion-ease),
+    box-shadow 220ms var(--motion-ease);
+}
+
+.metric-card:hover,
+.project-card:hover {
+  border-color: rgb(176 204 238 / 85%);
+  transform: translateY(-4px) scale(1.012);
+  box-shadow: 0 8px 24px rgb(59 106 156 / 8%);
+}
+
+/* 其余卡片（面板、Agent 行、事件行、截图卡等）统一轻微浮起 */
+.section-panel,
+.metric-strip,
+.agent-row,
+.dag-frame,
+.diff-viewer,
+.json-viewer,
+.screenshot-item,
+.event-row,
+.my-team-row,
+.team-member-row,
+.preview-frame {
+  transform: translateZ(0);
+  transition:
+    transform 220ms var(--motion-ease),
+    border-color 220ms var(--motion-ease),
+    box-shadow 220ms var(--motion-ease);
+}
+
+.section-panel:hover,
+.metric-strip:hover,
+.agent-row:hover,
+.dag-frame:hover,
+.diff-viewer:hover,
+.json-viewer:hover,
+.screenshot-item:hover,
+.event-row:hover,
+.my-team-row:hover,
+.team-member-row:hover,
+.preview-frame:hover {
+  border-color: rgb(176 204 238 / 85%);
+  transform: translateY(-2px) scale(1.006);
+  box-shadow: 0 8px 24px rgb(59 106 156 / 8%);
+}
+
+/* 团队抽拉卡用独立的 scale/translate 属性，不覆盖拖拽用的 inline transform */
+.pull-card {
+  transition:
+    scale 220ms var(--motion-ease),
+    box-shadow 220ms var(--motion-ease);
+}
+
+.pull-card:hover {
+  box-shadow: 0 12px 28px rgb(32 36 44 / 8%);
+  scale: 1.015;
+}
+
+/* 侧栏切换后，页面内容轻微上浮，避免“瞬间换页” */
+.page-stack {
+  animation: fc-page-in 220ms var(--motion-ease);
+}
+
+@keyframes fc-page-in {
+  from {
+    opacity: 0.55;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-stack {
+    animation: none;
+  }
+}
+
+/* Completed pipeline connector: moving dashed line. */
+.dag-step.done:not(:last-child)::after {
+  background: repeating-linear-gradient(
+    90deg,
+    #3b6a9c 0 6px,
+    rgba(59, 106, 156, 0.22) 6px 12px
+  );
+  background-size: 12px 1px;
+  background-repeat: repeat-x;
+  animation: fc-dag-flow 1.1s linear infinite;
+}
+
+@keyframes fc-dag-flow {
+  to {
+    background-position-x: 12px;
+  }
+}
+
+/* Current pipeline node: expanding halo. */
+.dag-step.current .dag-node-pill {
+  position: relative;
+}
+
+.dag-step.current .dag-node-pill::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid #3b6a9c;
+  border-radius: 12px;
+  opacity: 0;
+  pointer-events: none;
+  animation: fc-node-halo 1.5s var(--motion-ease) infinite;
+}
+
+@keyframes fc-node-halo {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.62;
+  }
+
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+/* Completed pipeline node: check pops once. */
+.dag-step.done .dag-node-pill {
+  animation: fc-node-pop 360ms var(--motion-ease);
+}
+
+@keyframes fc-node-pop {
+  0% {
+    transform: scale(0.92);
+  }
+
+  55% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Progress bar: keep the width transition, add a light sweep. */
+.recessed-track > span {
+  position: relative;
+  overflow: hidden;
+}
+
+.recessed-track > span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: translateX(-100%);
+  animation: fc-track-shimmer 2.2s ease-in-out infinite;
+}
+
+@keyframes fc-track-shimmer {
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Status badge: a single pulse when the value changes, plus one shake on danger. */
+.status-badge[data-status] {
+  animation: fc-badge-pop 300ms var(--motion-ease);
+}
+
+.status-badge.status-danger[data-status] {
+  animation:
+    fc-badge-pop 300ms var(--motion-ease),
+    fc-badge-shake 240ms ease 300ms;
+}
+
+@keyframes fc-badge-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  55% {
+    transform: scale(1.055);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes fc-badge-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-3px);
+  }
+
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+/* Realtime connection: breathe only while disconnected. */
+.connection-badge[data-status='disconnected'] {
+  animation: fc-breathe 2s ease-in-out infinite;
+}
+
+@keyframes fc-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}

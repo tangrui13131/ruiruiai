@@ -205,6 +205,100 @@ describe('Future Cup platform server', () => {
     expect(store.getProject(sourceId)).toMatchObject({ name: 'Operations' })
   })
 
+  it('clones a terminal project into a new runnable project', async () => {
+    const launcher = new FakeLauncher()
+    const { baseUrl, store, agentRegistry, defaultTeamVersionId, runRoot } = await startServer(
+      launcher,
+      true,
+    )
+    const sourceId = ProjectId('project-rerun-source')
+    const createdAt = new Date().toISOString()
+    store.createProject({
+      id: sourceId,
+      name: 'Operations',
+      requirement: 'Build an operations dashboard',
+      createdAt,
+    }, [], undefined, await agentRegistry!.freezeProject(sourceId, defaultTeamVersionId!), [{
+      id: 'memory-source',
+      projectId: sourceId,
+      kind: 'requirement',
+      key: 'initial-requirement',
+      value: { requirement: 'Build an operations dashboard' },
+      source: 'platform.project.create',
+      createdAt,
+    }])
+    const sourceRun = store.createProjectRun(
+      sourceId,
+      'source-worker',
+      1n,
+      join(runRoot, 'rerun-source-workspace'),
+    )
+    store.finishProjectRun(sourceRun.id, 'FAILED')
+
+    const response = await fetch(`${baseUrl}/api/v1/projects/${sourceId}/rerun`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Operations rerun' }),
+    })
+    expect(response.status).toBe(201)
+    const result = await readJson(response, z.object({
+      project: z.object({
+        id: z.string(),
+        name: z.string(),
+        requirement: z.string(),
+        sourceProjectId: z.string().optional(),
+      }),
+      runId: z.string(),
+    }))
+    expect(result.project.id).not.toBe(sourceId)
+    expect(result.project).toMatchObject({
+      name: 'Operations rerun',
+      requirement: 'Build an operations dashboard',
+    })
+    expect(result.project.sourceProjectId).toBeUndefined()
+    expect(result.runId).toBe(`run-${result.project.id}`)
+    expect(launcher.started).toEqual([result.project.id])
+    expect(store.getProject(sourceId)).toMatchObject({ name: 'Operations' })
+    expect(store.getProjectTeamBinding(result.project.id)).toMatchObject({
+      projectId: result.project.id,
+      teamVersion: { id: defaultTeamVersionId },
+    })
+    expect(store.listProjectMemoryEntries(result.project.id)).toEqual([
+      expect.objectContaining({
+        projectId: result.project.id,
+        key: 'initial-requirement',
+        source: `rerun:${sourceId}`,
+      }),
+    ])
+  })
+
+  it('rejects rerun while the source project is running', async () => {
+    const launcher = new FakeLauncher()
+    const { baseUrl, store, agentRegistry, defaultTeamVersionId, runRoot } = await startServer(
+      launcher,
+      true,
+    )
+    const sourceId = ProjectId('project-rerun-active')
+    store.createProject({
+      id: sourceId,
+      name: 'Active operations',
+      requirement: 'Build an active operations dashboard',
+      createdAt: new Date().toISOString(),
+    }, [], undefined, await agentRegistry!.freezeProject(sourceId, defaultTeamVersionId!))
+    store.createProjectRun(sourceId, 'source-worker', 1n, join(runRoot, 'active-workspace'))
+
+    const response = await fetch(`${baseUrl}/api/v1/projects/${sourceId}/rerun`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    })
+    expect(response.status).toBe(409)
+    expect(await readJson(response, z.object({ code: z.string() }))).toMatchObject({
+      code: 'SOURCE_PROJECT_RUNNING',
+    })
+    expect(launcher.started).toEqual([])
+  })
+
   it('serves project, agent, snapshot, run, and cancel APIs', async () => {
     const launcher = new FakeLauncher()
     const { baseUrl, store, errors, runRoot } = await startServer(launcher)
@@ -637,7 +731,7 @@ describe('Future Cup platform server', () => {
     expect(recommendation.recommendation?.members.reduce(
       (total, member) => total + member.instanceCount,
       0,
-    )).toBe(7)
+    )).toBe(8)
 
     const adjustmentResponse = await fetch(`${baseUrl}/api/v1/team-recommendations/adjust`, {
       method: 'POST',

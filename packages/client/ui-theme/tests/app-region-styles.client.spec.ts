@@ -16,8 +16,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { packageFiles, packageStylesheets, parseRules, type CssRule } from './stylesheet-scan.ts'
+
+// These cases scan the package stylesheets; a loaded host exceeds the shared 5s default.
+vi.setConfig({ testTimeout: 30_000 })
 
 /** The one stylesheet allowed to declare a darwin window drag region, relative to packages/. */
 const SHELL_SHEET = 'client/web/src/base.css'

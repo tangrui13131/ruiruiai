@@ -11,9 +11,13 @@ import {
   runGate,
   runGates,
   taskkillArgs,
+  validateGateGraph,
   type Gate,
   type GateResult,
 } from './run-gates.ts'
+
+// The fail-fast case measures a real child-process kill; a loaded host needs more than 5s.
+vi.setConfig({ testTimeout: 30_000 })
 
 // Graph fixtures select their own browser pool instead of inheriting the CI
 // host's pool, and coverage gates take their shape from the values each case
@@ -264,6 +268,16 @@ describe('gate graph validation', () => {
     await expect(runGates(subject, subject.length, execute)).resolves.toHaveLength(subject.length)
   })
 
+  it('rejects a gate that names a package script this repository does not define', () => {
+    expect(() => { validateGateGraph([{
+      id: 'stale-site',
+      label: 'stale site',
+      displayCommand: 'pnpm run docs:build',
+      command: 'pnpm',
+      args: ['run', 'docs:build'],
+    }]) }).toThrow('run-gates: gate "stale-site" runs missing package script "docs:build".')
+  })
+
   it('uses the internal CI benchmark runner without changing the public benchmark scripts', () => {
     const subject = withPnpmEntrypoint(() => gatesForMode('ci-bench'))
     const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
@@ -277,7 +291,7 @@ describe('gate graph validation', () => {
       displayCommand: 'pnpm exec tsx scripts/run-ci-bench.ts',
       args: ['/private/pnpm.cjs', 'exec', 'tsx', 'scripts/run-ci-bench.ts'],
     })
-    expect(scripts['test:bench']).toBe('npm run build:bench && npm run build:web && npm run test:bench:built')
+    expect(scripts['test:bench']).toBe('npm run build:bench && npm run build:future-cup-web && npm run test:bench:built')
     expect(scripts['build:bench']).toBe(
       'npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts',
     )
@@ -368,9 +382,9 @@ describe('gate graph validation', () => {
     const ids = withPnpmEntrypoint(() => gatesForMode('hygiene').map(subject => subject.id))
 
     expect(ids).toEqual([
-      'rescope-vendor', 'publint', 'constraints', 'default-product-isolation', 'product-use', 'official-bundle-catalog', 'provider-data', 'package-dependencies', 'application-entrypoints',
+      'rescope-vendor', 'publint', 'constraints', 'official-bundle-catalog', 'provider-data', 'package-dependencies', 'application-entrypoints',
       'dsh-package-licenses', 'node-next-types',
-      'optional-dependency-imports', 'client-packages', 'installer-locales', 'locale-metadata', 'client-ui-i18n', 'client-route-resolution', 'no-bare-dispatcher',
+      'optional-dependency-imports', 'client-packages', 'locale-metadata', 'client-ui-i18n', 'client-route-resolution', 'no-bare-dispatcher',
       'plugin-record-callers', 'no-unknown-casts', 'no-top-level-await',
       'cordis-config', 'runtime-closure',
     ])
@@ -379,11 +393,11 @@ describe('gate graph validation', () => {
   it('includes JSON resource checks in local and CI aggregates', () => {
     for (const mode of ['i18n', 'check-all', 'ci-static', 'hygiene'] as const) {
       const ids = withPnpmEntrypoint(() => gatesForMode(mode).map(gate => gate.id))
-      expect(ids).toEqual(expect.arrayContaining(['installer-locales', 'locale-metadata']))
+      expect(ids).toEqual(expect.arrayContaining(['locale-metadata']))
       if (mode !== 'i18n') expect(ids).not.toContain('locale-dictionaries')
     }
     expect(withPnpmEntrypoint(() => gatesForMode('i18n').map(gate => gate.id)))
-      .toEqual(['installer-locales', 'locale-metadata', 'locale-dictionaries'])
+      .toEqual(['locale-metadata', 'locale-dictionaries'])
   })
 
   it('caps the local hygiene aggregate at eight workers', () => {
@@ -402,8 +416,8 @@ describe('gate graph validation', () => {
   it('schedules the longest documentation leaves before short checks', () => {
     const ids = withPnpmEntrypoint(() => gatesForMode('doc-sync').map(subject => subject.id))
 
-    expect(ids.slice(0, 11)).toEqual([
-      'doc-typecheck', 'docs-site-build', 'doc-graphs', 'cli-help', 'markdown-links', 'type-equivalence',
+    expect(ids.slice(0, 10)).toEqual([
+      'doc-typecheck', 'doc-graphs', 'cli-help', 'markdown-links', 'type-equivalence',
       'cordis-catalog', 'cordis-inspect-catalog', 'workflow-guest', 'mermaid', 'translation-pairing',
     ])
   })
@@ -447,13 +461,12 @@ describe('gate graph validation', () => {
   )
 
   it.each(['ci-primary', 'ci-static', 'check-all', 'hygiene'] as const)(
-    'executes default-product experimental isolation in %s',
+    'leaves the upstream default-product gates disabled in %s until apps/web returns',
     (mode) => {
-      const gate = withPnpmEntrypoint(() => gatesForMode(mode)
-        .find(subject => subject.id === 'default-product-isolation'))
+      const ids = withPnpmEntrypoint(() => gatesForMode(mode).map(subject => subject.id))
 
-      expect(gate?.args).toContain('verify-default-product-isolation')
-      expect(gate?.allowFailure).not.toBe(true)
+      expect(ids).not.toContain('default-product-isolation')
+      expect(ids).not.toContain('product-use')
     },
   )
 
@@ -505,7 +518,7 @@ describe('gate graph validation', () => {
   it('keeps native Windows coverage blocking and behind the complete build', () => {
     const complete = withPnpmEntrypoint(() => gatesForMode('ci-windows-complete'))
     const observational = withPnpmEntrypoint(() => gatesForMode('ci-windows-observational-ready'))
-      .filter(gate => gate.id !== 'docs-site-build' && gate.id !== 'electron-install')
+      .filter(gate => gate.id !== 'electron-install')
     const byId = new Map(complete.map(subject => [subject.id, subject]))
 
     expect(byId.get('coverage')?.allowFailure).not.toBe(true)
@@ -538,8 +551,11 @@ describe('gate graph validation', () => {
 
     const completeBuiltBin = withPnpmEntrypoint(() => gatesForMode('ci-windows-complete'))
       .find(gate => gate.id === 'built-bin-smoke')
-    expect(completeBuiltBin?.after).toContain('windows-site')
+    // This repository ships no documentation site: neither the upstream MPA build
+    // nor a production-site replacement exists, so the smoke waits only on coverage.
     expect(completeBuiltBin?.after).not.toContain('docs-site-build')
+    expect(completeBuiltBin?.after).not.toContain('windows-site')
+    expect(completeBuiltBin?.after).toEqual(expect.arrayContaining(['coverage', 'coverage-exempt-heavy']))
   })
 
   it('reuses the Windows build without dropping diagnostics or rebuilding the workspace', () => {
@@ -551,11 +567,11 @@ describe('gate graph validation', () => {
 
     expect(scripts['check:ci:windows-observational-ready']).toBe('tsx scripts/run-gates.ts ci-windows-observational-ready')
     expect(scripts).not.toHaveProperty('check:ci:windows-observational')
-    const completeOnly = new Set(['build', 'windows-site', 'native-system', 'coverage', 'coverage-exempt-heavy'])
+    const completeOnly = new Set(['build', 'native-system', 'coverage', 'coverage-exempt-heavy'])
     const shared = complete.filter(gate => !completeOnly.has(gate.id))
-    expect(ready.map(gate => gate.id).sort()).toEqual([...shared.map(gate => gate.id), 'docs-site-build'].sort())
+    expect(ready.map(gate => gate.id).sort()).toEqual(shared.map(gate => gate.id).sort())
     expect(ready.some(gate => gate.id === 'build')).toBe(false)
-    expect(ready.find(gate => gate.id === 'docs-site-build')?.displayCommand).toBe('pnpm run docs:build:mpa')
+    expect(ready.some(gate => gate.id === 'docs-site-build')).toBe(false)
     for (const diagnostic of shared) {
       expect(ready.find(gate => gate.id === diagnostic.id)).toMatchObject({
         command: diagnostic.command,
@@ -1388,5 +1404,17 @@ describe('Windows tree termination', () => {
 
   it('terminates the root alone when no descendant was captured', () => {
     expect(taskkillArgs(100, [])).toEqual([['/PID', '100', '/T', '/F']])
+  })
+})
+
+describe('CLI entry point', () => {
+  it('runs after every module-level declaration so the aggregates initialize first', () => {
+    const lines = readFileSync(new URL('./run-gates.ts', import.meta.url), 'utf8').split(/\r?\n/)
+    const entry = lines.findIndex(line => line.includes('import.meta.main'))
+    expect(entry).toBeGreaterThan(-1)
+    // A top-level await suspends module evaluation at the entry block, so any
+    // later `const` stays uninitialized until the aggregate has already run.
+    const declaredAfter = lines.filter((line, index) => index > entry && /^(export )?(const|let|var) /.test(line))
+    expect(declaredAfter).toEqual([])
   })
 })

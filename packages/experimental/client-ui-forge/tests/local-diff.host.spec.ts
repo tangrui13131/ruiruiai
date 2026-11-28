@@ -34,6 +34,10 @@ async function context(root: string): Promise<Context> {
   return ctx
 }
 
+// This suite drives real git worktrees and diffs; a cold Windows checkout needs more
+// than the shared 5s default per case, and the work is genuine rather than a hang.
+vi.setConfig({ testTimeout: 30_000 })
+
 const signal = new AbortController().signal
 
 async function configure(repo: string): Promise<void> {

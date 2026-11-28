@@ -34,6 +34,7 @@ import type {
   StructureProjectProfileInput,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import {
+  createProjectInputSchema as createProjectSchema,
   publicProjectRun,
   publicProjectSnapshot,
   publicVerificationReport,
@@ -73,6 +74,10 @@ import {
   ProjectDerivationError,
   ProjectDerivationService,
 } from './project-derivation.ts'
+import {
+  ProjectRerunError,
+  ProjectRerunService,
+} from './project-rerun.ts'
 import {
   ProjectRunConflictError,
   ProjectRunStartError,
@@ -130,17 +135,14 @@ const teamLibraryQuerySchema = z.object({
   status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
 }).strict()
 
-const createProjectSchema = z.object({
-  id: z.string().min(1).max(120).optional(),
-  name: z.string().min(1).max(120),
-  requirement: z.string().min(1).max(20_000),
-  teamVersionId: z.string().min(1).max(160).optional(),
-}).strict()
-
 const deriveProjectSchema = z.object({
   name: z.string().trim().min(1).max(120),
   mode: z.enum(['UPGRADE', 'REGENERATE']),
   changeRequest: z.string().trim().max(20_000).optional(),
+}).strict()
+
+const rerunProjectSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
 }).strict()
 
 interface AgentExecutionActivity {
@@ -275,6 +277,15 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       const { projectId } = projectParamsSchema.parse(request.params)
       const body = deriveProjectSchema.parse(request.body)
       return await reply.code(201).send(await deriveAndStartProject(projectId, body))
+    },
+  )
+
+  app.post<{ Params: unknown; Body: unknown }>(
+    '/api/v1/projects/:projectId/rerun',
+    async (request, reply) => {
+      const { projectId } = projectParamsSchema.parse(request.params)
+      const body = rerunProjectSchema.parse(request.body ?? {})
+      return await reply.code(201).send(await rerunAndStartProject(projectId, body))
     },
   )
 
@@ -569,7 +580,8 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
   app.get<{ Querystring: unknown }>('/api/v1/teams', async (request, reply) => {
     const query = teamLibraryQuerySchema.parse(request.query)
     const registry = requireAgentRegistry()
-    const teams = (await registry.listTeams(currentUserId))
+    const teams = (await registry.listTeams())
+      .filter(team => team.ownerId === currentUserId || team.ownerId === 'system')
       .filter(team => query.status === undefined || team.status === query.status)
     const page = teams.slice(query.offset, query.offset + query.limit)
     const items = await Promise.all(page.map(team => publicTeamSummary(team)))
@@ -594,7 +606,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
 
   app.get<{ Params: unknown }>('/api/v1/teams/:teamId', async (request, reply) => {
     const { teamId } = logicalTeamParamsSchema.parse(request.params)
-    await requireOwnedTeam(teamId)
+    await requireVisibleTeam(teamId)
     return await reply.send(await publicTeamSummary(await requireAgentRegistry().getTeam(teamId)))
   })
 
@@ -602,7 +614,7 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     '/api/v1/teams/:teamId/versions',
     async (request, reply) => {
       const { teamId } = logicalTeamParamsSchema.parse(request.params)
-      await requireOwnedTeam(teamId)
+      await requireVisibleTeam(teamId)
       const versions = await requireAgentRegistry().listTeamVersions(teamId)
       return await reply.send(versions.map(publicTeamVersion))
     },
@@ -1034,6 +1046,34 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     }
   }
 
+  async function rerunAndStartProject(
+    projectId: string,
+    body: z.infer<typeof rerunProjectSchema>,
+  ): Promise<{ readonly project: PlatformProjectSummary; readonly runId: string }> {
+    const targetProjectId = ProjectId(`project-${randomUUID()}`)
+    const rerun = new ProjectRerunService({ store: options.store })
+    try {
+      const project = await rerun.rerun({
+        sourceProjectId: ProjectId(projectId),
+        targetProjectId,
+        ...body.name === undefined ? {} : { name: body.name },
+      })
+      const { runId } = await requireLauncher().start(project)
+      return { project, runId }
+    } catch (error: unknown) {
+      if (error instanceof ProjectRerunError) {
+        throw new ApiError(projectRerunStatus(error.code), error.code, error.message)
+      }
+      if (error instanceof ProjectRunConflictError) {
+        throw new ApiError(409, error.code, error.message)
+      }
+      if (error instanceof ProjectRunStartError) {
+        throw new ApiError(503, error.code, error.message)
+      }
+      throw error
+    }
+  }
+
   async function startProjectRun(projectId: string) {
     try {
       const result = await requireLauncher().start(await requireProject(projectId))
@@ -1230,6 +1270,14 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
     return team
   }
 
+  async function requireVisibleTeam(teamId: string): Promise<AgentTeam> {
+    const team = await registryCall(() => requireAgentRegistry().getTeam(teamId))
+    if (team.ownerId !== currentUserId && team.ownerId !== 'system' && team.ownerId !== 'legacy') {
+      throw new ApiError(404, 'TEAM_NOT_FOUND', `Agent team "${teamId}" was not found`)
+    }
+    return team
+  }
+
   async function requireAccessibleTeamVersion(teamVersionId: string) {
     const record = await options.store.getAgentTeamVersion(teamVersionId)
     if (record === undefined) {
@@ -1314,6 +1362,19 @@ export function createFutureCupServer(options: FutureCupServerOptions): FutureCu
       throw new ApiError(503, 'RUN_LAUNCHER_UNAVAILABLE', 'No project run launcher is mounted')
     }
     return launcher
+  }
+
+  function projectRerunStatus(code: ProjectRerunError['code']): number {
+    switch (code) {
+      case 'SOURCE_PROJECT_NOT_FOUND':
+        return 404
+      case 'SOURCE_PROJECT_RUNNING':
+      case 'SOURCE_TEAM_BINDING_UNAVAILABLE':
+      case 'TARGET_PROJECT_EXISTS':
+        return 409
+      case 'TARGET_PROJECT_CREATE_FAILED':
+        return 500
+    }
   }
 
   function projectDerivationStatus(code: ProjectDerivationError['code']): number {

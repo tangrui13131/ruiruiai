@@ -1,0 +1,32 @@
+{
+  "name": "@deepseek-ai/dsh-desktop-shell",
+  "description": "Minimal Electron shell that runs the Future Cup platform as a Windows desktop app",
+  "version": "3.0.1",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tangrui13131/ruiruiai.git",
+    "directory": "apps/desktop"
+  },
+  "type": "module",
+  "main": "lib/main.js",
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "start": "electron .",
+    "dev": "pnpm run build && electron .",
+    "prepare:runtime": "tsx scripts/prepare-runtime.ts",
+    "prepare:portable": "tsx scripts/prepare-portable.ts",
+    "import:history": "node scripts/import-history.mjs",
+    "package:win": "pnpm run build && electron-builder --config electron-builder.config.mjs --win nsis --x64"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
+    "extract-zip": "^2.0.1",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  }
+}

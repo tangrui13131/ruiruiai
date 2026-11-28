@@ -286,6 +286,8 @@ flowchart TD
     pkg_experimental_forge_bundle["experimental-forge-bundle"]
     pkg_experimental_forge_github["experimental-forge-github"]
     pkg_experimental_forge_session["experimental-forge-session"]
+    pkg_experimental_future_cup_orchestration["experimental-future-cup-orchestration"]
+    pkg_experimental_future_cup_platform["experimental-future-cup-platform"]
     pkg_experimental_inspector["experimental-inspector"]
     pkg_experimental_inspector_profile["experimental-inspector-profile"]
     pkg_experimental_liveshare["experimental-liveshare"]
@@ -1614,6 +1616,8 @@ flowchart TD
 | [`experimental-cot-translation-bundle`](../packages/experimental/cot-translation-bundle) | `experimental` | — |
 | [`experimental-forge`](../packages/experimental/forge) | `experimental` | — |
 | [`experimental-forge-bundle`](../packages/experimental/forge-bundle) | `experimental` | — |
+| [`experimental-future-cup-orchestration`](../packages/experimental/future-cup-orchestration) | `experimental` | — |
+| [`experimental-future-cup-platform`](../packages/experimental/future-cup-platform) | `experimental` | — |
 | [`experimental-inspector`](../packages/experimental/inspector) | `experimental` | — |
 | [`experimental-inspector-profile`](../packages/experimental/inspector-profile) | `experimental` | — |
 | [`experimental-liveshare-protocol`](../packages/experimental/liveshare-protocol) | `experimental` | — |

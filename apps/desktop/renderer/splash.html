@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file:; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+    />
+    <title>Future Cup</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --surface: #e6e5e0;
+        --status: #77797e;
+        --track: rgba(226, 226, 224, 0.55);
+        --track-border: rgba(154, 156, 160, 0.52);
+        --fill-start: #8b8d91;
+        --fill-end: #c9cbce;
+        --fade-ms: 300ms;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: var(--surface);
+        color: var(--status);
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-app-region: no-drag;
+        opacity: 1;
+        transition: opacity var(--fade-ms) ease;
+      }
+      body.is-leaving { opacity: 0; }
+
+      /* Top band only: native caption buttons stay above the page. */
+      .titlebar-drag {
+        position: fixed;
+        inset: 0 0 auto;
+        height: 40px;
+        z-index: 10;
+        -webkit-app-region: drag;
+      }
+
+      .splash-stage {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(100vw, calc(100vh * 16 / 9));
+        aspect-ratio: 16 / 9;
+        transform: translate(-50%, -50%);
+        overflow: hidden;
+        background: var(--surface);
+      }
+      .splash-art {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        -webkit-user-drag: none;
+        user-select: none;
+      }
+
+      .loading {
+        position: absolute;
+        top: 72%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 31.5%;
+        min-width: 220px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .progress {
+        position: relative;
+        width: 100%;
+        height: 6px;
+        overflow: hidden;
+        border: 1px solid var(--track-border);
+        border-radius: 999px;
+        background: var(--track);
+      }
+      .progress-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0%;
+        overflow: hidden;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--fill-start), var(--fill-end));
+      }
+      .progress-fill::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-120%);
+        background: linear-gradient(
+          100deg,
+          transparent 20%,
+          rgba(255, 255, 255, 0.42) 50%,
+          transparent 80%
+        );
+        animation: sweep 1.8s ease-in-out infinite;
+      }
+      @keyframes sweep {
+        0% { transform: translateX(-120%); }
+        55%, 100% { transform: translateX(120%); }
+      }
+
+      .loading-meta {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 18px;
+        margin-top: 12px;
+      }
+      .spinner {
+        flex: none;
+        width: 14px;
+        height: 14px;
+        border: 1.5px solid rgba(119, 121, 126, 0.25);
+        border-top-color: var(--status);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .status-text {
+        font-size: 13px;
+        line-height: 18px;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+        opacity: 1;
+        transition: opacity 140ms ease;
+      }
+      .status-text.is-fading { opacity: 0; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .progress-fill::after { animation-duration: 4s; }
+        .spinner { animation-duration: 2.4s; }
+        .status-text { transition-duration: 60ms; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="titlebar-drag" aria-hidden="true"></div>
+    <main class="splash-stage">
+      <img class="splash-art" src="./assets/splash-background.jpg" alt="" draggable="false" />
+      <section class="loading" aria-live="polite">
+        <div
+          id="progress"
+          class="progress"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div class="loading-meta">
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="status-text" class="status-text">正在启动本地服务...</span>
+        </div>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const READY_HOLD_MS = 260
+        const STATUS_FADE_MS = 140
+
+        const progress = document.getElementById('progress')
+        const fill = document.getElementById('progress-fill')
+        const status = document.getElementById('status-text')
+
+        let current = 0
+        let target = 6
+        let statusToken = 0
+        let leaving = false
+
+        const clamp = (value) => Math.min(100, Math.max(0, value))
+
+        const render = () => {
+          fill.style.width = `${current.toFixed(2)}%`
+          progress.setAttribute('aria-valuenow', String(Math.round(current)))
+        }
+
+        const setTarget = (value) => {
+          const next = Number(value)
+          if (!Number.isFinite(next)) return
+          target = Math.max(target, clamp(next))
+        }
+
+        const setStatus = (value) => {
+          if (typeof value !== 'string' || value.trim() === '' || value === status.textContent) return
+          const token = ++statusToken
+          status.classList.add('is-fading')
+          window.setTimeout(() => {
+            if (token !== statusToken) return
+            status.textContent = value
+            status.classList.remove('is-fading')
+          }, STATUS_FADE_MS)
+        }
+
+        const finish = (value) => {
+          if (leaving) return
+          leaving = true
+          setTarget(100)
+          current = 100
+          render()
+          setStatus(value)
+          window.setTimeout(() => {
+            document.body.classList.add('is-leaving')
+          }, READY_HOLD_MS)
+        }
+
+        const tick = () => {
+          if (!leaving && current < target) {
+            current += Math.max((target - current) * 0.08, 0.05)
+            if (current > target) current = target
+            render()
+          }
+          window.requestAnimationFrame(tick)
+        }
+
+        // Between real startup stages the bar keeps moving without reaching 100.
+        window.setInterval(() => {
+          if (leaving || target >= 100) return
+          target = Math.min(94, target + 0.8)
+        }, 400)
+
+        render()
+        window.requestAnimationFrame(tick)
+
+        const bridge = window.desktopSplash
+        if (bridge !== undefined) {
+          bridge.onProgress((state) => {
+            if (state === null || typeof state !== 'object') return
+            setTarget(state.percent)
+            if (state.phase === 'ready' || Number(state.percent) >= 100) {
+              finish(state.text)
+              return
+            }
+            setStatus(state.text)
+          })
+        }
+      })()
+    </script>
+  </body>
+</html>

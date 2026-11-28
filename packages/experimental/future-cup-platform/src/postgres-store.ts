@@ -83,6 +83,7 @@ import {
   workflowControlJournalEntrySchema,
 } from '@deepseek-ai/dsh-experimental-future-cup-orchestration'
 import { Prisma, PrismaClient } from './generated/client/client.ts'
+import type { AgentTeam } from './generated/client/client.ts'
 
 interface OutboxRawRow {
   readonly id: string
@@ -100,6 +101,25 @@ const M5_TRANSACTION_OPTIONS = {
   maxWait: 5_000,
   timeout: 30_000,
 } as const
+
+/**
+ * Project one stored agent-team row into the store's record shape.
+ * @param row - row carrying the persisted team identity and timestamps.
+ * @returns the parsed team and ISO timestamps.
+ */
+function toStoredAgentTeam(row: AgentTeam): StoredAgentTeam {
+  return {
+    team: parseStoredAgentTeam({
+      id: row.id,
+      ownerId: row.ownerId,
+      name: row.name,
+      purpose: row.purpose,
+      status: row.status,
+    }),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
 
 /**
  * PostgreSQL platform storage over a Prisma schema and migration history.
@@ -674,34 +694,14 @@ export class PostgresPlatformStore implements OrchestrationStore {
       where: ownerId === undefined ? {} : { ownerId },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })
-    return rows.map(row => ({
-      team: parseStoredAgentTeam({
-        id: row.id,
-        ownerId: row.ownerId,
-        name: row.name,
-        purpose: row.purpose,
-        status: row.status,
-      }),
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    }))
+    return rows.map(toStoredAgentTeam)
   }
 
   /** {@inheritDoc PlatformStore.getAgentTeam} */
   async getAgentTeam(teamId: string): Promise<StoredAgentTeam | undefined> {
     const row = await this.prisma.agentTeam.findUnique({ where: { id: teamId } })
     if (row === null) return undefined
-    return {
-      team: parseStoredAgentTeam({
-        id: row.id,
-        ownerId: row.ownerId,
-        name: row.name,
-        purpose: row.purpose,
-        status: row.status,
-      }),
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    }
+    return toStoredAgentTeam(row)
   }
 
   /** {@inheritDoc PlatformStore.saveAgentTeam} */

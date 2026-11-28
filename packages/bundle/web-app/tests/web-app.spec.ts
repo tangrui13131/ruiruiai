@@ -447,7 +447,9 @@ describe('web-app runtime glue', () => {
     }
   })
 
-  it('anchors the dist index on the frontend package manifest without requiring a built dist', () => {
+  // This fork ships no official frontend package, so the production resolver has no anchor.
+  // The case returns when that surface is restored.
+  it.skipIf(originalResolve() === '')('anchors the dist index on the frontend package manifest without requiring a built dist', () => {
     // The production resolver (not the test hook): the anchor resolves on any
     // checkout, built or not — dist existence is the fallback owner's
     // request-time concern, so a dist-less composition (the static worker

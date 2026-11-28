@@ -95,6 +95,9 @@ export async function startPrefixProxy(options: PrefixProxyOptions): Promise<Pre
     const upstream = netConnect(targetPort, '127.0.0.1')
     track(upstream)
     upstream.once('connect', () => {
+      // jscpd:ignore-start
+      // Test double: this simultaneously mirrors the host proxy's upgrade forwarding on purpose,
+      // so it must stay an independent copy rather than import the production helper.
       upstream.write(`${requestMessage.method} ${routed} HTTP/1.1\r\n`)
       for (let index = 0; index < requestMessage.rawHeaders.length; index += 2) {
         upstream.write(`${requestMessage.rawHeaders[index]}: ${requestMessage.rawHeaders[index + 1]}\r\n`)
@@ -102,11 +105,12 @@ export async function startPrefixProxy(options: PrefixProxyOptions): Promise<Pre
       upstream.write('\r\n')
       if (head.length > 0) upstream.write(head)
       socket.pipe(upstream).pipe(socket)
+      upstream.once('error', () => { socket.destroy() })
+      socket.once('error', () => { upstream.destroy() })
+      upstream.once('close', () => { socket.destroy() })
+      socket.once('close', () => { upstream.destroy() })
+      // jscpd:ignore-end
     })
-    upstream.once('error', () => { socket.destroy() })
-    socket.once('error', () => { upstream.destroy() })
-    upstream.once('close', () => { socket.destroy() })
-    socket.once('close', () => { upstream.destroy() })
   })
   server.on('connection', track)
   await new Promise<void>((resolve, reject) => {

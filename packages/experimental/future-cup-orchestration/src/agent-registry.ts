@@ -108,7 +108,7 @@ export const AGENT_TEAM_DEPARTMENTS = [
 export type AgentTeamDepartmentKey = typeof AGENT_TEAM_DEPARTMENTS[number]
 
 /** Hard upper bound for runtime Agent instances in one Team version. */
-export const MAX_AGENT_TEAM_MEMBERS = 7
+export const MAX_AGENT_TEAM_MEMBERS = 8
 
 /** Minimum capabilities required to publish a frontend delivery Team. */
 export const FRONTEND_TEAM_REQUIRED_CAPABILITIES: Readonly<Record<string, number>> = Object.freeze({
@@ -803,6 +803,16 @@ const agentTeamMemberSnapshotSchema = z.object({
   version: agentVersionSchema,
 }).strict()
 
+/** Runtime-capability fields shared by both stored team-version shapes. */
+const teamVersionRuntimeShape = {
+  requiredCapabilities: teamRequiredCapabilityMapSchema,
+  requiredConcurrency: z.number().int().positive().max(1_000_000),
+  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
+  toolPolicy: teamToolPolicySchema,
+  memoryPolicy: teamMemoryPolicySchema,
+  inputSchema: jsonSchemaDescriptorSchema,
+}
+
 const agentTeamVersionV2Schema = z.object({
   id: identifierSchema,
   teamId: identifierSchema,
@@ -812,12 +822,7 @@ const agentTeamVersionV2Schema = z.object({
   purpose: z.string().trim().min(1).max(4_000),
   status: agentTeamVersionStatusSchema,
   members: z.array(agentTeamMemberSnapshotSchema).max(64),
-  requiredCapabilities: teamRequiredCapabilityMapSchema,
-  requiredConcurrency: z.number().int().positive().max(1_000_000),
-  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
-  toolPolicy: teamToolPolicySchema,
-  memoryPolicy: teamMemoryPolicySchema,
-  inputSchema: jsonSchemaDescriptorSchema,
+  ...teamVersionRuntimeShape,
   outputSchemas: z.array(jsonSchemaDescriptorSchema).max(64),
 }).strict()
 
@@ -831,12 +836,7 @@ const legacyAgentTeamVersionSchema = z.object({
     definition: agentDefinitionSchema,
     version: agentVersionSchema,
   }).strict()).min(1).max(64),
-  requiredCapabilities: teamRequiredCapabilityMapSchema,
-  requiredConcurrency: z.number().int().positive().max(1_000_000),
-  concurrencyCapacity: z.number().int().nonnegative().max(100_000_000),
-  toolPolicy: teamToolPolicySchema,
-  memoryPolicy: teamMemoryPolicySchema,
-  inputSchema: jsonSchemaDescriptorSchema,
+  ...teamVersionRuntimeShape,
   outputSchemas: z.array(jsonSchemaDescriptorSchema).min(1).max(64),
 }).strict()
 
@@ -1686,19 +1686,7 @@ export class AgentRegistry {
    */
   deleteTeamVersionDraft(teamId: string, teamVersionId: string): void {
     const team = this.requireTeam(teamId)
-    const current = this.requireTeamVersion(teamVersionId)
-    if (current.teamId !== team.id) {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
-        'TEAM_VERSION_NOT_FOUND',
-      )
-    }
-    if (current.status !== 'DRAFT') {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" is not a draft`,
-        'TEAM_VERSION_NOT_DRAFT',
-      )
-    }
+    const current = this.requireDraftTeamVersion(team, teamVersionId)
     this.teamVersions.delete(current.id)
   }
 
@@ -1802,19 +1790,7 @@ export class AgentRegistry {
         'TEAM_ARCHIVED',
       )
     }
-    const current = this.requireTeamVersion(teamVersionId)
-    if (current.teamId !== team.id) {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
-        'TEAM_VERSION_NOT_FOUND',
-      )
-    }
-    if (current.status !== 'DRAFT') {
-      throw new AgentRegistryError(
-        `Agent team version "${current.id}" is not a draft`,
-        'TEAM_VERSION_NOT_DRAFT',
-      )
-    }
+    const current = this.requireDraftTeamVersion(team, teamVersionId)
     if (current.members.length < 1 || current.members.length > MAX_AGENT_TEAM_MEMBERS) {
       throw new AgentRegistryError(
         `Published Agent teams require 1-${String(MAX_AGENT_TEAM_MEMBERS)} runtime members`,
@@ -2039,6 +2015,29 @@ export class AgentRegistry {
     return version
   }
 
+  /**
+   * Require a DRAFT version owned by the given logical Team.
+   * @param team - owning logical Team.
+   * @param teamVersionId - version to require.
+   * @returns the DRAFT version.
+   */
+  private requireDraftTeamVersion(team: AgentTeam, teamVersionId: string): AgentTeamVersion {
+    const current = this.requireTeamVersion(teamVersionId)
+    if (current.teamId !== team.id) {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" does not belong to team "${team.id}"`,
+        'TEAM_VERSION_NOT_FOUND',
+      )
+    }
+    if (current.status !== 'DRAFT') {
+      throw new AgentRegistryError(
+        `Agent team version "${current.id}" is not a draft`,
+        'TEAM_VERSION_NOT_DRAFT',
+      )
+    }
+    return current
+  }
+
   private validateTeamMembers(members: readonly AgentTeamMemberSnapshot[]): void {
     const instanceIds = new Set<string>()
     const positions = new Set<string>()
@@ -2087,18 +2086,22 @@ export class AgentRegistry {
       parsed.purpose,
     )
     const members: CreateTeamLibraryMemberInput[] = []
+    const departmentPositions = new Map<string, number>()
     for (const member of parsed.members) {
       const version = this.requireVersion(member.agentVersionId)
       const definition = this.requirePublishedVersion(version)
       for (let instance = 1; instance <= member.instanceCount; instance += 1) {
+        const departmentKey = legacyDepartmentFor(version.role, instance)
+        const position = (departmentPositions.get(departmentKey) ?? 0) + 1
+        departmentPositions.set(departmentKey, position)
         members.push({
           agentVersionId: version.id,
           instanceId: `${version.id}:instance-${String(instance)}`,
           displayName: member.instanceCount === 1
             ? definition.name
             : `${definition.name} ${String(instance)}`,
-          departmentKey: legacyDepartmentFor(version.role, instance),
-          position: instance,
+          departmentKey,
+          position,
         })
       }
     }
